@@ -1,0 +1,79 @@
+# ============================================
+# Evol-Instruct Pipeline - Git Ignore
+# ============================================
+
+# --- Environment & Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.whl
+
+# --- Virtual Environments ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- Data (large files, generated) ---
+data/raw/
+data/output/
+data/seeds/
+*.jsonl
+*.json
+!config/*.json
+
+# --- Logs ---
+logs/
+*.log
+
+# --- IDE & Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb
+
+# --- Model Files (quá lớn) ---
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# --- HuggingFace Cache ---
+.cache/
+~/.cache/huggingface/
+
+# --- Testing ---
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# --- Misc ---
+*.bak
+*.tmp
+*.temp
