@@ -3,8 +3,8 @@ Script 02: Tạo seed prompts từ dataset đã tiền xử lý.
 
 Usage:
     python scripts/02_generate_seeds.py
-    python scripts/02_generate_seeds.py --mode template --max-seeds 500
-    python scripts/02_generate_seeds.py --mode llm --max-seeds 100
+    python scripts/02_generate_seeds.py --mode template --target-seeds 1000
+    python scripts/02_generate_seeds.py --mode llm --max-docs 200 --seeds-per-doc 3
 """
 
 import argparse
@@ -28,30 +28,47 @@ def main():
     parser = argparse.ArgumentParser(description="Tạo seed prompts")
     parser.add_argument("--mode", choices=["template", "llm", "both"], default="template",
                         help="Phương thức tạo seeds")
-    parser.add_argument("--max-seeds", type=int, default=0, help="Số seeds tối đa")
-    parser.add_argument("--seeds-per-doc", type=int, default=2, help="Seeds/doc (mode llm)")
+    parser.add_argument("--target-seeds", type=int, default=1000,
+                        help="Số seeds MỤC TIÊU cần tạo (mode template, mặc định 1000)")
+    parser.add_argument("--max-docs", type=int, default=0,
+                        help="Số documents tối đa để load từ dataset (0=tất cả)")
+    parser.add_argument("--seeds-per-doc", type=int, default=3,
+                        help="Số seeds/document (mode llm)")
+    parser.add_argument("--templates-per-doc", type=int, default=0,
+                        help="Số templates áp dụng cho mỗi nội dung (mode template, 0=tự tính)")
     args = parser.parse_args()
 
     logger = setup_logging("02_seeds.log")
     ensure_directories()
     validate_config()
 
-    logger.info("=" * 50)
-    logger.info(f"🌱 TẠO SEED PROMPTS (mode={args.mode})")
-    logger.info("=" * 50)
+    logger.info("=" * 60)
+    logger.info(f"🌱 TẠO SEED PROMPTS")
+    logger.info(f"   Mode: {args.mode}")
+    logger.info(f"   Target seeds: {args.target_seeds}")
+    logger.info(f"   Max docs: {args.max_docs or 'tất cả'}")
+    logger.info("=" * 60)
 
-    # Load documents
-    documents = load_and_preprocess(max_items=args.max_seeds)
+    # Load documents (load TẤT CẢ hoặc theo max_docs)
+    documents = load_and_preprocess(max_items=args.max_docs)
+
+    if not documents:
+        logger.error("❌ Không có documents! Chạy scripts/01_download_data.py trước.")
+        sys.exit(1)
 
     all_seeds = []
 
-    # Template-based
+    # ── Template-based ────────────────────────────────────────────
     if args.mode in ("template", "both"):
-        template_seeds = generate_seeds_from_templates(documents, args.max_seeds)
+        template_seeds = generate_seeds_from_templates(
+            documents,
+            target_seeds=args.target_seeds,
+            templates_per_doc=args.templates_per_doc,
+        )
         all_seeds.extend(template_seeds)
         save_seeds(template_seeds, "seeds_template.jsonl")
 
-    # LLM-based
+    # ── LLM-based ─────────────────────────────────────────────────
     if args.mode in ("llm", "both"):
         llm = LLMClient()
         if not llm.health_check():
@@ -60,19 +77,27 @@ def main():
             sys.exit(1)
 
         llm_seeds = generate_seeds_with_llm(
-            documents, llm, args.max_seeds, args.seeds_per_doc
+            documents, llm,
+            max_docs=args.max_docs or len(documents),
+            seeds_per_doc=args.seeds_per_doc,
         )
         all_seeds.extend(llm_seeds)
         save_seeds(llm_seeds, "seeds_llm.jsonl")
 
-    # Lưu tổng hợp
+    # ── Lưu tổng hợp ─────────────────────────────────────────────
     if all_seeds:
         save_seeds(all_seeds, "seeds.jsonl")
 
-    logger.info(f"\n📊 TỔNG KẾT:")
+    logger.info(f"\n{'=' * 60}")
+    logger.info(f"📊 TỔNG KẾT:")
     logger.info(f"   Documents đầu vào: {len(documents)}")
     logger.info(f"   Seeds tạo ra: {len(all_seeds)}")
-    logger.info("\n✅ HOÀN TẤT!")
+    if len(all_seeds) >= 700:
+        logger.info(f"   ✅ Đạt ngưỡng 700+ seeds!")
+    else:
+        logger.info(f"   ⚠️ Chưa đạt 700 seeds. Thử tăng --max-docs hoặc --templates-per-doc")
+    logger.info(f"   Output: data/seeds/seeds.jsonl")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":

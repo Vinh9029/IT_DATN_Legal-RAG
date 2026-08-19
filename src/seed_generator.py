@@ -3,9 +3,10 @@ Seed Generator - Tạo câu hỏi hạt giống (seed prompts) từ dữ liệu 
 
 Pipeline:
 1. Nhận documents đã tiền xử lý (từ data_loader)
-2. Trích xuất thực thể pháp lý (NER) bằng underthesea
-3. Sinh seed instructions từ templates
-4. Lưu seeds vào JSONL
+2. Trích xuất thực thể pháp lý (NER) bằng regex + underthesea
+3. Sinh seed instructions từ templates (multi-template per doc)
+4. Dedup theo nội dung → loại trùng lặp
+5. Lưu seeds vào JSONL
 """
 
 import random
@@ -71,31 +72,50 @@ def extract_legal_entities(text: str, metadata: dict) -> dict:
                 entities["so_hieu_luat"] = match.group(1).strip()
                 break
 
-    # 3. Trích xuất nội dung chính (câu đầu tiên có ý nghĩa)
-    if not entities["noi_dung"]:
-        # Tìm tiêu đề hoặc nội dung chính
-        title_patterns = [
-            r"(?:Điều\s+\d+[^\n]*)",
-            r"(?:Chương\s+[IVXLCDM]+[^\n]*)",
-            r"(?:Mục\s+\d+[^\n]*)",
-        ]
-        for pattern in title_patterns:
-            match = re.search(pattern, text)
-            if match:
-                entities["noi_dung"] = match.group(0).strip()
-                break
-
-        # Fallback: lấy phần nội dung tóm tắt
-        if not entities["noi_dung"]:
-            # Lấy câu đầu tiên có độ dài >= 20 ký tự
-            sentences = re.split(r"[.!?]\s+", text[:1000])
-            for sent in sentences:
-                sent = sent.strip()
-                if len(sent) >= 20 and not sent.startswith(("Số:", "Ngày")):
-                    entities["noi_dung"] = sent[:200]
-                    break
+    # 3. Trích xuất nội dung chính - lấy NHIỀU nội dung nếu có
+    noi_dungs = extract_multiple_contents(text)
+    if noi_dungs:
+        entities["noi_dung"] = noi_dungs[0]
+        entities["_all_noi_dungs"] = noi_dungs  # Lưu tất cả để tạo nhiều seeds
 
     return entities
+
+
+def extract_multiple_contents(text: str) -> list[str]:
+    """
+    Trích xuất NHIỀU nội dung/điều luật từ text để tạo nhiều seeds cho 1 document.
+
+    Returns:
+        Danh sách nội dung (tối đa 5).
+    """
+    contents = []
+
+    # Tìm tất cả Điều luật
+    dieu_matches = re.findall(r"(Điều\s+\d+[^\n]{0,150})", text)
+    for match in dieu_matches[:5]:
+        clean = match.strip()
+        if len(clean) >= 20:
+            contents.append(clean)
+
+    # Nếu chưa đủ, tìm Chương/Mục
+    if len(contents) < 3:
+        chuong_matches = re.findall(r"(Chương\s+[IVXLCDM]+[^\n]{0,100})", text)
+        for match in chuong_matches[:3]:
+            clean = match.strip()
+            if len(clean) >= 15 and clean not in contents:
+                contents.append(clean)
+
+    # Fallback: câu dài đủ ý nghĩa
+    if not contents:
+        sentences = re.split(r"[.!?]\s+", text[:2000])
+        for sent in sentences:
+            sent = sent.strip()
+            if len(sent) >= 25 and not sent.startswith(("Số:", "Ngày", "Căn cứ")):
+                contents.append(sent[:200])
+                if len(contents) >= 3:
+                    break
+
+    return contents
 
 
 def try_ner_underthesea(text: str) -> list[dict]:
@@ -129,22 +149,44 @@ def try_ner_underthesea(text: str) -> list[dict]:
 
 def generate_seeds_from_templates(
     documents: list[dict],
-    max_seeds: int = 0,
+    target_seeds: int = 1000,
+    templates_per_doc: int = 0,
 ) -> list[dict]:
     """
     Tạo seed instructions từ templates + entities đã trích xuất.
 
+    Chiến lược đạt 700-1000 seeds:
+    - Mỗi document → trích NHIỀU nội dung (Điều luật khác nhau)
+    - Mỗi nội dung × NHIỀU templates → nhiều seeds
+    - Dedup cuối cùng để loại trùng lặp
+
     Args:
         documents: Danh sách documents đã tiền xử lý.
-        max_seeds: Số seeds tối đa (0 = tất cả).
+        target_seeds: Số seeds MỤC TIÊU cần đạt (mặc định 1000).
+        templates_per_doc: Số templates áp dụng cho mỗi nội dung (0 = tự tính).
 
     Returns:
         Danh sách seed dicts: {id, instruction, metadata, source_entities}
     """
     seeds = []
-    max_seeds = max_seeds or MAX_SEEDS or len(documents)
+    seen_instructions = set()  # Dedup
 
-    for doc in tqdm(documents[:max_seeds], desc="Tạo seed prompts"):
+    # Tự tính templates_per_doc nếu chưa chỉ định
+    if templates_per_doc <= 0:
+        # Ước lượng: mỗi doc trung bình cho 2-3 nội dung × N templates
+        avg_contents_per_doc = 2.5
+        if len(documents) > 0:
+            templates_per_doc = max(2, int(target_seeds / (len(documents) * avg_contents_per_doc)) + 1)
+        else:
+            templates_per_doc = 3
+        templates_per_doc = min(templates_per_doc, len(SEED_TEMPLATES))
+
+    logger.info(
+        f"Seed generation: {len(documents)} docs × ~{templates_per_doc} templates/content | "
+        f"target={target_seeds}"
+    )
+
+    for doc in tqdm(documents, desc="Tạo seed prompts"):
         content = doc["content"]
         metadata = doc.get("metadata", {})
 
@@ -152,45 +194,78 @@ def generate_seeds_from_templates(
         entities = extract_legal_entities(content, metadata)
 
         # Kiểm tra entities đủ để tạo seed
-        if not entities["so_hieu_luat"] and not entities["noi_dung"]:
+        if not entities["so_hieu_luat"] and not entities.get("noi_dung"):
             continue
 
-        # Chọn random template và format
-        template = random.choice(SEED_TEMPLATES)
+        # Lấy tất cả nội dung trích xuất được
+        all_noi_dungs = entities.get("_all_noi_dungs", [])
+        if not all_noi_dungs and entities["noi_dung"]:
+            all_noi_dungs = [entities["noi_dung"]]
 
-        # Chuẩn bị params cho template
-        template_params = {
-            "so_hieu_luat": entities["so_hieu_luat"] or "văn bản pháp luật liên quan",
-            "co_quan_ban_hanh": entities["co_quan_ban_hanh"] or "cơ quan có thẩm quyền",
-            "noi_dung": entities["noi_dung"] or "nội dung quy định",
-        }
-
-        try:
-            instruction = template.format(**template_params)
-        except KeyError as e:
-            logger.debug(f"Template format error: {e}")
+        if not all_noi_dungs:
             continue
 
-        seed = {
-            "id": generate_item_id(instruction),
-            "instruction": instruction,
-            "metadata": {
-                "linh_vuc": entities["linh_vuc"],
-                "nganh": entities["nganh"],
-            },
-            "source_entities": entities,
-        }
-        seeds.append(seed)
+        # Chọn NHIỀU templates cho mỗi nội dung
+        selected_templates = random.sample(
+            SEED_TEMPLATES,
+            min(templates_per_doc, len(SEED_TEMPLATES)),
+        )
 
-    logger.info(f"Đã tạo {len(seeds)} seed prompts từ {len(documents)} documents")
+        for noi_dung in all_noi_dungs:
+            for template in selected_templates:
+                template_params = {
+                    "so_hieu_luat": entities["so_hieu_luat"] or "văn bản pháp luật liên quan",
+                    "co_quan_ban_hanh": entities["co_quan_ban_hanh"] or "cơ quan có thẩm quyền",
+                    "noi_dung": noi_dung,
+                }
+
+                try:
+                    instruction = template.format(**template_params)
+                except KeyError as e:
+                    logger.debug(f"Template format error: {e}")
+                    continue
+
+                # Dedup: bỏ qua nếu instruction đã tồn tại
+                instruction_normalized = instruction.strip().lower()
+                if instruction_normalized in seen_instructions:
+                    continue
+                seen_instructions.add(instruction_normalized)
+
+                seed = {
+                    "id": generate_item_id(instruction),
+                    "instruction": instruction,
+                    "metadata": {
+                        "linh_vuc": entities["linh_vuc"],
+                        "nganh": entities["nganh"],
+                    },
+                    "source_entities": {
+                        k: v for k, v in entities.items()
+                        if not k.startswith("_")
+                    },
+                }
+                seeds.append(seed)
+
+        # Dừng sớm nếu đã đạt target
+        if target_seeds > 0 and len(seeds) >= target_seeds:
+            logger.info(f"Đạt target {target_seeds} seeds, dừng sớm.")
+            break
+
+    # Cắt nếu vượt target
+    if target_seeds > 0 and len(seeds) > target_seeds:
+        seeds = seeds[:target_seeds]
+
+    logger.info(
+        f"Đã tạo {len(seeds)} seed prompts từ {len(documents)} documents "
+        f"(dedup loại {len(seen_instructions) - len(seeds)} trùng)"
+    )
     return seeds
 
 
 def generate_seeds_with_llm(
     documents: list[dict],
     llm_client: LLMClient,
-    max_seeds: int = 0,
-    seeds_per_doc: int = 2,
+    max_docs: int = 0,
+    seeds_per_doc: int = 3,
 ) -> list[dict]:
     """
     Tạo seed instructions bằng LLM (nâng cao, đa dạng hơn templates).
@@ -198,14 +273,15 @@ def generate_seeds_with_llm(
     Args:
         documents: Danh sách documents đã tiền xử lý.
         llm_client: LLMClient instance.
-        max_seeds: Số documents tối đa để xử lý.
+        max_docs: Số documents tối đa để xử lý (0 = tất cả).
         seeds_per_doc: Số seeds tạo ra cho mỗi document.
 
     Returns:
         Danh sách seed dicts.
     """
     seeds = []
-    max_docs = max_seeds or MAX_SEEDS or len(documents)
+    seen = set()
+    max_docs = max_docs or len(documents)
 
     for doc in tqdm(documents[:max_docs], desc="Tạo seeds bằng LLM"):
         content = doc["content"][:2000]  # Giới hạn context
@@ -218,7 +294,8 @@ def generate_seeds_with_llm(
 
         user_prompt = (
             f"Dựa trên nội dung pháp luật sau, hãy tạo {seeds_per_doc} câu hỏi pháp lý "
-            f"đơn giản, rõ ràng. Mỗi câu hỏi trên một dòng mới.\n\n"
+            f"mang tính ÁP DỤNG thực tiễn. Mỗi câu hỏi phải có tình huống cụ thể, "
+            f"KHÔNG hỏi kiểu định nghĩa đơn giản. Mỗi câu trên một dòng mới.\n\n"
             f"Nội dung:\n{content}\n\n"
             f"Các câu hỏi:"
         )
@@ -230,17 +307,23 @@ def generate_seeds_with_llm(
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=0.7,
-                max_tokens=512,
+                max_tokens=1024,
             )
 
             # Parse response thành từng câu hỏi
             lines = [
                 line.strip().lstrip("0123456789.-) ")
                 for line in response.strip().split("\n")
-                if line.strip() and len(line.strip()) > 15
+                if line.strip() and len(line.strip()) > 20
             ]
 
             for line in lines[:seeds_per_doc]:
+                # Dedup
+                norm = line.strip().lower()
+                if norm in seen:
+                    continue
+                seen.add(norm)
+
                 seed = {
                     "id": generate_item_id(line),
                     "instruction": line,
@@ -251,6 +334,11 @@ def generate_seeds_with_llm(
                     "source_entities": extract_legal_entities(
                         doc["content"], metadata
                     ),
+                }
+                # Loại bỏ _all_noi_dungs (internal field)
+                seed["source_entities"] = {
+                    k: v for k, v in seed["source_entities"].items()
+                    if not k.startswith("_")
                 }
                 seeds.append(seed)
 
