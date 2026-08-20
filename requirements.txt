@@ -4,6 +4,7 @@
 
 # --- Core LLM Client ---
 openai>=1.0.0                # OpenAI-compatible API client (LM Studio)
+google-genai>=2.0.0          # Google Gemini API SDK (mới nhất)
 
 # --- Data Processing ---
 datasets>=2.14.0             # HuggingFace Datasets (load vietnamese-legal-documents)
