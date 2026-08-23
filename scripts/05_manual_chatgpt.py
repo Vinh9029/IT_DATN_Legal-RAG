@@ -320,26 +320,199 @@ def _parse_markdown_format(content: str) -> list[dict]:
     return records
 
 
+def export_json_for_gemini(seeds: list[dict], batch_size: int = 20):
+    """
+    Export seeds thành file JSON cho Gemini Pro.
+
+    Tạo file JSON chứa seeds + prompt hướng dẫn + format output mong đợi.
+    Người dùng copy prompt vào Gemini, paste kết quả vào file _done.json.
+    """
+    MANUAL_DIR.mkdir(parents=True, exist_ok=True)
+
+    total_batches = (len(seeds) + batch_size - 1) // batch_size
+
+    for i in range(0, len(seeds), batch_size):
+        batch = seeds[i : i + batch_size]
+        batch_id = (i // batch_size) + 1
+
+        # ── File 1: prompt.txt để copy vào Gemini ──
+        prompt_file = MANUAL_DIR / f"gemini_batch_{batch_id:03d}_prompt.txt"
+        with open(prompt_file, "w", encoding="utf-8") as f:
+            f.write("Bạn là chuyên gia pháp luật Việt Nam. Thực hiện 2 việc cho mỗi câu hỏi gốc:\n\n")
+            f.write("1. VIẾT LẠI thành câu hỏi pháp lý phức tạp hơn (có tình huống cụ thể tại VN).\n")
+            f.write("2. TRẢ LỜI theo cấu trúc IRAC (Vấn đề, Quy tắc, Áp dụng, Kết luận).\n\n")
+            f.write("FORMAT: Trả về ĐÚNG JSON array, mỗi phần tử có 3 trường:\n")
+            f.write('- "instruction": câu hỏi đã viết lại\n')
+            f.write('- "input": "" (để trống)\n')
+            f.write('- "output": câu trả lời IRAC đầy đủ\n\n')
+            f.write("Ví dụ format output:\n")
+            f.write("```json\n")
+            f.write('[\n')
+            f.write('  {\n')
+            f.write('    "instruction": "Anh Nguyễn Văn A ký hợp đồng thuê nhà...",\n')
+            f.write('    "input": "",\n')
+            f.write('    "output": "**Vấn đề (Issue):** ... **Quy tắc (Rule):** ... '
+                    '**Áp dụng (Application):** ... **Kết luận (Conclusion):** ..."\n')
+            f.write('  }\n')
+            f.write(']\n')
+            f.write("```\n\n")
+            f.write(f"CÁC CÂU HỎI GỐC ({len(batch)} câu):\n")
+            f.write("-" * 50 + "\n\n")
+            for idx, seed in enumerate(batch, 1):
+                f.write(f"{idx}. {seed['instruction']}\n\n")
+
+        # ── File 2: seeds.json để tham chiếu ──
+        seeds_file = MANUAL_DIR / f"gemini_batch_{batch_id:03d}_seeds.json"
+        seeds_data = [
+            {
+                "id": seed.get("id", generate_item_id(seed["instruction"])),
+                "instruction": seed["instruction"],
+                "metadata": seed.get("metadata", {}),
+            }
+            for seed in batch
+        ]
+        with open(seeds_file, "w", encoding="utf-8") as f:
+            json.dump(seeds_data, f, ensure_ascii=False, indent=2)
+
+        # ── File 3: template _done.json (người dùng paste kết quả vào đây) ──
+        done_file = MANUAL_DIR / f"gemini_batch_{batch_id:03d}_done.json"
+        if not done_file.exists():
+            template = [
+                {
+                    "instruction": f"[Paste câu hỏi đã viết lại cho câu {idx}]",
+                    "input": "",
+                    "output": f"[Paste câu trả lời IRAC cho câu {idx}]",
+                }
+                for idx in range(1, len(batch) + 1)
+            ]
+            with open(done_file, "w", encoding="utf-8") as f:
+                json.dump(template, f, ensure_ascii=False, indent=2)
+
+        print(f"  ✅ Batch {batch_id}: {prompt_file.name} + {seeds_file.name} + {done_file.name}")
+
+    print(f"\n📁 Tổng: {total_batches} batches × 3 files → {MANUAL_DIR}")
+    print(f"\n🔄 QUY TRÌNH:")
+    print(f"   1. Mở file gemini_batch_XXX_prompt.txt")
+    print(f"   2. Copy toàn bộ → paste vào Gemini Pro")
+    print(f"   3. Copy JSON output → paste vào gemini_batch_XXX_done.json")
+    print(f"   4. Chạy: python scripts/05_manual_chatgpt.py import-json --input data/manual/gemini_batch_XXX_done.json")
+
+
+def import_json_results(input_path: str):
+    """
+    Import kết quả từ file .json (Gemini Pro output).
+
+    Hỗ trợ format:
+    - JSON array: [{"instruction": "...", "input": "", "output": "..."}, ...]
+    - Mỗi phần tử là 1 record Alpaca format
+    """
+    filepath = Path(input_path)
+    if not filepath.exists():
+        print(f"❌ File không tồn tại: {filepath}")
+        return
+
+    content = filepath.read_text(encoding="utf-8")
+
+    # Parse JSON
+    try:
+        # Thử tìm JSON array trong content (Gemini đôi khi wrap trong ```json...```)
+        json_match = re.search(r'\[.*\]', content, re.DOTALL)
+        if json_match:
+            records = json.loads(json_match.group(0))
+        else:
+            records = json.loads(content)
+    except json.JSONDecodeError as e:
+        print(f"❌ Lỗi parse JSON: {e}")
+        print("   Đảm bảo file chứa JSON array hợp lệ: [{...}, {...}, ...]")
+        return
+
+    if not isinstance(records, list):
+        print(f"❌ JSON phải là array, nhận được: {type(records).__name__}")
+        return
+
+    # Lọc & validate
+    accepted = []
+    rejected = 0
+
+    for idx, rec in enumerate(records, 1):
+        instruction = rec.get("instruction", "").strip()
+        output = rec.get("output", "").strip()
+
+        # Bỏ qua template chưa điền
+        if not instruction or not output:
+            print(f"  ⚠️ Câu {idx}: instruction hoặc output trống → bỏ qua")
+            rejected += 1
+            continue
+
+        if instruction.startswith("[Paste"):
+            print(f"  ⚠️ Câu {idx}: chưa được điền (template) → bỏ qua")
+            rejected += 1
+            continue
+
+        # Chạy filters
+        passed, fails = instruction_eliminator(
+            original_prompt=instruction,  # Không có seed gốc khi import json
+            evolved_prompt=instruction,
+            response=output,
+        )
+
+        if passed:
+            alpaca_record = {
+                "instruction": instruction,
+                "input": rec.get("input", ""),
+                "output": output,
+                "metadata": {
+                    "technique": "manual_gemini_pro",
+                    "timestamp": datetime.now().isoformat(),
+                    "source_file": filepath.name,
+                },
+            }
+            accepted.append(alpaca_record)
+        else:
+            rejected += 1
+            print(f"  ⚠️ Câu {idx} rejected: {fails} → {instruction[:50]}...")
+
+    # Lưu
+    if accepted:
+        output_path = OUTPUT_DIR / "legal_evolved.jsonl"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        save_jsonl(accepted, output_path, mode="a")
+        print(f"\n✅ Imported: {len(accepted)} accepted, {rejected} rejected")
+        print(f"   Saved → {output_path}")
+    else:
+        print(f"\n❌ Không có record nào pass filters ({rejected} rejected)")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Xử lý Evol-Instruct thủ công bằng ChatGPT/Gemini"
     )
     subparsers = parser.add_subparsers(dest="command", help="Lệnh")
 
-    # Export
-    export_parser = subparsers.add_parser("export", help="Export seeds thành TXT")
+    # Export TXT (ChatGPT)
+    export_parser = subparsers.add_parser("export", help="Export seeds → TXT (ChatGPT)")
     export_parser.add_argument("--max-seeds", type=int, default=10)
     export_parser.add_argument("--batch-size", type=int, default=5)
     export_parser.add_argument("--seeds-file", default="seeds.jsonl")
 
-    # Export all-in-one
-    aio_parser = subparsers.add_parser("export-all", help="Export all-in-one prompt")
+    # Export all-in-one TXT
+    aio_parser = subparsers.add_parser("export-all", help="Export all-in-one TXT prompt")
     aio_parser.add_argument("--max-seeds", type=int, default=10)
     aio_parser.add_argument("--seeds-file", default="seeds.jsonl")
 
-    # Import
-    import_parser = subparsers.add_parser("import", help="Import kết quả từ TXT")
+    # Export JSON (Gemini Pro) ← MỚI
+    json_parser = subparsers.add_parser("export-json", help="Export seeds → JSON (Gemini Pro)")
+    json_parser.add_argument("--max-seeds", type=int, default=50)
+    json_parser.add_argument("--batch-size", type=int, default=20)
+    json_parser.add_argument("--seeds-file", default="seeds.jsonl")
+
+    # Import TXT (ChatGPT output)
+    import_parser = subparsers.add_parser("import", help="Import kết quả từ TXT (ChatGPT)")
     import_parser.add_argument("--input", required=True, help="File TXT đầu vào")
+
+    # Import JSON (Gemini Pro output) ← MỚI
+    import_json_parser = subparsers.add_parser("import-json", help="Import kết quả từ JSON (Gemini)")
+    import_json_parser.add_argument("--input", required=True, help="File JSON đầu vào")
 
     args = parser.parse_args()
 
@@ -362,11 +535,28 @@ def main():
         seeds = seeds[: args.max_seeds]
         export_all_in_one(seeds)
 
+    elif args.command == "export-json":
+        seeds = load_jsonl(SEEDS_DIR / args.seeds_file)
+        if not seeds:
+            print(f"❌ Không tìm thấy seeds. Chạy scripts/02_generate_seeds.py trước.")
+            sys.exit(1)
+        seeds = seeds[: args.max_seeds]
+        export_json_for_gemini(seeds, args.batch_size)
+
     elif args.command == "import":
         import_manual_results(args.input)
 
+    elif args.command == "import-json":
+        import_json_results(args.input)
+
     else:
         parser.print_help()
+        print("\nLệnh khả dụng:")
+        print("  export      Export seeds → TXT batches (dùng cho ChatGPT)")
+        print("  export-all  Export all-in-one TXT prompt")
+        print("  export-json Export seeds → JSON batches (dùng cho Gemini Pro)")
+        print("  import      Import kết quả TXT (ChatGPT output)")
+        print("  import-json Import kết quả JSON (Gemini Pro output)")
 
 
 if __name__ == "__main__":
