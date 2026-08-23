@@ -35,7 +35,22 @@ JUDGE_LLM_BASE_URL = os.getenv("JUDGE_LLM_BASE_URL", GEN_LLM_BASE_URL)
 JUDGE_LLM_API_KEY = os.getenv("JUDGE_LLM_API_KEY", GEN_LLM_API_KEY)
 JUDGE_MODEL_NAME = os.getenv("JUDGE_MODEL_NAME", GEN_MODEL_NAME)
 JUDGE_TEMPERATURE = float(os.getenv("JUDGE_TEMPERATURE", "0.0"))
-JUDGE_MAX_TOKENS = int(os.getenv("JUDGE_MAX_TOKENS", "256"))
+JUDGE_MAX_TOKENS = int(os.getenv("JUDGE_MAX_TOKENS", "1024"))
+
+# Với REASONING MODEL (Gemma-4, Qwen3, DeepSeek-R1...), model tiêu token cho
+# kênh suy luận TRƯỚC rồi mới ghi JSON vào `content`. Đo thực tế Gemma-4-12b
+# trên prompt judge: 966 / 1022 / 2276 / >3069 token suy luận cho 4 câu khác
+# nhau — đuôi dài không chặn được bằng cách nâng max_tokens, câu nào lỡ vượt
+# ngưỡng thì `content` về RỖNG và mất nhãn.
+#
+# `reasoning_effort="none"` đưa số token suy luận về 0 và JSON ra ngay. Việc
+# chấm nhãn ở đây là áp một rubric 3 trục đã viết sẵn, không phải bài toán cần
+# suy luận nhiều bước — nên tắt suy luận gần như không mất chất lượng, đổi lại
+# nhanh hơn nhiều lần và không còn mất nhãn.
+#
+# Để rỗng nếu judge KHÔNG phải reasoning model, hoặc server không nhận tham số
+# này (`JudgeClient` cũng tự phát hiện và bỏ qua khi server từ chối).
+JUDGE_REASONING_EFFORT = os.getenv("JUDGE_REASONING_EFFORT", "none")
 
 
 # ── Nguồn dữ liệu ─────────────────────────────────────────────────

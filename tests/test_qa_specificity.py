@@ -25,10 +25,17 @@ from src.qa_specificity.dataset_builder import (
     resolve_item,
 )
 from src.qa_specificity.llm_judge import parse_judge_response
+from config.qa_prompts import (
+    NARROW_MODE_CITATION,
+    NARROW_MODE_SITUATION,
+    build_pair_generator_messages,
+)
 from src.qa_specificity.pair_generator import (
     build_pair_items,
     generate_pair,
+    has_legal_citation,
     parse_pair_response,
+    pick_narrow_mode,
 )
 from src.qa_specificity.schema import QAItem, Specificity
 from src.qa_specificity.weak_labeler import heuristic_label
@@ -298,6 +305,97 @@ class TestBuildPairItems:
     def test_hai_cau_trung_nhau_thi_loai(self, doc):
         same = "Người lao động có những quyền gì?"
         assert build_pair_items(doc, {"broad": same, "narrow": same}) == []
+
+
+class TestChongShortcutTrichDan:
+    """
+    Chặn shortcut learning: câu narrow không được chỉ khác câu broad ở mỗi
+    tiền tố trích dẫn. Xem khối chú thích đầu `config/qa_prompts.py`.
+    """
+
+    @pytest.fixture
+    def doc(self):
+        return {
+            "source_doc_id": "doc_abc123",
+            "content": "nội dung",
+            "scope": "lao_dong",
+            "metadata": {"linh_vuc": "Lao động", "nganh": "Lao động",
+                         "so_hieu": "45/2019/QH14", "loai_van_ban": "Bộ luật"},
+        }
+
+    @pytest.mark.parametrize("question", [
+        "Theo Điều 35 Bộ luật Lao động, báo trước mấy ngày?",
+        "Theo khoản 2 Điều 468 thì lãi suất tối đa bao nhiêu?",
+        "Theo Nghị định số 196-CP, doanh nghiệp nào phải áp dụng?",
+        "Nghị định 100/2020/NĐ-CP quy định mức phạt bao nhiêu?",
+        "Theo Điều 1 Nghị định 157-HĐBT, cấp uý nghỉ hưu năm bao nhiêu tuổi?",
+        "Bộ luật Lao động 2019 quy định thời giờ làm việc thế nào?",
+    ])
+    def test_bat_duoc_trich_dan(self, question):
+        assert has_legal_citation(question)
+
+    @pytest.mark.parametrize("question", [
+        "Chị B ký hợp đồng 24 tháng với công ty X, nghỉ việc sau 14 tháng thì sao?",
+        "Anh A làm việc 3 năm, bị cho nghỉ không báo trước 45 ngày, có được bồi thường?",
+        "Người lao động có những quyền gì theo pháp luật lao động Việt Nam?",
+    ])
+    def test_khong_bat_nham_con_so_trong_tinh_huong(self, question):
+        # Tình huống narrow đầy số (24 tháng, 14 tháng, 45 ngày) nhưng KHÔNG
+        # trích điều khoản — bắt nhầm mấy câu này thì cơ chế cưỡng chế sẽ
+        # loại sạch đúng loại câu ta đang muốn có.
+        assert not has_legal_citation(question)
+
+    def test_che_do_tinh_huong_loai_cap_neu_narrow_van_trich_dan(self, doc):
+        parsed = {
+            "broad": "Người lao động có những quyền gì?",
+            "narrow": "Theo Điều 35 Bộ luật Lao động, phải báo trước bao nhiêu ngày?",
+        }
+        assert build_pair_items(doc, parsed, narrow_mode=NARROW_MODE_SITUATION) == []
+        # Cùng dữ liệu đó ở chế độ trích dẫn thì hợp lệ
+        assert len(build_pair_items(doc, parsed, narrow_mode=NARROW_MODE_CITATION)) == 2
+
+    def test_khong_truyen_mode_thi_bo_qua_kiem_tra_trich_dan(self, doc):
+        parsed = {
+            "broad": "Người lao động có những quyền gì?",
+            "narrow": "Theo Điều 35 Bộ luật Lao động, phải báo trước bao nhiêu ngày?",
+        }
+        assert len(build_pair_items(doc, parsed)) == 2
+
+    @pytest.mark.parametrize("parsed", [
+        # narrow là câu khẳng định — lỗi chiếm 8/40 doc lúc đo thực tế
+        {"broad": "Người lao động có quyền gì?",
+         "narrow": "Theo Điều 2, Bộ Điện lực có nhiệm vụ trình Chính phủ duyệt quy hoạch."},
+        # broad là câu khẳng định
+        {"broad": "Bộ Điện lực quản lý ngành điện theo quy định của Chính phủ.",
+         "narrow": "Anh A làm việc 3 năm thì được nghỉ phép bao nhiêu ngày?"},
+    ])
+    def test_loai_cap_neu_co_ve_khong_phai_cau_hoi(self, doc, parsed):
+        assert build_pair_items(doc, parsed, narrow_mode=NARROW_MODE_SITUATION) == []
+
+    def test_pick_narrow_mode_tat_dinh(self):
+        # Tái lập được: resume từ checkpoint không được làm lệch phân bố
+        assert pick_narrow_mode("doc_1") == pick_narrow_mode("doc_1")
+        assert all(pick_narrow_mode(f"doc_{i}") in
+                   (NARROW_MODE_SITUATION, NARROW_MODE_CITATION) for i in range(50))
+
+    def test_pick_narrow_mode_can_bang_xap_xi(self):
+        modes = [pick_narrow_mode(f"doc_{i}") for i in range(400)]
+        ty_le = modes.count(NARROW_MODE_SITUATION) / len(modes)
+        assert 0.4 <= ty_le <= 0.6, f"lệch quá: {ty_le:.2%} situation"
+
+    def test_prompt_doi_vi_du_fewshot_theo_mode(self):
+        # Đưa ví dụ trích dẫn rồi dặn "đừng trích dẫn" thì model nghe ví dụ,
+        # không nghe lời dặn — nên ví dụ BẮT BUỘC phải khớp mode.
+        sit = build_pair_generator_messages("nội dung", narrow_mode=NARROW_MODE_SITUATION)
+        cit = build_pair_generator_messages("nội dung", narrow_mode=NARROW_MODE_CITATION)
+        assert "CẤM TUYỆT ĐỐI" in sit[0]["content"]
+        assert "CẤM TUYỆT ĐỐI" not in cit[0]["content"]
+        assert not has_legal_citation(sit[1]["content"].split("[NARROW]")[1])
+        assert has_legal_citation(cit[1]["content"].split("[NARROW]")[1])
+
+    def test_mode_la_khong_hop_le_thi_raise(self):
+        with pytest.raises(ValueError, match="narrow_mode"):
+            build_pair_generator_messages("nội dung", narrow_mode="linh tinh")
 
 
 class TestGeneratePair:

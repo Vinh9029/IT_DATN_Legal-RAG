@@ -36,6 +36,45 @@ FEWSHOT_AMBIGUOUS = [
     "Hợp đồng lao động vô hiệu thì xử lý thế nào?",
 ]
 
+# ══════════════════════════════════════════════════════════════════
+# HAI KIỂU SINH CÂU NARROW — chống shortcut learning
+# ══════════════════════════════════════════════════════════════════
+# Guideline §3 công nhận HAI đường trở thành narrow: trục 1 (trích đích danh
+# điều/khoản) và trục 3 (tình huống đủ dữ kiện). Cả hai đều là narrow THẬT,
+# định nghĩa nhãn không có gì sai.
+#
+# Vấn đề nằm ở PHÂN BỐ DỮ LIỆU, không nằm ở định nghĩa. Bản đầu luôn đưa
+# FEWSHOT_NARROW[0] (kiểu trích dẫn) làm ví dụ, nên model bắt chước: đo trên
+# 15 cặp mẫu thì 10 câu narrow chỉ khác câu broad ở mỗi tiền tố "Theo Điều X".
+# Khi ấy P(narrow | có trích dẫn) ≈ 1.0 còn P(có trích dẫn | broad) ≈ 0, và
+# classifier chỉ cần dò chuỗi "Theo Điều" là đạt accuracy cao — nó học ĐẶC
+# ĐIỂM BỀ MẶT chứ không học độ cụ thể. Trên truy vấn thật của người dùng
+# (phần lớn không trích điều khoản) thì sập.
+#
+# Cách sửa: luân phiên hai kiểu ~50/50 theo document (xem `generate_pair`).
+# Trích dẫn vẫn còn trong dataset — người dùng thật CÓ trích điều khoản, bỏ
+# hẳn sẽ tạo lỗ hổng bao phủ ngược lại — nhưng không còn dự đoán được nhãn
+# một mình.
+NARROW_MODE_SITUATION = "situation"
+NARROW_MODE_CITATION = "citation"
+
+NARROW_MODE_BLOCK = {
+    NARROW_MODE_SITUATION: """2. Câu NARROW lần này phải hẹp bằng TÌNH HUỐNG CỤ THỂ (trục 3), KHÔNG bằng trích dẫn:
+   - Dựng một tình huống có chủ thể, hành vi, mốc thời gian, con số cụ thể.
+     Dùng tên người/công ty Việt Nam: Anh A, Chị B, Công ty X.
+   - CẤM TUYỆT ĐỐI nhắc số điều, số khoản, số hiệu văn bản trong câu NARROW.
+     Không được viết "Theo Điều 5...", "Theo Nghị định 100/2020/NĐ-CP...",
+     "Căn cứ khoản 2...". Câu hỏi phải tự nhiên như người dân hỏi, người dân
+     không thuộc số hiệu văn bản.
+   - Tình huống phải đủ dữ kiện để áp thẳng quy định vào, không được chung chung.""",
+
+    NARROW_MODE_CITATION: """2. Câu NARROW lần này phải hẹp bằng TRÍCH DẪN ĐÍCH DANH (trục 1):
+   - Nêu rõ số điều (và khoản nếu có) của văn bản đã cho.
+   - Sau phần trích dẫn phải là một câu hỏi thực sự về nội dung quy định đó,
+     KHÔNG phải chép lại nội dung điều luật rồi chấm hết.""",
+}
+
+
 # Tiêu chí 3 trục, viết gọn để nhúng vào cả hai prompt (guideline §3)
 CRITERIA_BLOCK = """TIÊU CHÍ PHÂN LOẠI — chấm trên 3 trục độc lập:
 
@@ -84,13 +123,17 @@ chủ đề khác nhau thì cặp đó VÔ GIÁ TRỊ và bị loại.
 
 YÊU CẦU CHẤT LƯỢNG:
 1. Cả hai câu phải trả lời được từ nội dung văn bản đã cho, KHÔNG bịa quy định.
-2. Câu NARROW: hoặc trích đích danh điều/khoản, hoặc dựng tình huống đủ dữ kiện
-   (chủ thể, mốc thời gian, con số). Dùng tên người Việt Nam (Anh A, Chị B, Công ty X).
+{narrow_mode_block}
 3. Câu BROAD: hỏi tổng quan/liệt kê/so sánh, cần tổng hợp từ 3 điều luật trở lên.
 4. TRÁNH câu vùng xám: câu ngắn không nêu điều luật, không có tình huống, mà lại
    không rõ cần bao nhiêu điều luật để trả lời (ví dụ SAI: "{ambiguous_example}").
-5. Mỗi câu là MỘT câu hỏi hoàn chỉnh, tự đứng độc lập, không tham chiếu "văn bản trên".
-6. Viết tiếng Việt tự nhiên như người dùng thật hỏi, KHÔNG dùng ngôn ngữ hàn lâm.
+5. CẢ HAI DÒNG PHẢI LÀ CÂU HỎI, kết thúc bằng dấu "?". Đây là lỗi hay gặp nhất:
+   chép lại nội dung điều luật thành câu khẳng định thì KHÔNG PHẢI câu hỏi và bị
+   loại cả cặp. Ví dụ SAI: "Theo Điều 2 Nghị định 170-CP, Bộ Điện lực có nhiệm vụ
+   trình Chính phủ xét duyệt quy hoạch phát triển ngành điện." — đó là câu trả lời.
+   Cũng KHÔNG được nối hai mệnh đề bằng "Hoặc" để né việc phải hỏi.
+6. Mỗi câu tự đứng độc lập, không tham chiếu "văn bản trên", "tài liệu đã cho".
+7. Viết tiếng Việt tự nhiên như người dùng thật hỏi, KHÔNG dùng ngôn ngữ hàn lâm.
 
 ĐỊNH DẠNG ĐẦU RA — BẮT BUỘC ĐÚNG 4 DÒNG, KHÔNG THÊM BẤT KỲ CHỮ NÀO KHÁC:
 [BROAD]
@@ -191,11 +234,33 @@ def build_pair_generator_messages(
     linh_vuc: str = "",
     nganh: str = "",
     so_hieu: str = "",
+    narrow_mode: str = NARROW_MODE_SITUATION,
 ) -> list[dict]:
-    """Dựng messages hoàn chỉnh cho bước sinh cặp câu hỏi."""
+    """
+    Dựng messages hoàn chỉnh cho bước sinh cặp câu hỏi.
+
+    Args:
+        narrow_mode: `NARROW_MODE_SITUATION` (hẹp bằng tình huống) hoặc
+            `NARROW_MODE_CITATION` (hẹp bằng trích dẫn điều/khoản). Caller
+            luân phiên hai kiểu để chống shortcut learning — xem khối chú
+            thích ở đầu file. Giá trị lạ thì raise thay vì âm thầm rơi về
+            một kiểu: sinh lệch phân bố là lỗi không có thông báo.
+    """
+    if narrow_mode not in NARROW_MODE_BLOCK:
+        raise ValueError(
+            f"narrow_mode={narrow_mode!r} không hợp lệ, "
+            f"phải là một trong {sorted(NARROW_MODE_BLOCK)}"
+        )
+
     system = SYSTEM_PAIR_GENERATOR.format(
         criteria=CRITERIA_BLOCK,
         ambiguous_example=FEWSHOT_AMBIGUOUS[0],
+        narrow_mode_block=NARROW_MODE_BLOCK[narrow_mode],
+    )
+    # Ví dụ few-shot phải KHỚP kiểu narrow đang yêu cầu — đưa ví dụ trích dẫn
+    # rồi bảo model đừng trích dẫn thì model nghe theo ví dụ, không nghe lời dặn.
+    example_narrow = (
+        FEWSHOT_NARROW[1] if narrow_mode == NARROW_MODE_SITUATION else FEWSHOT_NARROW[0]
     )
     user = USER_PAIR_GENERATOR.format(
         linh_vuc=linh_vuc or "Chưa xác định",
@@ -203,7 +268,7 @@ def build_pair_generator_messages(
         so_hieu=so_hieu or "Chưa xác định",
         content=content,
         example_broad=FEWSHOT_BROAD[0],
-        example_narrow=FEWSHOT_NARROW[0],
+        example_narrow=example_narrow,
     )
     return [
         {"role": "system", "content": system},

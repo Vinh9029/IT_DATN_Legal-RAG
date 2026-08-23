@@ -14,7 +14,11 @@ import re
 
 from loguru import logger
 
-from config.qa_prompts import build_pair_generator_messages
+from config.qa_prompts import (
+    NARROW_MODE_CITATION,
+    NARROW_MODE_SITUATION,
+    build_pair_generator_messages,
+)
 from config.qa_settings import GEN_MAX_TOKENS, GEN_TEMPERATURE, MAX_DOC_CHARS
 from src.qa_specificity.schema import QAItem, Specificity
 from src.utils import generate_item_id, truncate_text
@@ -45,6 +49,36 @@ _LEADING_NOISE_RE = re.compile(r'^[\s\-*•>#\d.)\]"“”\'`]+')
 _TRAILING_NOISE_RE = re.compile(r'[\s"“”\'`*`]+$')
 
 MIN_QUESTION_LENGTH = 15
+
+# Dò trích dẫn pháp lý đích danh. Dùng để CƯỠNG CHẾ chế độ narrow "tình huống":
+# prompt đã cấm trích dẫn, nhưng model 8B vẫn lách, mà một câu lách lọt vào
+# dataset là một mẫu shortcut được khôi phục. Bắt được thì loại cả cặp.
+_CITATION_RE = re.compile(
+    r"(?:điều|khoản|điểm)\s+\d"                       # Điều 35, khoản 2
+    r"|(?:nghị\s*định|thông\s*tư|pháp\s*lệnh|quyết\s*định)"
+    r"\s+(?:liên\s*tịch\s+)?(?:số\s+)?\d"             # Nghị định số 196, Thông tư 08
+    r"|\d+\s*/\s*\d{4}\s*/\s*[A-ZĐ]"                  # 100/2020/NĐ-CP
+    r"|\d+\s*-\s*(?:CP|HĐBT|TTg)\b"                   # 196-CP, 157-HĐBT
+    r"|(?:bộ\s*luật|luật)\s+[\wÀ-ỹ\s]{0,25}\b(?:19|20)\d{2}\b",  # Bộ luật Lao động 2019
+    re.IGNORECASE,
+)
+
+
+def has_legal_citation(text: str) -> bool:
+    """Câu hỏi có trích dẫn đích danh điều/khoản/số hiệu văn bản không?"""
+    return bool(_CITATION_RE.search(text or ""))
+
+
+def pick_narrow_mode(source_doc_id: str) -> str:
+    """
+    Chọn kiểu sinh câu narrow cho một document, luân phiên ~50/50.
+
+    Bốc theo hash của `source_doc_id` chứ không bốc ngẫu nhiên: cùng một corpus
+    thì cùng một phân công kiểu, nên chạy lại pipeline tái lập được y hệt và
+    resume từ checkpoint không làm lệch phân bố.
+    """
+    digest = generate_item_id(f"narrow_mode|{source_doc_id}")
+    return NARROW_MODE_SITUATION if int(digest, 16) % 2 == 0 else NARROW_MODE_CITATION
 
 
 def _clean_question(text: str) -> str:
@@ -108,12 +142,18 @@ def parse_pair_response(text: str) -> dict:
 def build_pair_items(
     doc: dict,
     parsed: dict,
+    narrow_mode: str | None = None,
 ) -> list[QAItem]:
     """
     Dựng 2 QAItem cùng `pair_id` từ kết quả đã parse.
 
     Trả về list rỗng nếu thiếu một trong hai nhánh: một cặp khuyết vế mất
     toàn bộ giá trị đối chứng, giữ lại chỉ làm nhiễu phân bố nhãn.
+
+    Args:
+        narrow_mode: kiểu narrow đã yêu cầu model sinh. Truyền
+            `NARROW_MODE_SITUATION` thì cặp bị loại nếu câu narrow vẫn trích
+            dẫn điều/khoản. `None` = bỏ qua kiểm tra này.
     """
     if Specificity.BROAD.value not in parsed or Specificity.NARROW.value not in parsed:
         return []
@@ -124,6 +164,19 @@ def build_pair_items(
     # Model đôi khi sinh hai câu gần như y hệt nhau — cặp đó không đối chứng gì cả.
     if broad_q.strip().lower() == narrow_q.strip().lower():
         logger.debug("Cặp bị loại: câu broad và narrow trùng nhau")
+        return []
+
+    # Lỗi hay gặp: model chép nội dung điều luật thành câu KHẲNG ĐỊNH thay vì hỏi.
+    # Đo trên 15 cặp mẫu đầu tiên: 5/15 câu narrow mắc lỗi này.
+    for branch, question in (("broad", broad_q), ("narrow", narrow_q)):
+        if not question.rstrip().endswith("?"):
+            logger.debug(f"Cặp bị loại: câu {branch} không phải câu hỏi → {question[:80]}")
+            return []
+
+    # Cưỡng chế chế độ "tình huống": narrow mà vẫn trích điều/khoản thì đúng là
+    # cái shortcut ta đang tìm cách diệt, loại thẳng.
+    if narrow_mode == NARROW_MODE_SITUATION and has_legal_citation(narrow_q):
+        logger.debug(f"Cặp bị loại: narrow chế độ tình huống vẫn trích dẫn → {narrow_q[:80]}")
         return []
 
     source_doc_id = doc["source_doc_id"]
@@ -165,12 +218,14 @@ def generate_pair(doc: dict, llm_client) -> list[QAItem]:
     """
     content = (doc.get("content") or "")[:MAX_DOC_CHARS]
     metadata = doc.get("metadata") or {}
+    narrow_mode = pick_narrow_mode(doc.get("source_doc_id", ""))
 
     messages = build_pair_generator_messages(
         content=content,
         linh_vuc=metadata.get("linh_vuc", ""),
         nganh=metadata.get("nganh", ""),
         so_hieu=metadata.get("so_hieu", ""),
+        narrow_mode=narrow_mode,
     )
 
     try:
@@ -184,12 +239,17 @@ def generate_pair(doc: dict, llm_client) -> list[QAItem]:
         return []
 
     parsed = parse_pair_response(response)
-    items = build_pair_items(doc, parsed)
+    items = build_pair_items(doc, parsed, narrow_mode=narrow_mode)
 
     if not items:
         logger.debug(
-            f"Không parse được cặp từ doc {doc.get('source_doc_id')} | "
-            f"raw={truncate_text(response, 300)}"
+            f"Không dựng được cặp từ doc {doc.get('source_doc_id')} "
+            f"(narrow_mode={narrow_mode}) | raw={truncate_text(response, 300)}"
         )
+    else:
+        # Ghi lại kiểu narrow để audit phân bố sau này — nếu một kiểu bị loại
+        # nhiều hơn hẳn, phân bố cuối sẽ lệch và ta cần biết điều đó.
+        for item in items:
+            item.metadata["narrow_mode"] = narrow_mode
 
     return items
