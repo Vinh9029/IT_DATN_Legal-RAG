@@ -58,7 +58,7 @@ def resolve_item(item: QAItem, strict: bool = False) -> QAItem:
     cả 3 trục nên `ambiguous` của judge là kết luận "câu này vùng xám"
     (guideline §5.3) chứ không phải "tôi không biết".
 
-    `strict=True` cho phép chạy lại theo cách đọc chặt để đối chiếu; script 07
+    `strict=True` cho phép chạy lại theo cách đọc chặt để đối chiếu; script 11
     báo cáo cả hai con số nên phần Limitations của báo cáo có số mà nói.
     """
     provenance = item.specificity

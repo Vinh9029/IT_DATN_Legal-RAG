@@ -53,6 +53,48 @@ JUDGE_MAX_TOKENS = int(os.getenv("JUDGE_MAX_TOKENS", "1024"))
 JUDGE_REASONING_EFFORT = os.getenv("JUDGE_REASONING_EFFORT", "none")
 
 
+# ── Preset: chạy judge trên Gemini (tuỳ chọn, KHÔNG bật mặc định) ─
+# Gemini có lớp OpenAI-compatible, mà `JudgeClient` vốn đã dựng trên `openai`
+# SDK — nên đổi judge sang Gemini là việc CỦA CẤU HÌNH, không phải của code.
+# Đặt 3 dòng sau vào `config/qa.env` là xong:
+#
+#   JUDGE_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+#   JUDGE_LLM_API_KEY=<GEMINI_API_KEY>
+#   JUDGE_MODEL_NAME=gemini-2.5-flash
+#
+# Vì sao đáng đổi: generator là Llama-3.1-8B chạy local, judge là Gemini —
+# hai model khác hẳn nhà cung cấp, nên lập luận "không có self-preference
+# bias" ở spec §3.1 vững hơn hẳn so với gemma local.
+#
+# Vì sao KHÔNG đặt làm mặc định: judge tốn đúng 1 lượt gọi cho MỖI câu hỏi,
+# nên chi phí tỷ lệ thuận với kích thước dataset, và nó dùng chung quota với
+# pipeline Evol-Instruct của Vinh (2 lượt gọi/record). Chạy `--estimate-cost`
+# để có con số trước khi bật.
+GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+# ── Tham số cho `11_verify_labels.py --estimate-cost` ─────────────
+# Đơn giá USD / 1 triệu token. Mặc định theo bảng giá công bố của
+# gemini-2.5-flash; GIÁ CÓ THỂ ĐỔI — tra lại tại thời điểm chạy và override
+# bằng env nếu cần, đừng trích thẳng con số này vào báo cáo.
+JUDGE_PRICE_INPUT_PER_M = float(os.getenv("QA_JUDGE_PRICE_INPUT_PER_M", "0.30"))
+JUDGE_PRICE_OUTPUT_PER_M = float(os.getenv("QA_JUDGE_PRICE_OUTPUT_PER_M", "2.50"))
+
+# Output judge là một object JSON ngắn (label + reason cắt 200 ký tự + 3 trục).
+JUDGE_EST_OUTPUT_TOKENS = int(os.getenv("QA_JUDGE_EST_OUTPUT_TOKENS", "80"))
+
+# Tiếng Việt tốn token hơn tiếng Anh nhiều: ~2,5 ký tự/token chứ không phải 4
+# (spec §3.2). Ước lượng theo ký tự là CỐ Ý — đếm token chính xác cần gọi API,
+# mà mục đích của `--estimate-cost` chính là biết trước khi gọi.
+CHARS_PER_TOKEN_VI = float(os.getenv("QA_CHARS_PER_TOKEN_VI", "2.5"))
+
+
+def judge_is_remote() -> bool:
+    """True khi judge trỏ ra API trả phí bên ngoài (không phải server local)."""
+    url = (JUDGE_LLM_BASE_URL or "").lower()
+    return not any(host in url for host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
+
+
 # ── Nguồn dữ liệu ─────────────────────────────────────────────────
 # Dataset có 5 config. Metadata (nganh/linh_vuc/loai_van_ban) và nội dung nằm
 # ở HAI config khác nhau, join với nhau qua trường `id`:
@@ -192,6 +234,13 @@ def validate_qa_config() -> list[str]:
             "Set JUDGE_MODEL_NAME / JUDGE_LLM_BASE_URL / JUDGE_LLM_API_KEY trong .env "
             "(khuyến nghị gpt-4o-mini hoặc gemini-flash). Nếu buộc dùng phương án dự phòng, "
             "phải nêu rõ hạn chế này trong phần Limitations của báo cáo."
+        )
+
+    if judge_is_remote():
+        warnings.append(
+            f"Judge đang trỏ ra API ngoài ({JUDGE_LLM_BASE_URL}) → mỗi câu hỏi là một "
+            f"lượt gọi TRẢ PHÍ và ăn chung quota với pipeline của Vinh. Chạy "
+            f"`python scripts/11_verify_labels.py --estimate-cost` để xem chi phí trước."
         )
 
     if JUDGE_TEMPERATURE > 0.3:

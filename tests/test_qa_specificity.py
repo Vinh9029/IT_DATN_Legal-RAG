@@ -24,7 +24,7 @@ from src.qa_specificity.dataset_builder import (
     group_split,
     resolve_item,
 )
-from src.qa_specificity.llm_judge import parse_judge_response
+from src.qa_specificity.llm_judge import estimate_judge_cost, parse_judge_response
 from config.qa_prompts import (
     NARROW_MODE_CITATION,
     NARROW_MODE_SITUATION,
@@ -747,3 +747,49 @@ class TestComputeKappa:
     def test_rong_thi_raise(self):
         with pytest.raises(ValueError):
             compute_kappa([], [])
+
+
+# ══════════════════════════════════════════════════════════════════
+# estimate_judge_cost
+# ══════════════════════════════════════════════════════════════════
+
+class TestEstimateJudgeCost:
+    """
+    Hàm này tồn tại để trả lời "chạy judge tốn bao nhiêu" TRƯỚC khi gọi API.
+    Nó mà đếm nhầm thì quyết định bật/tắt judge trả phí dựa trên số sai.
+    """
+
+    def test_khong_co_cache_thi_moi_cau_deu_phai_tra(self):
+        items = [make_item(item_id=f"q{i}") for i in range(5)]
+        est = estimate_judge_cost(items, cache_path=None)
+        assert est["n_items"] == 5
+        assert est["n_calls"] == 5
+        assert est["n_cached"] == 0
+        assert est["input_tokens_est"] > 0
+
+    def test_cau_da_co_trong_cache_khong_tinh_tien(self, tmp_path):
+        # Cache chỉ nhận bản ghi có nhãn thật (xem `_load_cache`), nên bản ghi
+        # judge_label=None phải bị coi như CHƯA chấm và vẫn phải trả tiền.
+        import json
+
+        cache = tmp_path / "judge_cache.jsonl"
+        cache.write_text(
+            json.dumps({"item_id": "q0", "judge_label": "broad"}, ensure_ascii=False) + "\n"
+            + json.dumps({"item_id": "q1", "judge_label": None}, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        items = [make_item(item_id=f"q{i}") for i in range(3)]
+        est = estimate_judge_cost(items, cache_path=cache)
+        assert est["n_cached"] == 1        # chỉ q0
+        assert est["n_calls"] == 2         # q1 (hỏng) + q2
+
+    def test_bo_fewshot_thi_prompt_ngan_lai(self):
+        items = [make_item()]
+        co = estimate_judge_cost(items, use_fewshot=True)
+        khong = estimate_judge_cost(items, use_fewshot=False)
+        assert khong["input_chars"] < co["input_chars"]
+
+    def test_khong_con_cau_nao_thi_chi_phi_bang_khong(self):
+        est = estimate_judge_cost([], cache_path=None)
+        assert est["n_calls"] == 0
+        assert est["usd_total"] == 0

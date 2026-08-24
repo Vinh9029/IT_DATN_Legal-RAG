@@ -1,8 +1,8 @@
 """
-Script 07: Kiểm chứng nhãn 3 tầng và lọc mẫu đồng thuận.
+Script 11: Kiểm chứng nhãn 3 tầng và lọc mẫu đồng thuận.
 
 Bước 2 của Phần 3. Ba tầng nhãn độc lập:
-    1. Provenance — có sẵn từ script 06 (câu sinh ở nhánh nào)
+    1. Provenance — có sẵn từ script 10 (câu sinh ở nhánh nào)
     2. Heuristic  — rule-based theo guideline §6, không tốn gì
     3. LLM judge  — model KHÁC, không biết provenance, 1 lượt gọi/câu
 
@@ -11,11 +11,12 @@ không nói "model đã sinh ra câu broad thật". Model 8B thường xuyên kh
 thủ. Ba tầng độc lập hội tụ cùng một nhãn là bằng chứng mạnh hơn hẳn.
 
 Usage:
-    python scripts/07_verify_labels.py --input data/qa_pairs/raw/pairs.jsonl
-    python scripts/07_verify_labels.py --no-judge          # chỉ chạy heuristic, không tốn API
-    python scripts/07_verify_labels.py --strict-consensus  # heuristic ambiguous = bất đồng
-    python scripts/07_verify_labels.py --export-manual-sample 100
-    python scripts/07_verify_labels.py --compute-kappa data/qa_pairs/labeled/manual_sample_blind.jsonl
+    python scripts/11_verify_labels.py --input data/qa_pairs/raw/pairs.jsonl
+    python scripts/11_verify_labels.py --estimate-cost     # chỉ ước lượng chi phí judge, không gọi API
+    python scripts/11_verify_labels.py --no-judge          # chỉ chạy heuristic, không tốn API
+    python scripts/11_verify_labels.py --strict-consensus  # heuristic ambiguous = bất đồng
+    python scripts/11_verify_labels.py --export-manual-sample 100
+    python scripts/11_verify_labels.py --compute-kappa data/qa_pairs/labeled/manual_sample_blind.jsonl
 """
 
 import argparse
@@ -46,7 +47,7 @@ from src.qa_specificity.dataset_builder import (
     filter_consensus,
     save_json,
 )
-from src.qa_specificity.llm_judge import JudgeClient, judge_batch
+from src.qa_specificity.llm_judge import JudgeClient, estimate_judge_cost, judge_batch
 from src.qa_specificity.schema import QAItem, Specificity
 from src.qa_specificity.weak_labeler import label_items
 from src.utils import load_jsonl, save_jsonl, setup_logging
@@ -77,7 +78,7 @@ def cmd_export_manual_sample(args, logger):
     logger.info("   2. Chấm theo 3 trục ở docs/specificity-guideline.md §3, tổng hợp theo §4")
     logger.info("   3. TUYỆT ĐỐI không mở pairs_verified.jsonl trong lúc gán")
     logger.info("   4. Gán xong toàn bộ rồi mới chạy:")
-    logger.info(f"      python scripts/07_verify_labels.py --compute-kappa {args.manual_sample}")
+    logger.info(f"      python scripts/11_verify_labels.py --compute-kappa {args.manual_sample}")
 
 
 def cmd_compute_kappa(args, logger):
@@ -134,11 +135,65 @@ def cmd_compute_kappa(args, logger):
     save_json(result, out_path)
 
 
+def cmd_estimate_cost(args, logger):
+    """
+    In ước lượng chi phí judge rồi DỪNG — không gọi API lần nào.
+
+    Judge tốn đúng 1 lượt gọi cho mỗi câu hỏi, nên chi phí tỷ lệ thuận với
+    kích thước dataset. Biết con số trước khi bấm chạy rẻ hơn nhiều so với
+    phát hiện ra lúc đã đốt hết quota.
+    """
+    records = load_jsonl(args.input)
+    if not records:
+        logger.error(f"❌ Không đọc được item nào từ {args.input}. Chạy script 10 trước.")
+        sys.exit(1)
+
+    items = [QAItem.from_dict(r) for r in records]
+    est = estimate_judge_cost(items, cache_path=args.judge_cache)
+
+    logger.info("\n💰 ƯỚC LƯỢNG CHI PHÍ JUDGE")
+    logger.info(f"   Judge model     : {est['judge_model']}")
+    logger.info(f"   Endpoint        : {est['judge_base_url']}")
+    logger.info(f"   Tổng câu        : {est['n_items']}")
+    logger.info(f"   Đã có cache     : {est['n_cached']} (không tốn thêm)")
+    logger.info(f"   Lượt gọi cần trả: {est['n_calls']}")
+    logger.info(
+        f"   Token ước lượng : {est['input_tokens_est']:,} input + "
+        f"{est['output_tokens_est']:,} output"
+    )
+
+    if not est["is_remote"]:
+        logger.info("   Chi phí         : $0 — judge đang chạy trên server LOCAL")
+        logger.info(
+            f"   (Nếu đổi sang API ngoài với đơn giá "
+            f"${est['price_input_per_m']}/1M in + ${est['price_output_per_m']}/1M out "
+            f"thì sẽ là ~${est['usd_total']})"
+        )
+    else:
+        logger.info(
+            f"   Đơn giá         : ${est['price_input_per_m']}/1M input + "
+            f"${est['price_output_per_m']}/1M output"
+        )
+        logger.info(
+            f"   CHI PHÍ         : ~${est['usd_total']} "
+            f"(${est['usd_input']} input + ${est['usd_output']} output)"
+        )
+
+    logger.info("\n   Cách giảm nếu thấy đắt:")
+    logger.info("     - Giữ judge ở LM Studio local (mặc định hiện tại) → $0")
+    logger.info("     - Chạy script 10 với --max-docs nhỏ hơn để dataset gọn lại")
+    logger.info("     - judge_cache.jsonl đã bật sẵn: chạy lại không trả tiền lần hai")
+    logger.info(
+        "\n   ⚠️  Đơn giá là giá công bố tại thời điểm viết code, có thể đã đổi. "
+        "Tra lại rồi override bằng QA_JUDGE_PRICE_INPUT_PER_M / _OUTPUT_PER_M."
+    )
+
+
 def cmd_verify(args, logger):
     """Luồng chính: heuristic + judge → lọc đồng thuận."""
     records = load_jsonl(args.input)
     if not records:
-        logger.error(f"❌ Không đọc được item nào từ {args.input}. Chạy script 06 trước.")
+        logger.error(f"❌ Không đọc được item nào từ {args.input}. Chạy script 10 trước.")
         sys.exit(1)
 
     items = [QAItem.from_dict(r) for r in records]
@@ -207,12 +262,12 @@ def cmd_verify(args, logger):
     logger.info("")
     if pass_rate > PASS_RATE_GOOD:
         logger.info("✅ Pass rate > 70% — prompt tốt, model tuân thủ. Đi tiếp Bước 3/4:")
-        logger.info(f"   python scripts/07_verify_labels.py --export-manual-sample {MANUAL_SAMPLE_SIZE}")
-        logger.info("   python scripts/08_export_dataset.py")
+        logger.info(f"   python scripts/11_verify_labels.py --export-manual-sample {MANUAL_SAMPLE_SIZE}")
+        logger.info("   python scripts/12_export_dataset.py")
     elif pass_rate >= PASS_RATE_ABORT:
         logger.warning(
             f"⚠️  Pass rate {pass_rate:.1%} (40-70%) — chấp nhận được nhưng còn lãng phí. "
-            f"Đọc {args.output_rejected}, tìm pattern lỗi, tinh chỉnh prompt rồi chạy lại 06."
+            f"Đọc {args.output_rejected}, tìm pattern lỗi, tinh chỉnh prompt rồi chạy lại script 10."
         )
     else:
         logger.error(
@@ -226,7 +281,7 @@ def cmd_verify(args, logger):
 def main():
     parser = argparse.ArgumentParser(description="Kiểm chứng nhãn độ cụ thể 3 tầng")
     parser.add_argument("--input", type=Path, default=PAIRS_FILE,
-                        help="File pairs.jsonl từ script 06")
+                        help="File pairs.jsonl từ script 10")
     parser.add_argument("--input-verified", type=Path, default=VERIFIED_FILE,
                         help="File verified (dùng cho --export-manual-sample / --compute-kappa)")
     parser.add_argument("--output-verified", type=Path, default=VERIFIED_FILE)
@@ -236,6 +291,8 @@ def main():
                         help="Cache kết quả judge để chạy lại không tốn API")
     parser.add_argument("--manual-sample", type=Path, default=MANUAL_SAMPLE_FILE)
 
+    parser.add_argument("--estimate-cost", action="store_true",
+                        help="Chỉ ước lượng chi phí judge rồi dừng, không gọi API")
     parser.add_argument("--no-judge", action="store_true",
                         help="Bỏ tầng judge (chỉ để thử nhanh heuristic)")
     parser.add_argument("--strict-consensus", action="store_true",
@@ -249,7 +306,7 @@ def main():
                         help="Tính Cohen's kappa từ file nhãn tay đã điền")
     args = parser.parse_args()
 
-    logger = setup_logging("07_verify_labels.log")
+    logger = setup_logging("11_verify_labels.log")
     ensure_qa_directories()
     for warning in validate_qa_config():
         logger.warning(warning)
@@ -258,7 +315,9 @@ def main():
     logger.info("🔍 BƯỚC 2 — KIỂM CHỨNG NHÃN 3 TẦNG")
     logger.info("=" * 60)
 
-    if args.export_manual_sample:
+    if args.estimate_cost:
+        cmd_estimate_cost(args, logger)
+    elif args.export_manual_sample:
         cmd_export_manual_sample(args, logger)
     elif args.compute_kappa:
         cmd_compute_kappa(args, logger)

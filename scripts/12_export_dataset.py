@@ -1,5 +1,5 @@
 """
-Script 08: Chia train/val/test theo group và export dataset cuối.
+Script 12: Chia train/val/test theo group và export dataset cuối.
 
 Bước 4 của Phần 3.
 
@@ -9,9 +9,9 @@ broad rơi vào train mà câu narrow rơi vào test thì model đã "thấy" đ
 lúc train — data leakage, metric cao giả tạo, và không có thông báo lỗi nào cả.
 
 Usage:
-    python scripts/08_export_dataset.py
-    python scripts/08_export_dataset.py --input data/qa_pairs/labeled/pairs_verified.jsonl
-    python scripts/08_export_dataset.py --seed 7
+    python scripts/12_export_dataset.py
+    python scripts/12_export_dataset.py --input data/qa_pairs/labeled/pairs_verified.jsonl
+    python scripts/12_export_dataset.py --seed 7
 """
 
 import argparse
@@ -47,7 +47,7 @@ from src.utils import load_jsonl, setup_logging
 def main():
     parser = argparse.ArgumentParser(description="Chia tập và export dataset QA specificity")
     parser.add_argument("--input", type=Path, default=VERIFIED_FILE,
-                        help="File pairs_verified.jsonl từ script 07")
+                        help="File pairs_verified.jsonl từ script 11")
     parser.add_argument("--output-dir", type=Path, default=QA_FINAL_DIR)
     parser.add_argument("--train-ratio", type=float, default=TRAIN_RATIO)
     parser.add_argument("--val-ratio", type=float, default=VAL_RATIO)
@@ -55,7 +55,7 @@ def main():
     parser.add_argument("--seed", type=int, default=RANDOM_SEED)
     args = parser.parse_args()
 
-    logger = setup_logging("08_export_dataset.log")
+    logger = setup_logging("12_export_dataset.log")
     ensure_qa_directories()
     for warning in validate_qa_config():
         logger.warning(warning)
@@ -67,7 +67,7 @@ def main():
     # ── Load ──────────────────────────────────────────────────────
     records = load_jsonl(args.input)
     if not records:
-        logger.error(f"❌ Không đọc được item nào từ {args.input}. Chạy script 07 trước.")
+        logger.error(f"❌ Không đọc được item nào từ {args.input}. Chạy script 11 trước.")
         sys.exit(1)
 
     items = [QAItem.from_dict(r) for r in records]
@@ -131,7 +131,7 @@ def main():
     logger.info(f"\n✅ HOÀN TẤT! Output → {args.output_dir}")
     logger.info("\n📋 Còn lại để hoàn thành Phần 3:")
     logger.info("   - Bước 3 (nếu chưa làm): gán tay ~100 câu và tính Cohen's kappa")
-    logger.info("     python scripts/07_verify_labels.py --export-manual-sample 100")
+    logger.info("     python scripts/11_verify_labels.py --export-manual-sample 100")
     logger.info("   - Bàn giao test.json cho Vinh (giữ nguyên schema QAItem, để Vinh tự map)")
 
 

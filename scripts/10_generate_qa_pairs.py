@@ -1,13 +1,13 @@
 """
-Script 06: Sinh cặp câu hỏi đối chứng broad/narrow từ corpus pháp luật.
+Script 10: Sinh cặp câu hỏi đối chứng broad/narrow từ corpus pháp luật.
 
 Bước 1 của Phần 3. Output là nhãn PROVENANCE (câu sinh ở nhánh nào thì mang
-nhãn đó) — CHƯA qua kiểm chứng nào, chưa dùng được. Chạy tiếp script 07.
+nhãn đó) — CHƯA qua kiểm chứng nào, chưa dùng được. Chạy tiếp script 11.
 
 Usage:
-    python scripts/06_generate_qa_pairs.py --max-docs 500
-    python scripts/06_generate_qa_pairs.py --max-docs 50 --dry-run
-    python scripts/06_generate_qa_pairs.py --restart          # bỏ checkpoint cũ
+    python scripts/10_generate_qa_pairs.py --max-docs 500
+    python scripts/10_generate_qa_pairs.py --max-docs 50 --dry-run
+    python scripts/10_generate_qa_pairs.py --restart          # bỏ checkpoint cũ
 """
 
 import argparse
@@ -144,7 +144,7 @@ def main():
         )
 
     logger.info("\n⚠️  Nhãn hiện tại mới chỉ là PROVENANCE, chưa qua kiểm chứng.")
-    logger.info("   Bước tiếp theo: python scripts/07_verify_labels.py")
+    logger.info("   Bước tiếp theo: python scripts/11_verify_labels.py")
 
 
 if __name__ == "__main__":

@@ -26,12 +26,17 @@ from tqdm import tqdm
 
 from config.qa_prompts import build_judge_messages
 from config.qa_settings import (
+    CHARS_PER_TOKEN_VI,
+    JUDGE_EST_OUTPUT_TOKENS,
     JUDGE_LLM_API_KEY,
     JUDGE_LLM_BASE_URL,
     JUDGE_MAX_TOKENS,
     JUDGE_MODEL_NAME,
+    JUDGE_PRICE_INPUT_PER_M,
+    JUDGE_PRICE_OUTPUT_PER_M,
     JUDGE_REASONING_EFFORT,
     JUDGE_TEMPERATURE,
+    judge_is_remote,
 )
 from src.llm_client import LLMClient
 from src.qa_specificity.schema import QAItem, Specificity
@@ -196,6 +201,57 @@ def _load_cache(cache_path) -> dict:
     if n_skipped:
         logger.info(f"Judge cache: {n_skipped} câu hỏng ở lần trước, sẽ chấm lại")
     return cache
+
+
+def estimate_judge_cost(
+    items: list[QAItem],
+    cache_path=None,
+    use_fewshot: bool = True,
+) -> dict:
+    """
+    Ước lượng số lượt gọi và chi phí judge TRƯỚC khi gọi API lần nào.
+
+    Đếm token bằng tỷ lệ ký tự/token (`CHARS_PER_TOKEN_VI`) chứ không gọi
+    `count_tokens` là CỐ Ý: mục đích của hàm này là biết trước khi tiêu tiền,
+    mà `count_tokens` lại phải gọi ra API. Sai số vài chục phần trăm không đổi
+    được quyết định "có đủ rẻ để chạy không".
+
+    Chỉ tính những câu CHƯA có trong cache — đó mới là phần thực sự phải trả.
+
+    Returns:
+        dict thống kê; `usd_total` là con số để ra quyết định.
+    """
+    cache = _load_cache(cache_path)
+    pending = [i for i in items if i.item_id not in cache]
+
+    input_chars = sum(
+        len(msg["content"])
+        for item in pending
+        for msg in build_judge_messages(item.question, use_fewshot=use_fewshot)
+    )
+    input_tokens = int(input_chars / CHARS_PER_TOKEN_VI)
+    output_tokens = len(pending) * JUDGE_EST_OUTPUT_TOKENS
+
+    usd_input = input_tokens / 1_000_000 * JUDGE_PRICE_INPUT_PER_M
+    usd_output = output_tokens / 1_000_000 * JUDGE_PRICE_OUTPUT_PER_M
+
+    return {
+        "n_items": len(items),
+        "n_cached": len(items) - len(pending),
+        "n_calls": len(pending),
+        "input_chars": input_chars,
+        "input_tokens_est": input_tokens,
+        "output_tokens_est": output_tokens,
+        "usd_input": round(usd_input, 4),
+        "usd_output": round(usd_output, 4),
+        "usd_total": round(usd_input + usd_output, 4),
+        "judge_model": JUDGE_MODEL_NAME,
+        "judge_base_url": JUDGE_LLM_BASE_URL,
+        "is_remote": judge_is_remote(),
+        "price_input_per_m": JUDGE_PRICE_INPUT_PER_M,
+        "price_output_per_m": JUDGE_PRICE_OUTPUT_PER_M,
+        "use_fewshot": use_fewshot,
+    }
 
 
 def judge_batch(
