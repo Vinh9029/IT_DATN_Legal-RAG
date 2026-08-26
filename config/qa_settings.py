@@ -65,11 +65,6 @@ JUDGE_REASONING_EFFORT = os.getenv("JUDGE_REASONING_EFFORT", "none")
 # Vì sao đáng đổi: generator là Llama-3.1-8B chạy local, judge là Gemini —
 # hai model khác hẳn nhà cung cấp, nên lập luận "không có self-preference
 # bias" ở spec §3.1 vững hơn hẳn so với gemma local.
-#
-# Vì sao KHÔNG đặt làm mặc định: judge tốn đúng 1 lượt gọi cho MỖI câu hỏi,
-# nên chi phí tỷ lệ thuận với kích thước dataset, và nó dùng chung quota với
-# pipeline Evol-Instruct của Vinh (2 lượt gọi/record). Chạy `--estimate-cost`
-# để có con số trước khi bật.
 GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
@@ -95,12 +90,51 @@ def judge_is_remote() -> bool:
     return not any(host in url for host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
 
 
-# ── Nguồn dữ liệu ─────────────────────────────────────────────────
-# Dataset có 5 config. Metadata (nganh/linh_vuc/loai_van_ban) và nội dung nằm
-# ở HAI config khác nhau, join với nhau qua trường `id`:
+# ══════════════════════════════════════════════════════════════════
+# NGUỒN DỮ LIỆU
+# ══════════════════════════════════════════════════════════════════
+# Corpus vào Phần 3 qua MỘT trong hai đường, theo thứ tự ưu tiên:
+#
+#   1. THƯ MỤC CỤC BỘ `QA_CORPUS_SOURCE` — đường CHÍNH kể từ khi nhóm chốt
+#      đổi sang nguồn luật dân sự riêng. Thả file vào thư mục là chạy; định
+#      dạng nào cũng đọc được (xem `src/qa_specificity/corpus_loader.py`).
+#   2. HuggingFace dataset — đường CŨ, giữ lại làm dự phòng để pipeline vẫn
+#      chạy được trong lúc chưa có nguồn mới.
+#
+# Thư mục không tồn tại hoặc không có file nào đọc được ⇒ tự động rơi về (2).
+CORPUS_SOURCE = BASE_DIR / os.getenv("QA_CORPUS_SOURCE", "data/corpus_civil")
+
+# Định dạng `corpus_loader` đọc được. Phải khớp với `_READERS` trong file đó
+# (có assert kiểm tra), nằm ở đây để thông báo lỗi có chỗ mà tra.
+SUPPORTED_SUFFIXES = [
+    ".jsonl", ".ndjson", ".json", ".csv", ".tsv",
+    ".xlsx", ".xlsm", ".docx", ".txt", ".md", ".html", ".htm", ".parquet",
+]
+
+# Bí danh tên cột. Nguồn mới gần như chắc chắn đặt tên cột khác nguồn cũ, nên
+# thay vì sửa code thì khai thêm bí danh ở đây. So khớp sau khi đã BỎ DẤU và
+# thường hoá (`corpus_loader._slug`), nên "Nội dung" khớp `noi_dung`, "Số ký
+# hiệu" khớp `so_ky_hieu` — không cần khai bản có dấu.
+FIELD_ALIASES = {
+    "id": ["id", "doc_id", "document_id", "ma_van_ban", "ma_so", "stt"],
+    "content": ["content", "content_html", "noi_dung", "text", "full_text",
+                "body", "van_ban", "noi_dung_van_ban", "plain_text"],
+    "title": ["title", "tieu_de", "ten_van_ban", "trich_yeu", "ten", "name"],
+    "so_hieu": ["so_ky_hieu", "so_hieu", "so_van_ban", "ky_hieu", "so", "number"],
+    "loai_van_ban": ["loai_van_ban", "loai", "the_loai", "doc_type", "type"],
+    "nganh": ["nganh", "linh_vuc_nganh", "sector"],
+    "linh_vuc": ["linh_vuc", "chu_de", "topic", "domain", "category", "field"],
+    "co_quan_ban_hanh": ["co_quan_ban_hanh", "co_quan", "noi_ban_hanh", "issuer"],
+    "ngay_ban_hanh": ["ngay_ban_hanh", "ngay_ky", "ngay", "date"],
+    "tinh_trang_hieu_luc": ["tinh_trang_hieu_luc", "tinh_trang", "hieu_luc", "status"],
+}
+
+# Đường dự phòng: dataset HuggingFace có 5 config. Metadata
+# (nganh/linh_vuc/loai_van_ban) và nội dung nằm ở HAI config khác nhau, join
+# với nhau qua trường `id`:
 #   - config "metadata": id, title, so_ky_hieu, loai_van_ban, nganh, linh_vuc, ...
 #   - config "content" : id, content_html   ← CHỈ có 2 cột, KHÔNG có metadata
-# `config/settings.py` của Vinh đặt HF_DATASET_CONFIG=content, nên
+# `config/settings.py` đặt HF_DATASET_CONFIG=content, nên
 # `data_loader.load_and_preprocess()` trả về metadata RỖNG TOÀN BỘ. Phần 3 phải
 # tự join hai config, xem `src/qa_specificity/corpus_filter.py`.
 HF_DATASET_NAME = os.getenv("HF_DATASET_NAME", "th1nhng0/vietnamese-legal-documents")
@@ -108,33 +142,111 @@ HF_CONFIG_METADATA = os.getenv("QA_HF_CONFIG_METADATA", "metadata")
 HF_CONFIG_CONTENT = os.getenv("QA_HF_CONFIG_CONTENT", "content")
 
 
-# ── Phạm vi corpus: lao động + dân sự ─────────────────────────────
-# So khớp không phân biệt hoa/thường trên metadata `nganh` + `linh_vuc`.
-# Từ khoá dưới đây đã đối chiếu với giá trị THẬT trong dataset, không phải đoán.
-SCOPE_KEYWORDS = {
-    # khớp: "Lao động - Thương binh và Xã hội", "Lao động, tiền lương, tiền công",
-    #       "An toàn lao động", "Lao động ngoài nước", "Việc làm", "Bảo hiểm xã hội"
-    "lao_dong": ["lao động", "việc làm", "tiền lương", "tiền công",
-                 "bảo hiểm xã hội", "công đoàn"],
-    # khớp: "Thi hành án dân sự", "Dân sự - Kinh tế", "Tố tụng dân sự", "Sở hữu trí tuệ"
-    "dan_su": ["dân sự", "hợp đồng", "sở hữu", "thừa kế", "hôn nhân"],
+# ══════════════════════════════════════════════════════════════════
+# PHẠM VI: LUẬT DÂN SỰ VÀ CÁC CHẾ ĐỊNH LÂN CẬN
+# ══════════════════════════════════════════════════════════════════
+# Nhóm đã chốt đi theo CHIỀU SÂU một lĩnh vực thay vì chiều rộng (bỏ lao động,
+# thương mại...). Lập luận cho báo cáo: giữ chủ đề hẹp làm giảm biến nhiễu, nên
+# thứ classifier học được chắc chắn là ĐỘ CỤ THỂ chứ không phải chủ đề.
+#
+# Cách nhận diện đi theo hai đường, vì nguồn nào cũng có thể thiếu metadata:
+#   - `CIVIL_ANCHOR_TITLES` : khớp trên TIÊU ĐỀ văn bản. Đường chính — tiêu đề
+#     luôn có, còn `nganh`/`linh_vuc` thì nguồn mới có thể không có.
+#   - `CIVIL_METADATA_KEYWORDS` : khớp trên `nganh` + `linh_vuc` nếu nguồn có.
+# Khớp bất kỳ đường nào là lọt. Nhánh con dùng để thống kê cân bằng, KHÔNG
+# phải nhãn của bài toán — nhãn vẫn chỉ là broad/narrow.
+#
+# ⚠️ THỨ TỰ TRONG DICT LÀ CÓ Ý NGHĨA: `scope_of` trả về nhánh khớp ĐẦU TIÊN,
+# nên nhánh chung nhất (`dan_su_chung`, từ khoá "dân sự") phải đứng CUỐI. Đặt
+# nó lên đầu thì "Thi hành án dân sự" khớp "dân sự" trước và mọi nhánh cụ thể
+# hơn đều bị nuốt — thống kê cân bằng khi đó chỉ còn một cột.
+CIVIL_ANCHOR_TITLES = {
+    "to_tung_thi_hanh_an": ["tố tụng dân sự", "thi hành án dân sự"],
+    "hon_nhan_gia_dinh": ["hôn nhân và gia đình", "hôn nhân gia đình",
+                          "luật con nuôi", "nuôi con nuôi",
+                          "luật hộ tịch", "luật quốc tịch"],
+    "thua_ke": ["thừa kế", "di chúc"],
+    "dat_dai_nha_o": ["luật đất đai", "luật nhà ở", "kinh doanh bất động sản",
+                      "quyền sử dụng đất", "bồi thường, hỗ trợ, tái định cư"],
+    "so_huu_tri_tue": ["sở hữu trí tuệ", "quyền tác giả", "sở hữu công nghiệp"],
+    "hop_dong_bao_dam": ["giao dịch bảo đảm", "biện pháp bảo đảm", "luật công chứng"],
+    "giai_quyet_tranh_chap": ["trọng tài thương mại", "hoà giải ở cơ sở",
+                              "hòa giải ở cơ sở", "hoà giải thương mại",
+                              "hòa giải thương mại"],
+    "boi_thuong": ["bồi thường nhà nước", "trách nhiệm bồi thường"],
+    # Nhánh chung nhất — phải đứng CUỐI, xem chú thích trên
+    "dan_su_chung": ["bộ luật dân sự", "luật dân sự"],
 }
 
-# "Phòng thủ dân sự" (civil defence) khớp nhầm từ khoá "dân sự" nhưng không
-# liên quan gì tới luật dân sự.
-SCOPE_ANTI_KEYWORDS = ["phòng thủ dân sự"]
+# Cùng quy tắc thứ tự: nhánh chung nhất đứng cuối.
+CIVIL_METADATA_KEYWORDS = {
+    "to_tung_thi_hanh_an": ["thi hành án dân sự", "tố tụng dân sự"],
+    "hon_nhan_gia_dinh": ["hôn nhân", "hộ tịch", "quốc tịch", "con nuôi"],
+    "thua_ke": ["thừa kế"],
+    "dat_dai_nha_o": ["đất đai", "nhà ở", "bất động sản"],
+    "so_huu_tri_tue": ["sở hữu trí tuệ"],
+    "hop_dong_bao_dam": ["giao dịch bảo đảm", "công chứng", "chứng thực"],
+    "giai_quyet_tranh_chap": ["trọng tài", "hoà giải", "hòa giải"],
+    "boi_thuong": ["bồi thường nhà nước"],
+    # Nhánh chung nhất — phải đứng CUỐI
+    "dan_su_chung": ["dân sự"],
+}
 
-# Chỉ giữ văn bản QUY PHẠM. Dataset có 91k "Quyết định" và 28k "Nghị quyết",
+# Từ khoá loại trừ — mỗi dòng là một cú khớp nhầm ĐÃ ĐO ĐƯỢC trên dữ liệu
+# thật, không phải đề phòng suông. Xét TRƯỚC khi so khớp phạm vi.
+SCOPE_ANTI_KEYWORDS = [
+    "phòng thủ dân sự",          # civil defence, không liên quan luật dân sự
+    "hình sự",                   # BLTTHS lọt qua từ khoá "tố tụng"
+    "tố tụng hành chính",
+    "tài sản công",              # công sản/kế toán, không phải sở hữu dân sự
+    "tài sản cố định",
+    "tài sản kết cấu hạ tầng",
+    "bạo lực gia đình",          # phòng chống bạo lực, không phải chế định HNGĐ
+]
+
+# Chỉ giữ văn bản QUY PHẠM. Dataset HF có 91k "Quyết định" và 28k "Nghị quyết",
 # phần lớn là quyết định hành chính cá biệt (bổ nhiệm, phê duyệt dự án...) —
 # không chứa quy phạm để hỏi đáp pháp lý. Whitelist thay vì blacklist vì
 # blacklist sẽ phải liệt kê 31 loại để loại đúng vài loại cần giữ.
+#
+# Bộ lọc này TỰ TẮT khi nguồn không có trường `loai_van_ban` — nguồn tải tay
+# thường không có, và loại sạch corpus vì thiếu một cột metadata là cách hỏng
+# tệ nhất: không có thông báo lỗi nào cả.
 INCLUDED_DOC_TYPES = [
     "bộ luật", "luật", "pháp lệnh", "nghị định",
     "thông tư", "thông tư liên tịch", "văn bản hợp nhất",
 ]
 
+# Cách áp bộ lọc phạm vi:
+#   "auto"   — lọc bình thường, NHƯNG nếu tỉ lệ lọt < SCOPE_AUTO_MIN_RATIO thì
+#              coi như nguồn đã thuần dân sự sẵn (hoặc từ khoá không hợp với
+#              nguồn này), cảnh báo rồi giữ nguyên cả corpus. Đây là mặc định,
+#              và là lý do thả một dataset dân sự lạ vào cũng không ra 0 doc.
+#   "strict" — lọc thẳng tay, lọt bao nhiêu lấy bấy nhiêu (kể cả 0).
+#   "off"    — không lọc, chỉ gán nhánh con để thống kê. Dùng khi đã tự tay
+#              chuẩn bị corpus và chắc chắn nó thuần dân sự.
+SCOPE_FILTER_MODE = os.getenv("QA_SCOPE_FILTER_MODE", "auto").strip().lower()
+SCOPE_AUTO_MIN_RATIO = float(os.getenv("QA_SCOPE_AUTO_MIN_RATIO", "0.20"))
+
 MIN_CONTENT_LENGTH = int(os.getenv("QA_MIN_CONTENT_LENGTH", "500"))
 MAX_DOC_CHARS = int(os.getenv("QA_MAX_DOC_CHARS", "2000"))  # cắt context như seed_generator
+
+
+# ── Cắt theo Điều ─────────────────────────────────────────────────
+# Phạm vi sâu = ít văn bản nhưng rất dài (Bộ luật Dân sự 2015: 689 Điều). Bật
+# cờ này để mỗi Điều thành một nguồn sinh cặp riêng, thay vì mỗi văn bản chỉ
+# ra đúng 1 cặp từ 2.000 ký tự đầu (mà 2.000 ký tự đầu của một bộ luật thì
+# toàn phần "Căn cứ...").
+#
+# Mặc định TẮT: chưa biết nguồn mới có đánh số theo Điều hay không. Chạy
+# `scripts/10_generate_qa_pairs.py --dry-run` để xem cắt được bao nhiêu rồi
+# hãy bật. Bật xong nhớ xoá cache corpus (`--rebuild-corpus`).
+SPLIT_BY_ARTICLE = os.getenv("QA_SPLIT_BY_ARTICLE", "0").strip().lower() in (
+    "1", "true", "yes", "on"
+)
+# Điều quá ngắn ("Điều 3. Giải thích từ ngữ" chỉ có một dòng dẫn) không đủ nội
+# dung để sinh nổi một cặp broad/narrow.
+ARTICLE_MIN_LENGTH = int(os.getenv("QA_ARTICLE_MIN_LENGTH", "300"))
 
 
 # ── Heuristic weak labeler (guideline §6) ─────────────────────────
@@ -184,8 +296,10 @@ PASS_RATE_ABORT = 0.40  # < 40%  → dừng, sửa prompt/tiêu chí
 
 
 def ensure_qa_directories():
-    """Tạo toàn bộ thư mục output của Phần 3 nếu chưa tồn tại."""
-    for directory in (QA_RAW_DIR, QA_LABELED_DIR, QA_FINAL_DIR, LOG_DIR):
+    """Tạo toàn bộ thư mục của Phần 3 nếu chưa tồn tại."""
+    # `CORPUS_SOURCE` được tạo sẵn cả khi còn rỗng: có thư mục nhìn thấy được
+    # thì người dùng biết thả dataset mới vào đâu.
+    for directory in (CORPUS_SOURCE, QA_RAW_DIR, QA_LABELED_DIR, QA_FINAL_DIR, LOG_DIR):
         directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -226,6 +340,28 @@ def validate_qa_config() -> list[str]:
     if MAX_DOC_CHARS < 500:
         errors.append(f"QA_MAX_DOC_CHARS ({MAX_DOC_CHARS}) quá nhỏ, khuyến nghị >= 500")
 
+    if SCOPE_FILTER_MODE not in ("auto", "strict", "off"):
+        errors.append(
+            f"QA_SCOPE_FILTER_MODE={SCOPE_FILTER_MODE!r} không hợp lệ, "
+            f"phải là 'auto', 'strict' hoặc 'off'"
+        )
+    if not 0.0 <= SCOPE_AUTO_MIN_RATIO <= 1.0:
+        errors.append(
+            f"QA_SCOPE_AUTO_MIN_RATIO ({SCOPE_AUTO_MIN_RATIO}) phải trong khoảng [0, 1]"
+        )
+
+    # Cảnh báo sớm về nguồn dữ liệu: rẻ hơn nhiều so với việc phát hiện ở giữa
+    # một mẻ chạy đã gọi vài trăm lượt LLM.
+    from src.qa_specificity.corpus_loader import has_local_corpus
+
+    if not has_local_corpus(CORPUS_SOURCE):
+        warnings.append(
+            f"Chưa có file corpus nào ở {CORPUS_SOURCE} → rơi về dataset HuggingFace "
+            f"({HF_DATASET_NAME}), là nguồn CŨ chứa cả lao động lẫn dân sự. Thả dataset "
+            f"dân sự mới vào thư mục đó ({', '.join(SUPPORTED_SUFFIXES)}) rồi chạy lại "
+            f"với --rebuild-corpus."
+        )
+
     # Cảnh báo, không phải lỗi — spec §3.1 cho phép phương án dự phòng
     if (JUDGE_MODEL_NAME == GEN_MODEL_NAME
             and JUDGE_LLM_BASE_URL == GEN_LLM_BASE_URL):
@@ -239,7 +375,7 @@ def validate_qa_config() -> list[str]:
     if judge_is_remote():
         warnings.append(
             f"Judge đang trỏ ra API ngoài ({JUDGE_LLM_BASE_URL}) → mỗi câu hỏi là một "
-            f"lượt gọi TRẢ PHÍ và ăn chung quota với pipeline của Vinh. Chạy "
+            f"lượt gọi TRẢ PHÍ. Chạy "
             f"`python scripts/11_verify_labels.py --estimate-cost` để xem chi phí trước."
         )
 

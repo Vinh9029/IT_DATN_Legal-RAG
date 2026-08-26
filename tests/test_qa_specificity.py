@@ -16,7 +16,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pytest
 from unittest.mock import MagicMock
 
-from src.qa_specificity.corpus_filter import derive_doc_id, is_in_scope, scope_of
+from src.qa_specificity import corpus_filter
+from src.qa_specificity.corpus_filter import (
+    apply_scope_filter,
+    derive_doc_id,
+    is_in_scope,
+    is_normative_doc,
+    scope_of,
+)
+from src.qa_specificity.corpus_loader import (
+    _slug,
+    expand_documents_by_article,
+    load_local_corpus,
+    normalize_record,
+    split_into_articles,
+)
 from src.qa_specificity.dataset_builder import (
     assert_no_leakage,
     compute_kappa,
@@ -148,7 +162,6 @@ class TestCorpusFilter:
         assert derive_doc_id({"id": "1"}) != derive_doc_id({"id": "2"})
 
     def test_fallback_so_ky_hieu_khi_thieu_id(self):
-        # `so_ky_hieu` là tên trường THẬT; `so_hieu` (tên Vinh dùng) không tồn tại
         doc_a = {"metadata": {"so_ky_hieu": "45/2019/QH14"}, "content": "A"}
         doc_b = {"metadata": {"so_ky_hieu": "45/2019/QH14"}, "content": "B khác hẳn"}
         assert derive_doc_id(doc_a) == derive_doc_id(doc_b)
@@ -166,12 +179,20 @@ class TestCorpusFilter:
 
     @pytest.mark.parametrize("metadata,expected", [
         # Giá trị lấy từ dataset thật, không phải bịa
-        ({"nganh": "Lao động - Thương binh và Xã hội", "linh_vuc": "Chưa phân loại",
-          "loai_van_ban": "Thông tư"}, True),
+        # ── Lọt: nhận qua TIÊU ĐỀ (đường chính, vì 66% bản ghi thiếu linh_vuc) ──
+        ({"title": "Bộ luật Dân sự số 91/2015/QH13", "loai_van_ban": "Bộ luật"}, True),
+        ({"title": "Luật Đất đai số 45/2013/QH13", "loai_van_ban": "Luật"}, True),
+        ({"title": "Luật Hôn nhân và gia đình số 52/2014/QH13", "nganh": "None",
+          "linh_vuc": "Chưa phân loại", "loai_van_ban": "Luật"}, True),
+        # ── Lọt: nhận qua metadata (đường bổ sung) ──
         ({"nganh": "Tư pháp", "linh_vuc": "Thi hành án dân sự",
           "loai_van_ban": "Nghị định"}, True),
+        # ── Rớt: lao động KHÔNG còn trong phạm vi kể từ v1.2 ──
+        ({"nganh": "Lao động - Thương binh và Xã hội", "linh_vuc": "Chưa phân loại",
+          "loai_van_ban": "Thông tư"}, False),
         ({"nganh": "None", "linh_vuc": "Lao động, tiền lương, tiền công",
-          "loai_van_ban": "Luật"}, True),
+          "loai_van_ban": "Luật"}, False),
+        # ── Rớt: ngoài phạm vi ──
         ({"nganh": "Tài chính", "linh_vuc": "Quản lý thuế, phí và lệ phí",
           "loai_van_ban": "Thông tư"}, False),
         ({"nganh": "", "linh_vuc": "", "loai_van_ban": "Luật"}, False),
@@ -182,27 +203,81 @@ class TestCorpusFilter:
     def test_chi_giu_van_ban_quy_pham(self):
         # "Quyết định" chiếm 91k/171k nhưng phần lớn là quyết định hành chính
         # cá biệt, không có quy phạm để hỏi đáp pháp lý.
-        base = {"nganh": "Lao động - Thương binh và Xã hội", "linh_vuc": "Chưa phân loại"}
+        base = {"nganh": "Tư pháp", "linh_vuc": "Thi hành án dân sự"}
         assert is_in_scope({"metadata": {**base, "loai_van_ban": "Thông tư"}}) is True
         for loai in ("Quyết định", "Nghị quyết", "Công văn", "Chỉ thị", "Bản dịch văn bản"):
             assert is_in_scope({"metadata": {**base, "loai_van_ban": loai}}) is False, loai
 
-    def test_phong_thu_dan_su_khong_bi_khop_nham(self):
-        # "Phòng thủ dân sự" chứa chữ "dân sự" nhưng là civil defence
-        doc = {"metadata": {"nganh": "Quốc phòng", "linh_vuc": "Phòng thủ dân sự",
-                            "loai_van_ban": "Nghị định"}}
-        assert is_in_scope(doc) is False
+    def test_thieu_loai_van_ban_thi_khong_loc(self):
+        # Nguồn tải tay thường không có cột `loai_van_ban`. Loại sạch corpus vì
+        # thiếu một cột metadata là kiểu hỏng không có thông báo lỗi.
+        assert is_normative_doc({"metadata": {}}) is True
+        assert is_in_scope({"metadata": {"title": "Bộ luật Dân sự 2015"}}) is True
+
+    @pytest.mark.parametrize("metadata", [
+        # Mỗi dòng là một cú khớp nhầm ĐÃ ĐO ĐƯỢC trên dữ liệu thật
+        {"nganh": "Quốc phòng", "linh_vuc": "Phòng thủ dân sự", "loai_van_ban": "Nghị định"},
+        {"title": "Nghị định số 129/2017/NĐ-CP về quản lý, sử dụng tài sản công",
+         "loai_van_ban": "Nghị định"},
+        {"title": "Thông tư ban hành chế độ kế toán tài sản cố định",
+         "loai_van_ban": "Thông tư"},
+        {"title": "Thông tư quy định về phòng, chống bạo lực gia đình",
+         "loai_van_ban": "Thông tư"},
+        {"title": "Bộ luật Tố tụng hình sự số 101/2015/QH13", "loai_van_ban": "Bộ luật"},
+    ])
+    def test_anti_keyword_chan_khop_nham(self, metadata):
+        assert is_in_scope({"metadata": metadata}) is False
 
     def test_chap_nhan_ca_dict_phang_lan_dict_long(self):
-        flat = {"nganh": "Lao động - Thương binh và Xã hội", "linh_vuc": "",
+        flat = {"nganh": "Tư pháp", "linh_vuc": "Thi hành án dân sự",
                 "loai_van_ban": "Thông tư"}
         assert is_in_scope(flat) is True
         assert is_in_scope({"metadata": flat}) is True
 
     def test_scope_of_phan_loai_dung_nhanh(self):
-        assert scope_of({"nganh": "Lao động - Thương binh và Xã hội", "linh_vuc": ""}) == "lao_dong"
-        assert scope_of({"nganh": "Tư pháp", "linh_vuc": "Thi hành án dân sự"}) == "dan_su"
+        assert scope_of({"title": "Bộ luật Dân sự số 91/2015/QH13"}) == "dan_su_chung"
+        assert scope_of({"title": "Luật Nhà ở số 27/2023/QH15"}) == "dat_dai_nha_o"
+        assert scope_of({"title": "Luật Sở hữu trí tuệ số 50/2005/QH11"}) == "so_huu_tri_tue"
+        assert scope_of({"nganh": "Tư pháp", "linh_vuc": "Thi hành án dân sự"}) == "to_tung_thi_hanh_an"
         assert scope_of({"nganh": "Tài chính", "linh_vuc": "Chưa phân loại"}) == ""
+
+
+class TestApplyScopeFilter:
+    """Ba chế độ lọc — xem `SCOPE_FILTER_MODE` trong config/qa_settings.py."""
+
+    CIVIL = {"metadata": {"title": "Bộ luật Dân sự 2015", "loai_van_ban": "Bộ luật"}}
+    OTHER = {"metadata": {"title": "Luật An toàn thực phẩm", "loai_van_ban": "Luật"}}
+
+    def _docs(self, n_civil, n_other):
+        import copy
+        return ([copy.deepcopy(self.CIVIL) for _ in range(n_civil)]
+                + [copy.deepcopy(self.OTHER) for _ in range(n_other)])
+
+    def test_strict_loc_thang_tay(self, monkeypatch):
+        monkeypatch.setattr(corpus_filter, "SCOPE_FILTER_MODE", "strict")
+        assert len(apply_scope_filter(self._docs(1, 9))) == 1
+
+    def test_off_giu_nguyen(self, monkeypatch):
+        monkeypatch.setattr(corpus_filter, "SCOPE_FILTER_MODE", "off")
+        assert len(apply_scope_filter(self._docs(1, 9))) == 10
+
+    def test_auto_loc_binh_thuong_khi_ti_le_du_cao(self, monkeypatch):
+        monkeypatch.setattr(corpus_filter, "SCOPE_FILTER_MODE", "auto")
+        monkeypatch.setattr(corpus_filter, "SCOPE_AUTO_MIN_RATIO", 0.20)
+        assert len(apply_scope_filter(self._docs(8, 2))) == 8
+
+    def test_auto_giu_nguyen_khi_ti_le_qua_thap(self, monkeypatch):
+        # Nguồn đã thuần dân sự sẵn, hoặc từ khoá không khớp cách đặt tên của
+        # nguồn — cả hai đều KHÔNG phải lý do để vứt dữ liệu.
+        monkeypatch.setattr(corpus_filter, "SCOPE_FILTER_MODE", "auto")
+        monkeypatch.setattr(corpus_filter, "SCOPE_AUTO_MIN_RATIO", 0.20)
+        assert len(apply_scope_filter(self._docs(1, 19))) == 20
+
+    def test_gan_truong_scope_cho_moi_doc(self, monkeypatch):
+        monkeypatch.setattr(corpus_filter, "SCOPE_FILTER_MODE", "off")
+        docs = apply_scope_filter(self._docs(1, 1))
+        assert docs[0]["scope"] == "dan_su_chung"
+        assert docs[1]["scope"] == ""
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -283,7 +358,7 @@ class TestBuildPairItems:
         return {
             "source_doc_id": "doc_abc123",
             "content": "nội dung",
-            "scope": "lao_dong",
+            "scope": "dan_su_chung",
             "metadata": {"linh_vuc": "Lao động", "nganh": "Lao động - Tiền lương",
                          "so_hieu": "45/2019/QH14", "loai_van_ban": "Bộ luật"},
         }
@@ -318,7 +393,7 @@ class TestChongShortcutTrichDan:
         return {
             "source_doc_id": "doc_abc123",
             "content": "nội dung",
-            "scope": "lao_dong",
+            "scope": "dan_su_chung",
             "metadata": {"linh_vuc": "Lao động", "nganh": "Lao động",
                          "so_hieu": "45/2019/QH14", "loai_van_ban": "Bộ luật"},
         }
@@ -407,7 +482,7 @@ class TestGeneratePair:
             "[BROAD]\nNgười lao động có những quyền gì theo luật lao động?\n"
             "[NARROW]\nTheo khoản 1 Điều 35 Bộ luật Lao động 2019, báo trước mấy ngày?"
         )
-        doc = {"source_doc_id": "doc_x", "content": "nội dung luật", "scope": "lao_dong",
+        doc = {"source_doc_id": "doc_x", "content": "nội dung luật", "scope": "dan_su_chung",
                "metadata": {"linh_vuc": "Lao động", "nganh": "Lao động", "so_hieu": "45/2019/QH14"}}
 
         items = generate_pair(doc, llm)
@@ -793,3 +868,146 @@ class TestEstimateJudgeCost:
         est = estimate_judge_cost([], cache_path=None)
         assert est["n_calls"] == 0
         assert est["usd_total"] == 0
+
+
+# ══════════════════════════════════════════════════════════════════
+# corpus_loader — nạp nguồn đa định dạng
+# ══════════════════════════════════════════════════════════════════
+
+class TestSlugTenCot:
+    """Nguồn dữ liệu người Việt hay có header tiếng Việt CÓ DẤU."""
+
+    @pytest.mark.parametrize("raw,expected", [
+        ("Nội dung", "noi_dung"),
+        ("Số ký hiệu", "so_ky_hieu"),
+        ("Loại văn bản", "loai_van_ban"),
+        ("Tiêu đề", "tieu_de"),
+        ("  CONTENT_HTML  ", "content_html"),
+        ("Ngày ban hành", "ngay_ban_hanh"),
+    ])
+    def test_bo_dau_va_thuong_hoa(self, raw, expected):
+        assert _slug(raw) == expected
+
+
+class TestNormalizeRecord:
+    def test_header_tieng_viet_van_khop_bi_danh(self):
+        doc = normalize_record({
+            "Số ký hiệu": "91/2015/QH13",
+            "Tiêu đề": "Bộ luật Dân sự",
+            "Nội dung": "x" * 600,
+            "Loại văn bản": "Bộ luật",
+        }, source_file="a.csv")
+        assert doc is not None
+        assert doc["metadata"]["so_hieu"] == "91/2015/QH13"
+        assert doc["metadata"]["title"] == "Bộ luật Dân sự"
+        assert doc["metadata"]["loai_van_ban"] == "Bộ luật"
+        assert doc["content_length"] == 600
+
+    def test_khong_co_noi_dung_thi_bo_qua(self):
+        # Dòng trống trong CSV là chuyện bình thường, không phải lỗi
+        assert normalize_record({"title": "abc"}, source_file="a.csv") is None
+
+    def test_o_trong_ghi_bang_chuoi_None(self):
+        doc = normalize_record({"content": "x" * 600, "nganh": "None",
+                                "linh_vuc": "nan"}, source_file="a.csv")
+        assert doc["metadata"]["nganh"] == ""
+        assert doc["metadata"]["linh_vuc"] == ""
+
+    def test_lam_sach_html(self):
+        doc = normalize_record(
+            {"content_html": "<p>Điều 1. Phạm vi</p><p>" + "x" * 600 + "</p>"},
+            source_file="a.jsonl",
+        )
+        assert "<p>" not in doc["content"]
+
+    def test_thieu_id_thi_sinh_id_on_dinh(self):
+        raw = {"content": "x" * 600, "so_hieu": "91/2015/QH13"}
+        a = normalize_record(raw, source_file="a.csv", index=0)
+        b = normalize_record(raw, source_file="a.csv", index=0)
+        assert a["source_doc_id"] == b["source_doc_id"]
+        assert a["source_doc_id"].startswith("doc_")
+
+
+class TestLoadLocalCorpus:
+    def test_doc_duoc_jsonl_va_csv_trong_cung_thu_muc(self, tmp_path):
+        import json as _json
+        body = "x" * 600
+        (tmp_path / "a.jsonl").write_text(
+            _json.dumps({"id": "1", "content": body, "title": "Bộ luật Dân sự"},
+                        ensure_ascii=False) + "\n",
+            encoding="utf-8")
+        (tmp_path / "b.csv").write_text(
+            "id,Tiêu đề,Nội dung\n2,Luật Đất đai,{}\n".format(body),
+            encoding="utf-8-sig")
+
+        docs = load_local_corpus(tmp_path)
+        assert len(docs) == 2
+        assert {d["metadata"]["title"] for d in docs} == {"Bộ luật Dân sự", "Luật Đất đai"}
+        assert {d["source_file"] for d in docs} == {"a.jsonl", "b.csv"}
+
+    def test_loai_trung_source_doc_id(self, tmp_path):
+        import json as _json
+        line = _json.dumps({"id": "1", "content": "x" * 600}) + "\n"
+        (tmp_path / "a.jsonl").write_text(line + line, encoding="utf-8")
+        assert len(load_local_corpus(tmp_path)) == 1
+
+    def test_bo_qua_file_qua_ngan(self, tmp_path):
+        import json as _json
+        (tmp_path / "a.jsonl").write_text(
+            _json.dumps({"id": "1", "content": "ngắn"}) + "\n", encoding="utf-8")
+        assert load_local_corpus(tmp_path) == []
+
+    def test_mot_file_hong_khong_lam_hong_ca_me(self, tmp_path):
+        import json as _json
+        (tmp_path / "good.jsonl").write_text(
+            _json.dumps({"id": "1", "content": "x" * 600}) + "\n", encoding="utf-8")
+        # .parquet không phải parquet — reader sẽ ném, phải bị bỏ qua chứ không lan
+        (tmp_path / "bad.parquet").write_bytes(b"khong phai parquet")
+        assert len(load_local_corpus(tmp_path)) == 1
+
+    def test_thu_muc_rong_tra_ve_rong(self, tmp_path):
+        assert load_local_corpus(tmp_path) == []
+
+
+class TestSplitByArticle:
+    CONTENT = (
+        "CHÍNH PHỦ\nCăn cứ Hiến pháp năm 2013;\n"
+        "Điều 1. Phạm vi điều chỉnh\n" + "a" * 400 + "\n"
+        "Điều 2. Giải thích từ ngữ\n" + "b" * 400 + "\n"
+        "Điều 3. Nguyên tắc\n" + "c" * 400 + "\n"
+    )
+
+    def test_cat_dung_so_dieu(self):
+        articles = split_into_articles(self.CONTENT)
+        assert [num for num, _ in articles] == ["1", "2", "3"]
+        assert articles[0][1].startswith("Điều 1.")
+
+    def test_dieu_qua_ngan_bi_loai(self):
+        content = "Điều 1. Ngắn\nx\nĐiều 2. Dài\n" + "y" * 400
+        assert [n for n, _ in split_into_articles(content)] == ["2"]
+
+    def test_van_ban_khong_danh_so_theo_dieu_tra_ve_rong(self):
+        # Thông tư đánh `I.`/`1.` — caller giữ nguyên cả văn bản
+        assert split_into_articles("I. Quy định chung\n" + "x" * 900) == []
+
+    def test_khong_bat_dieu_viet_thuong_giua_cau(self):
+        assert split_into_articles("Theo điều 5 nói trên thì " + "x" * 900) == []
+
+    def test_expand_doi_source_doc_id_thanh_khoa_group_moi(self):
+        docs = expand_documents_by_article([{
+            "id": "1", "source_doc_id": "doc_1", "content": self.CONTENT,
+            "content_length": len(self.CONTENT), "metadata": {"title": "BLDS"},
+        }])
+        assert len(docs) == 3
+        assert [d["source_doc_id"] for d in docs] == [
+            "doc_1#dieu-1", "doc_1#dieu-2", "doc_1#dieu-3"]
+        assert all(d["parent_doc_id"] == "doc_1" for d in docs)
+        # metadata phải là bản sao, không dùng chung một dict
+        docs[0]["metadata"]["dieu"] = "sửa"
+        assert docs[1]["metadata"]["dieu"] == "2"
+
+    def test_van_ban_khong_cat_duoc_thi_giu_nguyen(self):
+        doc = {"id": "1", "source_doc_id": "doc_1", "content": "x" * 900,
+               "content_length": 900, "metadata": {}}
+        out = expand_documents_by_article([doc])
+        assert out == [doc]

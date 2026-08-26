@@ -118,10 +118,6 @@ class JudgeClient:
     def _chat_raw(self, question: str) -> str:
         """
         Gọi thẳng OpenAI client thay vì `LLMClient.chat()`.
-
-        Lý do: cần truyền `reasoning_effort` qua `extra_body`, mà `chat()` là
-        file của Vinh, không được sửa. Retry vẫn có — `LLMClient.__init__` đã
-        dựng sẵn client, ta chỉ mượn lại đối tượng đó.
         """
         extra_body = None
         if self._reasoning_effort:

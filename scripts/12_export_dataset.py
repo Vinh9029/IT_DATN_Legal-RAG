@@ -132,7 +132,6 @@ def main():
     logger.info("\n📋 Còn lại để hoàn thành Phần 3:")
     logger.info("   - Bước 3 (nếu chưa làm): gán tay ~100 câu và tính Cohen's kappa")
     logger.info("     python scripts/11_verify_labels.py --export-manual-sample 100")
-    logger.info("   - Bàn giao test.json cho Vinh (giữ nguyên schema QAItem, để Vinh tự map)")
 
 
 if __name__ == "__main__":

@@ -11,6 +11,12 @@ datasets>=2.14.0             # HuggingFace Datasets (load vietnamese-legal-docum
 beautifulsoup4>=4.12.0       # Làm sạch content_html → plain text
 lxml>=4.9.0                  # HTML/XML parser backend cho BeautifulSoup
 
+# --- Đọc nguồn corpus cục bộ (Phần 3 — corpus_loader) ---
+# Chỉ cần khi nguồn dữ liệu về dưới dạng tương ứng; các định dạng khác
+# (.jsonl/.json/.csv/.tsv/.txt/.md/.html) dùng thư viện chuẩn, không cần cài gì.
+python-docx>=1.1.0           # Đọc .docx (văn bản luật tải từ trang tra cứu)
+openpyxl>=3.1.0              # Đọc .xlsx/.xlsm (dataset xuất từ Excel)
+
 # --- NLP & Text Analysis ---
 underthesea>=6.8.0           # NER tiếng Việt (Named Entity Recognition)
 scikit-learn>=1.3.0          # TF-IDF Vectorizer + Cosine Similarity (bộ lọc)

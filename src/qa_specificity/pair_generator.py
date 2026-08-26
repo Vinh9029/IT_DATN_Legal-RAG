@@ -183,12 +183,18 @@ def build_pair_items(
     pair_id = "pair_" + generate_item_id(f"{source_doc_id}|{broad_q}|{narrow_q}")
     metadata = doc.get("metadata") or {}
     shared_meta = {
+        "title": metadata.get("title", ""),
         "linh_vuc": metadata.get("linh_vuc", ""),
         "nganh": metadata.get("nganh", ""),
         "so_hieu": metadata.get("so_hieu", ""),
         "loai_van_ban": metadata.get("loai_van_ban", ""),
         "scope": doc.get("scope", ""),
     }
+    # Chỉ có khi bật QA_SPLIT_BY_ARTICLE. Giữ lại để đánh giá recall ở mức điều
+    # khoản, và để truy ngược về văn bản mẹ mà không phải parse `source_doc_id`.
+    if doc.get("article_number"):
+        shared_meta["dieu"] = doc["article_number"]
+        shared_meta["parent_doc_id"] = doc.get("parent_doc_id", "")
 
     items = []
     for label, question in (
@@ -220,11 +226,15 @@ def generate_pair(doc: dict, llm_client) -> list[QAItem]:
     metadata = doc.get("metadata") or {}
     narrow_mode = pick_narrow_mode(doc.get("source_doc_id", ""))
 
+    # Nguồn dữ liệu cục bộ thường chỉ có TIÊU ĐỀ, không có `so_hieu`/`linh_vuc`
+    # như dataset HF. Bỏ trống ba ô này thì model mất luôn thông tin đang đọc
+    # văn bản nào — chí mạng với chế độ narrow trích dẫn, vì model buộc phải
+    # đoán tên văn bản. Nên lấy thứ tốt nhất đang có thay vì để "Chưa xác định".
     messages = build_pair_generator_messages(
         content=content,
-        linh_vuc=metadata.get("linh_vuc", ""),
+        linh_vuc=metadata.get("linh_vuc") or doc.get("scope", ""),
         nganh=metadata.get("nganh", ""),
-        so_hieu=metadata.get("so_hieu", ""),
+        so_hieu=metadata.get("so_hieu") or metadata.get("title", ""),
         narrow_mode=narrow_mode,
     )
 

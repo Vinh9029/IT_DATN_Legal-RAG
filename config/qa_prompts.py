@@ -16,16 +16,16 @@ sửa guideline trước, sửa prompt sau, và ghi vào bảng nhật ký §8 c
 # ══════════════════════════════════════════════════════════════════
 
 FEWSHOT_NARROW = [
-    "Theo khoản 1 Điều 35 Bộ luật Lao động 2019, người lao động làm việc theo hợp đồng "
-    "không xác định thời hạn phải báo trước bao nhiêu ngày khi đơn phương chấm dứt hợp đồng?",
+    "Theo khoản 1 Điều 623 Bộ luật Dân sự 2015, thời hiệu để người thừa kế yêu cầu "
+    "chia di sản là bất động sản là bao nhiêu năm?",
 
-    "Chị B ký hợp đồng lao động xác định thời hạn 24 tháng với công ty X. Sau 14 tháng, "
-    "chị B nghỉ việc và chỉ báo trước 10 ngày. Công ty yêu cầu chị bồi thường. "
-    "Yêu cầu này có căn cứ pháp lý không?",
+    "Ông A mất năm 2019, không để lại di chúc. Đến năm 2026, người con riêng của ông "
+    "mới yêu cầu chia căn nhà mà ông đứng tên chung với vợ, hai người con chung phản "
+    "đối vì cho rằng đã quá hạn. Yêu cầu chia di sản này có được chấp nhận không?",
 ]
 
 FEWSHOT_BROAD = [
-    "Người lao động có những quyền gì theo pháp luật lao động Việt Nam?",
+    "Người thừa kế có những quyền và nghĩa vụ gì theo pháp luật dân sự Việt Nam?",
 
     "Khi phát sinh tranh chấp hợp đồng dân sự, các bên có những phương thức giải quyết nào "
     "và ưu nhược điểm của từng phương thức ra sao?",
@@ -33,7 +33,7 @@ FEWSHOT_BROAD = [
 
 # Câu vùng xám — dùng để dạy model KHÔNG sinh ra loại này (guideline §5.3)
 FEWSHOT_AMBIGUOUS = [
-    "Hợp đồng lao động vô hiệu thì xử lý thế nào?",
+    "Giao dịch dân sự vô hiệu thì xử lý thế nào?",
 ]
 
 # ══════════════════════════════════════════════════════════════════
@@ -79,9 +79,9 @@ NARROW_MODE_BLOCK = {
 CRITERIA_BLOCK = """TIÊU CHÍ PHÂN LOẠI — chấm trên 3 trục độc lập:
 
 Trục 1 — Mức chỉ định văn bản/điều khoản:
-  → NARROW: nêu đích danh số điều/khoản/điểm ("Điều 35", "khoản 2 Điều 468 BLDS"),
+  → NARROW: nêu đích danh số điều/khoản/điểm ("Điều 623", "khoản 2 Điều 468 BLDS"),
             hoặc nêu tên văn bản kèm chế định cụ thể.
-  → BROAD:  không nêu văn bản nào, hoặc chỉ nêu tên lĩnh vực ("theo luật lao động").
+  → BROAD:  không nêu văn bản nào, hoặc chỉ nêu tên lĩnh vực ("theo pháp luật dân sự").
 
 Trục 2 — Số lượng điều luật cần để trả lời đầy đủ:
   → NARROW: 1-2 điều là đủ; câu trả lời có dạng "theo Điều X thì...".
@@ -90,7 +90,7 @@ Trục 2 — Số lượng điều luật cần để trả lời đầy đủ:
 
 Trục 3 — Mức chi tiết của tình huống:
   → NARROW: có tình huống với chủ thể, hành vi, mốc thời gian, con số cụ thể
-            ("Anh A làm việc 3 năm, bị cho nghỉ không báo trước 45 ngày...").
+            ("Anh A vay của chị B 200 triệu, quá hạn 6 tháng chưa trả...").
   → BROAD:  câu hỏi khái niệm/định nghĩa/tổng quan, hoặc tình huống chung chung
             không đủ dữ kiện.
 
@@ -146,7 +146,7 @@ KHÔNG giải thích. KHÔNG đánh số. KHÔNG dùng markdown. KHÔNG thêm l�
 
 USER_PAIR_GENERATOR = """Lĩnh vực: {linh_vuc}
 Ngành: {nganh}
-Số hiệu văn bản: {so_hieu}
+Văn bản: {so_hieu}
 
 NỘI DUNG VĂN BẢN:
 ---
@@ -204,7 +204,7 @@ JUDGE_FEWSHOT = [
     (
         FEWSHOT_NARROW[0],
         '{"axis1": "narrow", "axis2": "narrow", "axis3": "broad", "label": "narrow", '
-        '"reason": "Nêu đích danh khoản 1 Điều 35, phủ quyết trục 1"}',
+        '"reason": "Nêu đích danh khoản 1 Điều 623, phủ quyết trục 1"}',
     ),
     (
         FEWSHOT_NARROW[1],
@@ -214,7 +214,7 @@ JUDGE_FEWSHOT = [
     (
         FEWSHOT_BROAD[0],
         '{"axis1": "broad", "axis2": "broad", "axis3": "broad", "label": "broad", '
-        '"reason": "Hỏi liệt kê quyền, phải tổng hợp nhiều điều"}',
+        '"reason": "Hỏi liệt kê quyền và nghĩa vụ, phải tổng hợp nhiều điều"}',
     ),
     (
         FEWSHOT_BROAD[1],

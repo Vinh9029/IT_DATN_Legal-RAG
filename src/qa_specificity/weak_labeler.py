@@ -60,12 +60,18 @@ RE_ACTOR_ORG = re.compile(
     r"(?:[A-ZĐÀ-Ỹ]\b|[A-ZĐÀ-Ỹ][A-Za-zÀ-ỹ]+)"
 )
 
-# Con số ĐỊNH LƯỢNG gắn đơn vị. Cố ý KHÔNG bắt số trần ("Điều 35", "2019")
+# Con số ĐỊNH LƯỢNG gắn đơn vị. Cố ý KHÔNG bắt số trần ("Điều 623", "2015")
 # vì số trần không nói lên tình huống có dữ kiện cụ thể.
+#
+# Đơn vị `năm` phải có bổ nghĩa, nếu không thì "ngày 24 tháng 11 năm 2015" và
+# mọi năm ban hành văn bản đều bị đếm thành dữ kiện tình huống. Danh sách bổ
+# nghĩa cũ thuần lao động; `chung sống`/`sử dụng` là dữ kiện phổ biến trong
+# tranh chấp dân sự (ly hôn, quyền sử dụng đất) mà danh sách cũ bỏ sót.
 RE_QUANTITY = re.compile(
     r"\b\d+(?:[.,]\d+)?\s*"
-    r"(?:ngày|tuần|tháng|năm\s+(?:làm\s+việc|kinh\s+nghiệm|công\s+tác)|giờ|tuổi|"
-    r"triệu|tỷ|nghìn|đồng|%|phần\s+trăm|lần|người|m2|mét)\b",
+    r"(?:ngày|tuần|tháng|"
+    r"năm\s+(?:làm\s+việc|kinh\s+nghiệm|công\s+tác|chung\s+sống|sử\s+dụng)|"
+    r"giờ|tuổi|triệu|tỷ|nghìn|đồng|%|phần\s+trăm|lần|người|m2|mét)\b",
     re.IGNORECASE,
 )
 

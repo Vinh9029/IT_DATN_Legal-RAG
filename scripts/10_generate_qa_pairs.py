@@ -8,6 +8,12 @@ Usage:
     python scripts/10_generate_qa_pairs.py --max-docs 500
     python scripts/10_generate_qa_pairs.py --max-docs 50 --dry-run
     python scripts/10_generate_qa_pairs.py --restart          # bỏ checkpoint cũ
+
+Sau khi ĐỔI NGUỒN DỮ LIỆU / đổi phạm vi / bật QA_SPLIT_BY_ARTICLE thì phải
+thêm --rebuild-corpus, nếu không cache corpus cũ vẫn về và thay đổi trông như
+không có tác dụng:
+    python scripts/10_generate_qa_pairs.py --dry-run --rebuild-corpus
+    python scripts/10_generate_qa_pairs.py --source data/corpus_khac --rebuild-corpus
 """
 
 import argparse
@@ -19,10 +25,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tqdm import tqdm
 
 from config.qa_settings import (
+    CORPUS_SOURCE,
     GENERATION_CHECKPOINT,
     GEN_LLM_BASE_URL,
     GEN_MODEL_NAME,
     PAIRS_FILE,
+    SPLIT_BY_ARTICLE,
     ensure_qa_directories,
     validate_qa_config,
 )
@@ -44,9 +52,15 @@ def main():
                         help="Xoá checkpoint và output cũ, chạy lại từ đầu")
     parser.add_argument("--dry-run", action="store_true",
                         help="Chỉ lọc corpus và in thống kê, không gọi LLM")
+    parser.add_argument("--source", type=Path, default=None,
+                        help=f"Thư mục/file corpus cho lần chạy này (mặc định {CORPUS_SOURCE})")
+    parser.add_argument("--rebuild-corpus", action="store_true",
+                        help="Bỏ qua cache scoped_corpus.jsonl và nạp lại từ nguồn. "
+                             "BẮT BUỘC dùng sau khi đổi nguồn dữ liệu, đổi phạm vi, "
+                             "hoặc bật QA_SPLIT_BY_ARTICLE")
     args = parser.parse_args()
 
-    logger = setup_logging("06_qa_pairs.log")
+    logger = setup_logging("10_qa_pairs.log")
     ensure_qa_directories()
     for warning in validate_qa_config():
         logger.warning(warning)
@@ -56,16 +70,37 @@ def main():
     logger.info("=" * 60)
 
     # ── Corpus ────────────────────────────────────────────────────
-    documents = load_scoped_corpus(max_items=args.max_docs)
+    documents = load_scoped_corpus(
+        max_items=args.max_docs,
+        source=args.source,
+        rebuild=args.rebuild_corpus,
+    )
     if not documents:
         logger.error("❌ Không có document nào trong phạm vi. Dừng.")
+        logger.error(f"   Nguồn đang dùng: {args.source or CORPUS_SOURCE}")
+        logger.error("   Kiểm tra: (1) đã thả file dataset vào thư mục nguồn chưa,")
+        logger.error("             (2) QA_SCOPE_FILTER_MODE — thử 'off' nếu nguồn đã thuần dân sự,")
+        logger.error("             (3) cache cũ — chạy lại với --rebuild-corpus.")
         sys.exit(1)
 
     if args.dry_run:
         from collections import Counter
         scopes = Counter(d.get("scope", "") or "unknown" for d in documents)
+        sources = Counter(d.get("source_file", "") or "unknown" for d in documents)
+        n_articles = sum(1 for d in documents if d.get("article_number"))
         logger.info(f"[dry-run] {len(documents)} documents trong phạm vi")
-        logger.info(f"[dry-run] Phân bố scope: {dict(scopes)}")
+        logger.info(f"[dry-run] Phân bố nhánh dân sự: {dict(scopes)}")
+        logger.info(f"[dry-run] Nguồn file: {dict(sources.most_common(10))}")
+        logger.info(
+            f"[dry-run] Cắt theo Điều: {'BẬT' if SPLIT_BY_ARTICLE else 'TẮT'} "
+            f"({n_articles} document con là một Điều)"
+        )
+        # In vài tiêu đề để soát mắt: đây là chỗ rẻ nhất để bắt corpus lạc đề,
+        # trước khi tiêu vài trăm lượt gọi LLM lên dữ liệu sai phạm vi.
+        logger.info("[dry-run] 10 văn bản đầu:")
+        for doc in documents[:10]:
+            title = (doc.get("metadata") or {}).get("title") or doc.get("source_doc_id")
+            logger.info(f"           [{doc.get('scope') or '?'}] {str(title)[:95]}")
         logger.info("[dry-run] Không gọi LLM. Bỏ --dry-run để chạy thật.")
         return
 
