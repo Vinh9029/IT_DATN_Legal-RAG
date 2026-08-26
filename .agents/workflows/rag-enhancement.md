@@ -2,94 +2,133 @@
 description: Xây dựng RAG nâng cao cho bài toán hỏi đáp Pháp Lý (Legal) ở Việt Nam
 ---
 
-# Tổng quan sƠ ĐỒ KIẾN TRÚC HỆ THỐNG (PIPELINE ARCHITECTURE)
-                            [LUỒNG NGOẠI TUYẾN - OFFLINE]
-   ┌────────────────────────────────────────────────────────────────────────────┐
-   │ 1.03M Relationships [7] ──► Xây dựng Đồ thị Tri thức Pháp luật (Neo4j)   │
-   │ 171k Documents [7]  ──► Trích xuất thực thể (PhoBERT) [8] & Tạo Embeddings│
-   │ WizardLM Evol-Instruct (Constraint) [1] ──► Tạo bộ 100k+ IRAC Instruct-Data│
-   │ Fine-tuning LLM (ViAn/PhoGPT/LLaMA-3) ──► LLM Chuyên gia Pháp luật (IRAC)   │
-   └────────────────────────────────────────────────────────────────────────────┘
+# Multi-stage Hybrid RAG Pipeline — Pháp luật Việt Nam
 
-                             [LUỒNG TRỰC TUYẾN - ONLINE]
+Kết hợp **Evol-Instruct (WizardLM)** [6] và khung lập luận **IRAC** [2, 3], chia hai luồng:
 
-                              [User Query (Câu hỏi thô)]
-                                          │
-                                          ▼
-   ┌────────────────────────────────────────────────────────────────────────────┐
-   │ STAGE 1: PROMPT EVOLUTION & CONSTRAINT ADDITION                            │
-   │ (Sử dụng LLM nhỏ làm Prompt Rewriter theo mẫu WizardLM Example 3.1)        │
-   │  - Phân tích tình huống ngầm định từ câu hỏi thô.                           │
-   │  - Ép buộc bộ khung lập luận pháp lý IRAC làm ràng buộc cứng.             │
-   └────────────────────────────────────────────────────────────────────────────┘
-                                          │
-                                          ▼
-                         [Evolved Query (IRAC-Structured)]
-                                          │
-                  ┌───────────────────────┴───────────────────────┐
-                  ▼                                               ▼
-   ┌─────────────────────────────┐                 ┌─────────────────────────────┐
-   │ STAGE 2A: Dense Search      │                 │ STAGE 2B: Sparse Search     │
-   │ (Vector Embedding - PhoBERT)│                 │ (Từ khóa chính xác - BM25)  │
-   │  - Tìm quan hệ ngữ nghĩa.   │                 │  - Tìm điều luật, số hiệu.  │
-   └─────────────────────────────┘                 └─────────────────────────────┘
-                  │                                               │
-                  └───────────────────────┬───────────────────────┘
-                                          ▼
-                               [Rank Fusion (RRF)] ──► Top-K Documents
-                                          │
-                                          ▼
-   ┌────────────────────────────────────────────────────────────────────────────┐
-   │ STAGE 3: LEGAL GRAPH EXPANSION (Khai thác bảng relationships) [9, 10]    │
-   │  - Duyệt các đỉnh liên kết: Sửa đổi, bổ sung, hướng dẫn thi hành (Nghị định)│
-   │  - Kiểm tra trạng thái hiệu lực từ Metadata (Còn/Hết hiệu lực) [11]        │
-   └────────────────────────────────────────────────────────────────────────────┘
-                                          │
-                                          ▼
-                             [Enriched Context Pool]
-                                          │
-                                          ▼
-   ┌────────────────────────────────────────────────────────────────────────────┐
-   │ STAGE 4: CROSS-ENCODER RE-RANKING                                          │
-   │  - Sắp xếp lại độ liên quan của toàn bộ các văn bản luật thu được.         │
-   └────────────────────────────────────────────────────────────────────────────┘
-                                          │
-                                          ▼
-                              [Final Context Window]
-                                          │
-                                          ▼
-   ┌────────────────────────────────────────────────────────────────────────────┐
-   │ STAGE 5: GENERATOR (Fine-tuned Legal LLM)                                  │
-   │  - Kết hợp Context + Evolved Query để sinh văn bản.                        │
-   │  - Đầu ra bắt buộc trả lời chi tiết theo cấu trúc IRAC chuẩn mực.          │
-   └────────────────────────────────────────────────────────────────────────────┘
-                                          │
-                                          ▼
-                             [Ý KIẾN TƯ VẤN PHÁP LÝ (IRAC)]
+```
+════════════════════ LUỒNG NGOẠI TUYẾN (OFFLINE) ═══════════════════
+171k Văn bản [7]
+  ├─ Preprocessing (Underthesea/PyVi) → Chunking theo Điều/Khoản + Metadata
+  ├─ Dense Index  : PhoBERT/vi-bi-encoder embeddings → Qdrant / Milvus
+  └─ Sparse Index : BM25 keyword index
+
+1.03M Relationships [7]
+  └─ Knowledge Graph → Neo4j
+     Nodes: Văn bản | Edges: hướng_dẫn · sửa_đổi · thay_thế · dẫn_chiếu
+
+Evol-Instruct Pipeline
+  └─ Seed Prompts → LLM Rewriter (6 kỹ thuật) → Eliminator → JSONL Dataset
+     → Fine-tuning LoRA/QLoRA → LLM Chuyên gia Pháp luật (IRAC)
+
+════════════════════ LUỒNG TRỰC TUYẾN (ONLINE) ══════════════════════
+[User Query]
+    │
+    ▼ Stage 1: Query Evolution (WizardLM Prompt Rewriter)
+[Evolved Query: thuật ngữ chuẩn + IRAC constraint]
+    │
+    ├──────────────────────────────────────────┐
+    ▼                                          ▼
+Stage 2A: Dense Search              Stage 2B: Sparse Search (BM25)
+(Vector DB — PhoBERT)               (Từ khóa / Số hiệu văn bản)
+    └──────────────┬───────────────────────────┘
+                   ▼
+         Rank Fusion (RRF) → Top-K Documents
+                   │
+                   ▼ Stage 3: Legal Graph Expansion (Neo4j)
+         Kéo thêm: Nghị định hướng dẫn, Luật sửa đổi liên quan
+         Lọc: Metadata tinh_trang ≠ "Hết hiệu lực"
+                   │
+                   ▼ Stage 4: Cross-Encoder Re-ranking
+         mMARCO / bge-reranker-large → Top 5–10 điều khoản
+                   │
+                   ▼ Stage 5: Generator (Fine-tuned Legal LLM)
+         Input: [Evolved Query] + [Re-ranked Context]
+         Output: Issue → Rule → Application → Conclusion
+```
 
 ---
-# Phần thực hiện
-## Cải tiến phần Prompt Instruction sử dụng Phương pháp Evol-Instruct của WizardLM (https://arxiv.org/pdf/2304.12244) tối ưu sức mạnh suy luận của LLM để tự động nâng cấp độ khó và đa dạng hóa tập câu lệnh. 
 
-## Để tự động hóa quy trình này, xây dựng 4 thành phần cốt lõi sau:
-1. Bộ câu hỏi gốc (Seed Prompts): Thu thập khoảng 100 - 1000 câu hỏi pháp lý đơn giản ban đầu bằng tiếng Việt. Bạn có thể tự viết hoặc trích lọc từ các tình huống pháp lý phổ biến trong tập dữ liệu vietnamese-legal-documents của Thịnh Ngô '''(from datasets import load_dataset
-ds = load_dataset("th1nhng0/vietnamese-legal-documents", "content")'''
+## PHẦN I — LUỒNG NGOẠI TUYẾN
 
-2. Bộ mẫu Prompt Tiến hóa (Evolution Templates) -sử dụng model meta-llama-3-8b-instruct trong LM Studio (http://127.0.0.1:1234): Dựng sẵn các template đóng vai trò Prompt Rewriter (để tiến hóa sâu) hoặc Prompt Creator (để tiến hóa rộng). Dựa trên nghiên cứu WizardLM, bạn cần cấu hình các prompt này để LLM thực hiện các tác vụ sau
-   + Add Constraints: Bổ sung các ràng buộc thực tế(Ở đây bạn ép LLM thêm điều kiện: "Bắt buộc người trả lời phải lập luận chặt chẽ theo cấu trúc IRAC trong pháp ").
-   + Deepening: Tăng chiều sâu của câu hỏi
-   + Concretizing: Thay thế các khái niệm luật chung chung bằng các tình tiết giả định cụ thể
-   + Increased Reasoning Steps: Đòi hỏi suy luận giải quyết vấn đề nhiều bước
-   + Complicate Input: Chèn thêm dữ liệu phức tạp (như JSON, XML, bảng dữ liệu vụ việc)
-   + In-Breadth Evolving (Mutation): Sinh ra câu hỏi hoàn toàn mới có độ hiếm cao (long-tailed) cùng lĩnh vực
+### 1. Xử lý Dữ liệu (171k văn bản) [7]
 
-3. Bộ lọc loại bỏ thất bại (Instruction Eliminator): Khi LLM tự viết lại prompt, sẽ có những trường hợp thất bại.Bạn cần viết code để tự động loại bỏ các prompt lỗi nếu rơi vào các trường hợp sau:
-  + Prompt viết lại không mang lại thông tin mới so với prompt gốc
-  + Mô hình từ chối trả lời (sinh ra phản hồi ngắn chứa từ khóa từ chối như "xin lỗi", "tôi không thể").
-  + Mô hình sinh ra phản hồi chỉ chứa dấu câu hoặc stop words.
-  + Mô hình bị lặp từ khóa lập trình (copy y nguyên các nhãn như #Given Prompt#, #Rewritten Prompt# vào trong nội dung câu hỏi mới)
+| Bước | Công việc | Công cụ |
+|---|---|---|
+| Preprocessing | Chuẩn hóa văn bản, tách từ | Underthesea / PyVi |
+| Chunking | Cắt theo **Điều/Khoản** (không cắt ngẫu nhiên) + giữ Metadata | Regex + custom parser |
+| Dense Index | Encode chunk → vector | `vinai/phobert-base-v2` hoặc `bkai-foundation-models/vietnamese-bi-encoder` |
+| Vector DB | Lưu trữ & tìm kiếm vector | Qdrant (port 6333) hoặc Milvus |
+| Sparse Index | Tìm kiếm số hiệu, tên luật chính xác | `rank_bm25.BM25Okapi` |
 
-4 Script Python điều khiển: Sử dụng thư viện requests để gọi API từ LM Studio, xử lý vòng lặp tiến hóa và lưu dữ liệu thu được dưới dạng file .jsonl chứa các cặp {"instruction": "...", "output": "..."} chuẩn chỉnh
+**Metadata bắt buộc mỗi chunk:** `so_hieu`, `loai_van_ban`, `co_quan_ban_hanh`, `ngay_ban_hanh`, `tinh_trang`.
 
-## Fine-tuning LLM chuyên gia pháp luật (IRAC)
-1. Unsloth LoRA để fine-tuning model meta-llama-3-8b-instructmeta-llama-3-8b-instruct.
+### 2. Knowledge Graph — Neo4j [1, 7]
+
+Nạp 1.03M quan hệ từ dataset. Cấu trúc:
+- **Nodes**: mỗi văn bản pháp luật (Luật, Nghị định, Thông tư, ...)
+- **Edges** (có hướng): `hướng_dẫn_thi_hành` · `sửa_đổi_bổ_sung` · `thay_thế_cho` · `dẫn_chiếu_đến`
+
+### 3. Evol-Instruct → Fine-tuning [6]
+
+6 kỹ thuật tiến hóa → dataset IRAC Alpaca JSONL → LoRA/QLoRA fine-tune trên Llama-3-8B / Qwen-2.5-7B.
+
+> **Chi tiết:** xem workflow `/evol-instruct-build` và `scripts/`.
+
+---
+
+## PHẦN II — LUỒNG TRỰC TUYẾN (5 GIAI ĐOẠN)
+
+### Stage 1 — Query Evolution [6]
+
+**Vấn đề:** Câu hỏi thô ngắn, thiếu thuật ngữ → Semantic Search lệch hướng.
+
+**Xử lý:** LLM nhỏ đóng vai **Prompt Rewriter** (WizardLM *Adding Constraints* — Example 3.1 [6]):
+- Bổ sung thuật ngữ pháp lý chuẩn hóa
+- Làm rõ giả định tình huống
+- Ràng buộc cứng: output phải theo **IRAC** [2, 3]
+
+### Stage 2 — Hybrid Retrieval (Dense + Sparse)
+
+Hai luồng song song, hợp nhất bằng **Reciprocal Rank Fusion (RRF)**:
+- **Dense (2A):** Vector similarity search — bắt nghĩa câu hỏi tình huống
+- **Sparse (2B):** BM25 — bắt chính xác số hiệu luật, tên nghị định
+
+### Stage 3 — Legal Graph Expansion [7]
+
+Lấy ID tài liệu Top-K → truy vấn Neo4j → kéo thêm:
+- Nghị định **hướng dẫn thi hành** bộ Luật vừa tìm được
+- Luật **sửa đổi bổ sung** liên quan
+
+Lọc bỏ văn bản `tinh_trang = "Hết hiệu lực"` qua Metadata.
+
+### Stage 4 — Cross-Encoder Re-ranking
+
+Toàn bộ pool tài liệu → **Cross-Encoder** tính độ liên quan sâu với Evolved Query → giữ **5–10 điều khoản** chất lượng nhất, tránh *"lost in the middle"*.
+
+Mô hình gợi ý: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` hoặc `BAAI/bge-reranker-large`.
+
+### Stage 5 — Generator IRAC [2, 3, 4, 5]
+
+Fine-tuned LLM nhận `[Evolved Query] + [Re-ranked Context]` → sinh câu trả lời:
+
+| Thành phần | Nội dung |
+|---|---|
+| **Issue** | Vấn đề / tranh chấp pháp lý cốt lõi |
+| **Rule** | Trích dẫn Điều, Khoản từ Context (không hallucination) |
+| **Application** | Lập luận áp dụng quy phạm vào tình tiết cụ thể |
+| **Conclusion** | Phán quyết, hướng giải quyết, lời khuyên pháp lý |
+
+---
+
+## Tài liệu Tham khảo
+
+| Mã | Nguồn |
+|---|---|
+| [1] | PhoBERT, Underthesea — Vietnamese NLP |
+| [2] | IRAC Method — Legal Reasoning Framework |
+| [3] | Prof. Ng (CSUN) — IRAC Legal Analysis |
+| [4] | Legal AI Evaluation Benchmarks |
+| [5] | Vietnamese Legal QA Datasets |
+| [6] | WizardLM Evol-Instruct — https://arxiv.org/pdf/2304.12244 |
+| [7] | Dataset: `th1nhng0/vietnamese-legal-documents` (HuggingFace) |

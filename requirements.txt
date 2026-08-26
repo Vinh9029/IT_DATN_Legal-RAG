@@ -25,6 +25,16 @@ python-dotenv>=1.0.0         # Load biến môi trường từ .env
 loguru>=0.7.0                # Structured logging
 tqdm>=4.66.0                 # Progress bars
 
+# --- EDA / Notebook ---
+jupyter>=1.0.0               # Jupyter Notebook
+notebook>=7.0.0              # Jupyter Notebook server
+matplotlib>=3.8.0            # Vẽ đồ thị (EDA figures)
+seaborn>=0.13.0              # Statistical visualization
+pandas>=2.0.0                # DataFrame & bảng thống kê
+numpy>=1.26.0                # Numerical computing
+wordcloud>=1.9.0             # Word Cloud (tùy chọn)
+ipykernel>=6.0.0             # Kernel Jupyter cho venv
+
 # --- Testing ---
 pytest>=7.4.0                # Unit testing framework
 pytest-cov>=4.1.0            # Coverage reporting
