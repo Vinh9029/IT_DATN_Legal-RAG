@@ -14,8 +14,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config.settings import ensure_directories, validate_config
-from src.utils import setup_logging
-from src.data_loader import load_and_preprocess, get_unique_categories
+from evol_instruct.src.utils import setup_logging
+from evol_instruct.src.data_loader import load_and_preprocess, get_unique_categories
 
 
 def main():

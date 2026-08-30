@@ -1,0 +1,16 @@
+cd backend
+
+# 1. Tải và tiền xử lý data (Sửa lỗi metadata)
+python3 scripts/offline_rag/01_fix_preprocess.py
+
+# 2. Cắt Chunk dữ liệu theo Điều/Khoản
+python3 scripts/offline_rag/02_chunk_documents.py
+
+# 3. Build & Upsert Pinecone (Vector DB)
+python3 scripts/offline_rag/03_build_pinecone.py
+
+# 4. Build BM25 Index (Sparse DB Local)
+python3 scripts/offline_rag/04_build_bm25.py
+
+# 5. Nạp cấu trúc đồ thị vào Neo4j (Graph DB)
+python3 scripts/offline_rag/05_build_neo4j.py

@@ -2,9 +2,9 @@
 Data Loader - Load & tiền xử lý dataset pháp luật Việt Nam từ HuggingFace.
 
 Pipeline:
-1. Load dataset th1nhng0/vietnamese-legal-documents
-2. Làm sạch content_html → plain text (BeautifulSoup)
-3. Trích xuất metadata (nganh, linh_vuc)
+1. Load dataset th1nhng0/vietnamese-legal-documents (cả content và metadata)
+2. Join content và metadata theo ID
+3. Làm sạch content_html → plain text (BeautifulSoup)
 4. Cache local để tránh tải lại
 """
 
@@ -19,7 +19,6 @@ from tqdm import tqdm
 
 from config.settings import (
     HF_DATASET_NAME,
-    HF_DATASET_CONFIG,
     RAW_DATA_DIR,
 )
 
@@ -53,21 +52,18 @@ def clean_html(html_content: str) -> str:
 
 def extract_metadata(item: dict) -> dict:
     """
-    Trích xuất metadata quan trọng từ một item trong dataset.
-
-    Returns:
-        Dict chứa các trường metadata đã chuẩn hóa.
+    Trích xuất metadata quan trọng từ item metadata join được.
     """
     return {
         "nganh": (item.get("nganh") or "").strip(),
         "linh_vuc": (item.get("linh_vuc") or "").strip(),
-        "so_hieu": (item.get("so_hieu") or "").strip(),
+        "so_hieu": (item.get("so_ky_hieu") or "").strip(),
         "loai_van_ban": (item.get("loai_van_ban") or "").strip(),
         "co_quan_ban_hanh": (item.get("co_quan_ban_hanh") or "").strip(),
         "nguoi_ky": (item.get("nguoi_ky") or "").strip(),
         "ngay_ban_hanh": (item.get("ngay_ban_hanh") or "").strip(),
-        "ngay_hieu_luc": (item.get("ngay_hieu_luc") or "").strip(),
-        "tinh_trang": (item.get("tinh_trang") or "").strip(),
+        "ngay_hieu_luc": (item.get("ngay_co_hieu_luc") or "").strip(),
+        "tinh_trang": (item.get("tinh_trang_hieu_luc") or "").strip(),
     }
 
 
@@ -78,17 +74,7 @@ def load_and_preprocess(
 ) -> list[dict]:
     """
     Load dataset từ HuggingFace, tiền xử lý và trả về danh sách documents.
-
-    Args:
-        max_items: Số lượng items tối đa (0 = tất cả).
-        min_content_length: Độ dài tối thiểu của content (ký tự) để giữ lại.
-        cache: Nếu True, cache kết quả vào local file.
-
-    Returns:
-        Danh sách dict, mỗi dict chứa:
-        - content: Plain text đã làm sạch
-        - metadata: Dict metadata (nganh, linh_vuc, so_hieu, ...)
-        - content_length: Số ký tự content
+    Kết hợp cả config 'content' và 'metadata'.
     """
     cache_path = RAW_DATA_DIR / "preprocessed_cache.jsonl"
 
@@ -107,23 +93,29 @@ def load_and_preprocess(
         return documents
 
     # Load từ HuggingFace
-    logger.info(f"Loading dataset: {HF_DATASET_NAME} (config={HF_DATASET_CONFIG})")
-    ds = load_dataset(HF_DATASET_NAME, HF_DATASET_CONFIG)
+    logger.info(f"Loading dataset {HF_DATASET_NAME} - config: metadata")
+    ds_meta = load_dataset(HF_DATASET_NAME, "metadata", split="data")
+    
+    logger.info(f"Loading dataset {HF_DATASET_NAME} - config: content")
+    ds_content = load_dataset(HF_DATASET_NAME, "content", split="data")
 
-    # Lấy split chính (thường là 'train')
-    split_name = list(ds.keys())[0]
-    dataset = ds[split_name]
-    logger.info(f"Dataset loaded: {len(dataset)} items (split={split_name})")
+    # Build metadata dict for O(1) lookup
+    logger.info("Building metadata index by ID...")
+    meta_dict = {}
+    for item in tqdm(ds_meta, desc="Indexing metadata"):
+        meta_dict[item["id"]] = item
 
     # Tiền xử lý
     documents = []
     skipped = 0
 
-    items = dataset
+    items = ds_content
     if max_items > 0:
-        items = dataset.select(range(min(max_items, len(dataset))))
+        items = ds_content.select(range(min(max_items, len(ds_content))))
 
     for item in tqdm(items, desc="Tiền xử lý documents"):
+        doc_id = item.get("id")
+        
         # Làm sạch HTML
         content_raw = item.get("content_html") or item.get("content") or ""
         content_clean = clean_html(content_raw)
@@ -133,10 +125,12 @@ def load_and_preprocess(
             skipped += 1
             continue
 
-        # Trích xuất metadata
-        metadata = extract_metadata(item)
+        # Join với metadata
+        meta_item = meta_dict.get(doc_id, {})
+        metadata = extract_metadata(meta_item)
 
         doc = {
+            "doc_id": doc_id,
             "content": content_clean,
             "metadata": metadata,
             "content_length": len(content_clean),
@@ -161,10 +155,7 @@ def load_and_preprocess(
 
 def get_unique_categories(documents: list[dict]) -> dict:
     """
-    Thống kê các danh mục (ngành, lĩnh vực) duy nhất trong dataset.
-
-    Returns:
-        Dict chứa danh sách unique values cho mỗi trường metadata.
+    Thống kê các danh mục (nganh, linh_vuc) duy nhất trong dataset.
     """
     categories = {
         "nganh": set(),
@@ -186,3 +177,4 @@ def get_unique_categories(documents: list[dict]) -> dict:
         logger.info(f"  {key}: {len(values)} unique values")
 
     return result
+

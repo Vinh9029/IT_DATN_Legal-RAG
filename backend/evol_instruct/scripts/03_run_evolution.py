@@ -13,11 +13,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config.settings import ensure_directories, validate_config
-from src.utils import setup_logging, load_jsonl
-from src.llm_client import LLMClient
-from src.evol_engine import EvolPipeline
-from src.seed_generator import load_seeds
-from src.data_loader import load_and_preprocess
+from evol_instruct.src.utils import setup_logging, load_jsonl
+from evol_instruct.src.llm_client import LLMClient
+from evol_instruct.src.evol_engine import EvolPipeline
+from evol_instruct.src.seed_generator import load_seeds
+from evol_instruct.src.data_loader import load_and_preprocess
 
 
 def build_legal_references(documents: list[dict]) -> set[str]:

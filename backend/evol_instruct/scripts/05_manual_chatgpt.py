@@ -28,8 +28,8 @@ from config.prompts import (
     SYSTEM_IRAC_RESPONDER,
     FEW_SHOT_IRAC_EXAMPLE,
 )
-from src.utils import setup_logging, load_jsonl, save_jsonl, generate_item_id
-from src.filters import instruction_eliminator
+from evol_instruct.src.utils import setup_logging, load_jsonl, save_jsonl, generate_item_id
+from evol_instruct.src.filters import instruction_eliminator
 
 # Thư mục lưu file manual
 MANUAL_DIR = BASE_DIR / "data" / "manual"

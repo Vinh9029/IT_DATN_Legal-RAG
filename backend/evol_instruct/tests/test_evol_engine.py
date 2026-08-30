@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 from unittest.mock import MagicMock, patch
-from src.evol_engine import EvolPipeline
+from evol_instruct.src.evol_engine import EvolPipeline
 
 
 class TestEvolPipeline:

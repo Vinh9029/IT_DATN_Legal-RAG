@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
-from src.filters import (
+from evol_instruct.src.filters import (
     filter_prompt_leakage,
     filter_refusal,
     filter_semantic_similarity,

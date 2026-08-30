@@ -15,8 +15,8 @@ from collections import Counter
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config.settings import ensure_directories, OUTPUT_DIR
-from src.utils import setup_logging, load_jsonl
-from src.filters import filter_irac_structure, filter_min_length
+from evol_instruct.src.utils import setup_logging, load_jsonl
+from evol_instruct.src.filters import filter_irac_structure, filter_min_length
 
 
 def analyze_output(records: list[dict]) -> dict:

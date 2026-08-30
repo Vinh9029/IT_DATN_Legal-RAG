@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
-from src.seed_generator import (
+from evol_instruct.src.seed_generator import (
     extract_legal_entities,
     extract_multiple_contents,
     generate_seeds_from_templates,

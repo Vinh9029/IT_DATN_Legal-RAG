@@ -14,14 +14,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from config.settings import ensure_directories, validate_config
-from src.utils import setup_logging
-from src.data_loader import load_and_preprocess
-from src.seed_generator import (
+from evol_instruct.src.utils import setup_logging
+from evol_instruct.src.data_loader import load_and_preprocess
+from evol_instruct.src.seed_generator import (
     generate_seeds_from_templates,
     generate_seeds_with_llm,
     save_seeds,
 )
-from src.llm_client import LLMClient
+from evol_instruct.src.llm_client import LLMClient
 
 
 def main():

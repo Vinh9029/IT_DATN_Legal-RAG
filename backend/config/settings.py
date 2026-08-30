@@ -27,7 +27,6 @@ CONTEXT_LENGTH = int(os.getenv("CONTEXT_LENGTH", "8192"))
 
 # ── HuggingFace Dataset ───────────────────────────────────────────
 HF_DATASET_NAME = os.getenv("HF_DATASET_NAME", "th1nhng0/vietnamese-legal-documents")
-HF_DATASET_CONFIG = os.getenv("HF_DATASET_CONFIG", "content")
 
 # ── Pipeline Settings ─────────────────────────────────────────────
 MAX_SEEDS = int(os.getenv("MAX_SEEDS", "0"))  # 0 = xử lý tất cả
@@ -35,11 +34,29 @@ MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.95"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "10"))
 
-# ── Output Paths ──────────────────────────────────────────────────
-OUTPUT_DIR = BASE_DIR / os.getenv("OUTPUT_DIR", "data/output")
-SEEDS_DIR = BASE_DIR / os.getenv("SEEDS_DIR", "data/seeds")
-RAW_DATA_DIR = BASE_DIR / os.getenv("RAW_DATA_DIR", "data/raw")
+# ── Output Paths ──────────────────────────────────────────────────────────────
+# data/rag/ — Dữ liệu cho RAG Database pipeline
+RAW_DATA_DIR       = BASE_DIR / os.getenv("RAW_DATA_DIR",       "data/rag/raw")
+PROCESSED_DATA_DIR = BASE_DIR / os.getenv("PROCESSED_DATA_DIR", "data/rag/processed")
+INDEXES_DIR        = BASE_DIR / os.getenv("INDEXES_DIR",        "data/rag/indexes")
+
+# data/evol_instruct/ — Dữ liệu cho Evol-Instruct pipeline
+SEEDS_DIR  = BASE_DIR / os.getenv("SEEDS_DIR",  "data/evol_instruct/seeds")
+OUTPUT_DIR = BASE_DIR / os.getenv("OUTPUT_DIR", "data/evol_instruct/output")
+
 LOG_DIR = BASE_DIR / "logs"
+
+# ── Pinecone Config ───────────────────────────────────────────────
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
+PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "us-east-1-aws")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "legal-rag-vi")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bkai-foundation-models/vietnamese-bi-encoder")
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "768"))
+
+# ── Neo4j Config ──────────────────────────────────────────────────
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
 
 # ── Logging ───────────────────────────────────────────────────────
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -51,7 +68,11 @@ STOP_TOKENS = ["<|eot_id|>"]
 
 def ensure_directories():
     """Tạo tất cả thư mục cần thiết nếu chưa tồn tại."""
-    for directory in [OUTPUT_DIR, SEEDS_DIR, RAW_DATA_DIR, LOG_DIR]:
+    for directory in [
+        RAW_DATA_DIR, PROCESSED_DATA_DIR, INDEXES_DIR,  # RAG
+        SEEDS_DIR, OUTPUT_DIR,                           # Evol-Instruct
+        LOG_DIR
+    ]:
         directory.mkdir(parents=True, exist_ok=True)
 
 
