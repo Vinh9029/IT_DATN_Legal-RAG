@@ -1,0 +1,24 @@
+# Dockerfile cho các scripts offline pipeline
+# Dùng để chạy: preprocess, chunking, build Pinecone, BM25, Neo4j
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy toàn bộ project
+COPY config/ ./config/
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Mount points
+RUN mkdir -p data/rag/raw data/rag/processed data/rag/indexes/bm25 logs
+
+# Default: không có CMD cụ thể - chạy script theo yêu cầu
+# docker compose run offline python scripts/offline_rag/01_fix_preprocess.py

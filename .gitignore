@@ -26,12 +26,20 @@ env/
 ENV/
 
 # --- Data (large files, generated) ---
-data/raw/
-data/output/
-data/seeds/
+# RAG pipeline data
+backend/data/rag/raw/
+backend/data/rag/processed/
+backend/data/rag/indexes/
+# Evol-Instruct data
+backend/data/evol_instruct/seeds/
+backend/data/evol_instruct/output/
+# Wildcard cho mọi file lớn
 *.jsonl
-*.json
-!config/*.json
+*.pkl
+
+# --- Docker ---
+# (docker-compose.yml và Dockerfile ĐƯỢC commit)
+# Nhưng không commit Docker volumes hay build cache
 
 # --- Logs ---
 logs/

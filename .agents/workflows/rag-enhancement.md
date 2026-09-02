@@ -132,3 +132,85 @@ Fine-tuned LLM nhận `[Evolved Query] + [Re-ranked Context]` → sinh câu tr�
 | [5] | Vietnamese Legal QA Datasets |
 | [6] | WizardLM Evol-Instruct — https://arxiv.org/pdf/2304.12244 |
 | [7] | Dataset: `th1nhng0/vietnamese-legal-documents` (HuggingFace) |
+
+---
+
+## PHẦN III — TRIỂN KHAI DOCKER
+
+### Kiến trúc Service
+
+```
+┌────────────────────────────────────────────┐
+│              docker-compose.yml            │
+│                                            │
+│  ┌─────────────┐    ┌────────────────────┐ │
+│  │   neo4j     │    │       api          │ │
+│  │  (Graph DB) │◄───│  (FastAPI :8000)   │ │
+│  │  :7474 UI   │    │                    │ │
+│  │  :7687 bolt │    │  Volume: data/rag/ │ │
+│  └─────────────┘    └────────────────────┘ │
+│                                            │
+│  ┌──────────────────────────────────────┐  │
+│  │  offline (--profile offline)         │  │
+│  │  Chạy thủ công cho từng script       │  │
+│  └──────────────────────────────────────┘  │
+└────────────────────────────────────────────┘
+
+Pinecone ─── Cloud (external, không cần Docker)
+BM25     ─── Local file .pkl (mount volume)
+Neo4j    ─── Docker service (community edition)
+```
+
+| Service | Vai trò | Storage |
+|---------|---------|---------|
+| `neo4j` | Graph DB — lưu 1.03M quan hệ văn bản | Docker Volume `neo4j_data` |
+| `api` | FastAPI Backend — phục vụ endpoint `/api/query` | Mount `./backend/data/rag` (read-only) |
+| `offline` | Scripts pipeline (preprocess → chunking → build index) | Mount `./backend/data` (read-write) |
+
+### Cấu hình & Khởi động
+
+**1. Chuẩn bị `.env`:**
+```bash
+cp backend/.env.example backend/.env
+# Điền PINECONE_API_KEY, NEO4J_PASSWORD vào backend/.env
+```
+
+**2. Chạy Offline Pipeline (build databases):**
+```bash
+# Chạy lần lượt các bước
+docker compose run --rm --profile offline offline \
+    python scripts/offline_rag/01_fix_preprocess.py
+
+docker compose run --rm --profile offline offline \
+    python scripts/offline_rag/02_chunk_documents.py
+
+docker compose run --rm --profile offline offline \
+    python scripts/offline_rag/03_build_pinecone.py
+
+docker compose run --rm --profile offline offline \
+    python scripts/offline_rag/04_build_bm25.py
+
+docker compose run --rm --profile offline offline \
+    python scripts/offline_rag/05_build_neo4j.py
+```
+
+**3. Khởi động Online Server:**
+```bash
+docker compose up neo4j api
+# API sẵn sàng tại: http://localhost:8000
+# Neo4j Browser tại: http://localhost:7474
+```
+
+**4. Test API:**
+```bash
+curl -X POST http://localhost:8000/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Quy định về tội lừa đảo chiếm đoạt tài sản", "top_k": 5}'
+```
+
+### Lưu ý Docker
+
+- **BM25**: Không cần container riêng — index `.pkl` được tạo bởi `offline` service và mount vào `api` container qua volume `./backend/data/rag/indexes`.
+- **Pinecone**: Cloud-based, không cần Docker, chỉ cần `PINECONE_API_KEY` trong `.env`.
+- **Neo4j APOC Plugin**: Được cài tự động qua environment variable `NEO4J_PLUGINS=["apoc"]`.
+- **Khi thay đổi code**: Rebuild image bằng `docker compose build api`.
