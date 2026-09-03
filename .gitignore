@@ -26,12 +26,20 @@ env/
 ENV/
 
 # --- Data (large files, generated) ---
-data/raw/
-data/output/
-data/seeds/
+# RAG pipeline data
+backend/data/rag/raw/
+backend/data/rag/processed/
+backend/data/rag/indexes/
+# Evol-Instruct data
+backend/data/evol_instruct/seeds/
+backend/data/evol_instruct/output/
+# Wildcard cho mọi file lớn
 *.jsonl
-*.json
-!config/*.json
+*.pkl
+
+# --- Docker ---
+# (docker-compose.yml và Dockerfile ĐƯỢC commit)
+# Nhưng không commit Docker volumes hay build cache
 
 # --- Logs ---
 logs/
@@ -78,19 +86,18 @@ coverage.xml
 *.tmp
 *.temp
 
-#Other...
-ai-agent-workspace-pack-main/
-
 # --- QA Specificity Pipeline (Phần 3) ---
 # *.json / *.jsonl ở trên chặn toàn cục nên deliverables mặc định không lên git.
-!data/qa_pairs/final/
-!data/qa_pairs/final/*.json
+backend/data/qa_pairs/raw/
+backend/data/qa_pairs/labeled/
+!backend/data/qa_pairs/final/
+!backend/data/qa_pairs/final/*.json
 
 # Nguồn corpus luật dân sự do người dùng tự thả vào (QA_CORPUS_SOURCE).
 # Không đẩy lên git: dung lượng lớn, và bản quyền nguồn thì tuỳ nơi tải về.
-data/corpus_civil/*
-!data/corpus_civil/README.md
+backend/data/corpus_civil/*
+!backend/data/corpus_civil/README.md
 
 # File override tuỳ chọn của Phần 3 (nếu muốn tách API key judge khỏi .env chung).
 # Không bắt buộc — mặc định cứ để JUDGE_* trong .env ở root là đủ.
-config/qa.env
+backend/config/qa.env

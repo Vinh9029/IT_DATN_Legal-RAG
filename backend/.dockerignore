@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Môi trường
+.venv/
+venv/
+env/
+
+# Data lớn (mount qua volume)
+data/
+
+# Secrets
+.env
+
+# Dev files
+*.ipynb
+check_hf.py
+logs/
+runFile.txt

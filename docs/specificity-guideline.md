@@ -147,7 +147,7 @@ Trục 1 → broad. Trục 3 → broad. Trục 2 → **không chấm được**:
 
 ## 6. Ánh xạ sang heuristic rule-based
 
-Phần này định nghĩa cách `src/qa_specificity/weak_labeler.py` chấm nhãn tự động. Heuristic **chỉ xấp xỉ được Trục 1 và Trục 3** — Trục 2 đòi hỏi hiểu nội dung luật nên không rule-based được, đó chính là lý do cần thêm tầng LLM judge.
+Phần này định nghĩa cách `backend/evol_instruct/src/qa_specificity/weak_labeler.py` chấm nhãn tự động. Heuristic **chỉ xấp xỉ được Trục 1 và Trục 3** — Trục 2 đòi hỏi hiểu nội dung luật nên không rule-based được, đó chính là lý do cần thêm tầng LLM judge.
 
 ### 6.1 Tín hiệu narrow — CÓ tính vào ngưỡng
 
@@ -199,16 +199,16 @@ Ngược lại, `ambiguous` do **LLM judge** trả về thì **loại**, vì jud
 
 ## 7. Quy trình gán nhãn tay (dùng ở Bước 3 để tính Cohen's kappa)
 
-Bước 1 và 5 đã được tự động hoá trong `scripts/11_verify_labels.py`; bước 2–4 là việc tay.
+Bước 1 và 5 đã được tự động hoá trong `evol_instruct/scripts/11_verify_labels.py`; bước 2–4 là việc tay.
 
 ```bash
 # 1. Xuất mẫu ĐÃ ẨN NHÃN (chỉ còn item_id + question + manual_label rỗng)
-python scripts/11_verify_labels.py --export-manual-sample 100
+python evol_instruct/scripts/11_verify_labels.py --export-manual-sample 100
 
-# 2-4. Mở data/qa_pairs/labeled/manual_sample_blind.jsonl, điền `manual_label` bằng tay
+# 2-4. Mở backend/data/qa_pairs/labeled/manual_sample_blind.jsonl, điền `manual_label` bằng tay
 
 # 5. Tính kappa, ghi kappa_report.json cạnh file nhãn tay
-python scripts/11_verify_labels.py --compute-kappa data/qa_pairs/labeled/manual_sample_blind.jsonl
+python evol_instruct/scripts/11_verify_labels.py --compute-kappa backend/data/qa_pairs/labeled/manual_sample_blind.jsonl
 ```
 
 1. Lấy ngẫu nhiên ~100 câu từ `pairs_verified.jsonl` *(tự động, seed cố định nên tái lập được)*

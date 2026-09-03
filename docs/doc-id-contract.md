@@ -28,7 +28,7 @@ Sinh bởi `corpus_filter.derive_doc_id()` / `corpus_loader.normalize_record()`.
 
 Trước đây Phần 3 lấy corpus từ `th1nhng0/vietnamese-legal-documents`, dataset đó có sẵn trường `id` ở cả hai config `metadata` và `content` (chính nó là khoá join), nên dạng A là mặc định.
 
-Nay Phần 3 đọc từ **thư mục cục bộ** `data/corpus_civil/` (dataset mới của nhóm; dataset HuggingFace tụt xuống làm đường dự phòng). Dạng A chỉ giữ được nếu nguồn mới có một cột định danh ổn định.
+Nay Phần 3 đọc từ **thư mục cục bộ** `backend/data/corpus_civil/` (dataset mới của nhóm; dataset HuggingFace tụt xuống làm đường dự phòng). Dạng A chỉ giữ được nếu nguồn mới có một cột định danh ổn định.
 >
 > Nếu hai bên dùng hai nguồn khác nhau mà không có id chung, việc nối test set với retriever phải quay về so khớp theo `so_hieu` văn bản — kém hơn nhưng vẫn làm được, và cần chốt sớm.
 
@@ -52,9 +52,9 @@ Nếu một văn bản bị chia thành nhiều chunk thì mỗi chunk cứ có 
 
 ## 3. Vướng mắc hiện tại ở phía Phần 1–2 (chỉ để biết, không phải yêu cầu sửa gấp)
 
-**3.1. `load_and_preprocess()` làm rơi mất `id`.** `src/data_loader.py` trả về record chỉ gồm `content`, `metadata`, `content_length` — không có `id`. Kiểm chứng trên `data/raw/preprocessed_cache.jsonl` (154.380 dòng): key của mỗi dòng đúng là `['content', 'metadata', 'content_length']`.
+**3.1. `load_and_preprocess()` làm rơi mất `id`.** `backend/evol_instruct/src/data_loader.py` trả về record chỉ gồm `content`, `metadata`, `content_length` — không có `id`. Kiểm chứng trên `data/raw/preprocessed_cache.jsonl` (154.380 dòng): key của mỗi dòng đúng là `['content', 'metadata', 'content_length']`.
 
-**3.2. `metadata` đang rỗng toàn bộ.** `config/settings.py` đặt `HF_DATASET_CONFIG=content`, mà config `content` chỉ có 2 cột `id` + `content_html` — không có `nganh`, `linh_vuc`, `so_hieu`… Nên `extract_metadata()` trả về chuỗi rỗng ở mọi trường (đã kiểm chứng trên cache ở trên). Muốn có metadata thật thì phải load thêm config `metadata` rồi join theo `id`.
+**3.2. `metadata` đang rỗng toàn bộ.** `backend/config/settings.py` đặt `HF_DATASET_CONFIG=content`, mà config `content` chỉ có 2 cột `id` + `content_html` — không có `nganh`, `linh_vuc`, `so_hieu`… Nên `extract_metadata()` trả về chuỗi rỗng ở mọi trường (đã kiểm chứng trên cache ở trên). Muốn có metadata thật thì phải load thêm config `metadata` rồi join theo `id`.
 
 **3.3. Tên trường số hiệu là `so_ky_hieu`, không phải `so_hieu`.** `extract_metadata()` đọc `item.get("so_hieu")`, nhưng trong config `metadata` của dataset trường này tên là `so_ky_hieu`. Kể cả khi sửa được 3.2 thì trường số hiệu vẫn sẽ rỗng nếu không đổi tên khoá.
 
@@ -64,7 +64,7 @@ Ba điểm này liên quan nhau: xử lý 3.1 gần như chắc chắn sẽ ph�
 
 ## 4. Phần 3 cam kết gì
 
-Dataset cuối của Phần 3 (`data/qa_pairs/final/{train,val,test}.json`, đã mở ngoại lệ gitignore nên `git pull` là có) đảm bảo:
+Dataset cuối của Phần 3 (`backend/data/qa_pairs/final/{train,val,test}.json`, đã mở ngoại lệ gitignore nên `git pull` là có) đảm bảo:
 
 | Trường | Nội dung | Dùng để |
 |---|---|---|

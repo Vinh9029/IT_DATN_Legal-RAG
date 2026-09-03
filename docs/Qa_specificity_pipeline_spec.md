@@ -32,10 +32,10 @@ Hệ thống cần tự động phân biệt câu hỏi rộng (cần retrieve n
 
 | File | Mục đích | Nội dung chính |
 |---|---|---|
-| `config/qa_settings.py` | Load `.env`, expose hằng số, tạo thư mục output, validate config | Tự tính `BASE_DIR = Path(__file__).resolve().parent.parent` và tự `load_dotenv()` — **không import biến nội bộ từ `config/settings.py`** để tránh coupling ngược |
-| `config/qa_prompts.py` | Tập trung toàn bộ prompt template của Phần 3 | 3 nhóm: (a) `SYSTEM_PAIR_GENERATOR` + user template sinh cặp, (b) `SYSTEM_SPECIFICITY_JUDGE` + user template cho judge, (c) few-shot examples cho cả hai |
+| `backend/config/qa_settings.py` | Load `.env`, expose hằng số, tạo thư mục output, validate config | Tự tính `BASE_DIR = Path(__file__).resolve().parent.parent` và tự `load_dotenv()` — **không import biến nội bộ từ `backend/config/settings.py`** để tránh coupling ngược |
+| `backend/config/qa_prompts.py` | Tập trung toàn bộ prompt template của Phần 3 | 3 nhóm: (a) `SYSTEM_PAIR_GENERATOR` + user template sinh cặp, (b) `SYSTEM_SPECIFICITY_JUDGE` + user template cho judge, (c) few-shot examples cho cả hai |
 
-### 1.3 Source modules (`src/qa_specificity/`)
+### 1.3 Source modules (`backend/evol_instruct/src/qa_specificity/`)
 
 | File | Mục đích | Hàm/class chính (dự kiến) |
 |---|---|---|
@@ -52,9 +52,9 @@ Hệ thống cần tự động phân biệt câu hỏi rộng (cần retrieve n
 
 | File | Mục đích |
 |---|---|
-| `scripts/10_generate_qa_pairs.py` | Orchestrate: `corpus_filter` → `pair_generator` → lưu raw pairs. Có checkpoint để resume |
-| `scripts/11_verify_labels.py` | Orchestrate: `weak_labeler` + `llm_judge` → lọc đồng thuận → lưu verified + rejected |
-| `scripts/12_export_dataset.py` | Orchestrate: `dataset_builder` → xuất train/val/test + `stats.json` |
+| `evol_instruct/scripts/10_generate_qa_pairs.py` | Orchestrate: `corpus_filter` → `pair_generator` → lưu raw pairs. Có checkpoint để resume |
+| `evol_instruct/scripts/11_verify_labels.py` | Orchestrate: `weak_labeler` + `llm_judge` → lọc đồng thuận → lưu verified + rejected |
+| `evol_instruct/scripts/12_export_dataset.py` | Orchestrate: `dataset_builder` → xuất train/val/test + `stats.json` |
 
 **Convention bắt buộc phải theo (giống script 01–05):**
 ```python
@@ -72,7 +72,7 @@ Repo không dùng `pip install -e .`, mọi script đều chèn thủ công root
 
 | File | Mục đích |
 |---|---|
-| `tests/test_qa_specificity.py` | **144 test** cho phần logic thuần (không gọi LLM). Mock `LLMClient` bằng `MagicMock` giống `tests/test_evol_engine.py`. Toàn bộ suite của repo: **183 passed**  |
+| `backend/evol_instruct/tests/test_qa_specificity.py` | **144 test** cho phần logic thuần (không gọi LLM). Mock `LLMClient` bằng `MagicMock` giống `tests/test_evol_engine.py`. Toàn bộ suite của repo: **183 passed**  |
 
 Nhóm test và thứ nó bảo vệ:
 
@@ -95,9 +95,9 @@ Nhóm test và thứ nó bảo vệ:
 
 ## 2. Tái sử dụng code — API contract chính xác
 
-**Nguyên tắc: chỉ `import`, không `edit`.** Không sửa `config/settings.py`, `src/data_loader.py`, `src/llm_client.py`, `src/utils.py` — đây là file trung tâm  còn sửa thường xuyên, mỗi lần cả hai cùng sửa là một merge conflict.
+**Nguyên tắc: chỉ `import`, không `edit`.** Không sửa `backend/config/settings.py`, `backend/evol_instruct/src/data_loader.py`, `backend/evol_instruct/src/llm_client.py`, `backend/evol_instruct/src/utils.py` — đây là file trung tâm  còn sửa thường xuyên, mỗi lần cả hai cùng sửa là một merge conflict.
 
-Nhóm file Evol-Instruct (`config/prompts.py`, `src/seed_generator.py`, `src/evol_engine.py`, `src/filters.py`, `src/gemini_client.py`, `scripts/01–06`) từ 2026-08-26 đã chuyển sang Vũ theo `pipeline.png`, nhưng **Phần 3 vẫn không đụng vào** — đó là phần việc riêng, xử lý sau.
+Nhóm file Evol-Instruct (`backend/config/prompts.py`, `backend/evol_instruct/src/seed_generator.py`, `backend/evol_instruct/src/evol_engine.py`, `backend/evol_instruct/src/filters.py`, `backend/evol_instruct/src/gemini_client.py`, `scripts/01–06`) từ 2026-08-26 đã chuyển sang Vũ theo `pipeline.png`, nhưng **Phần 3 vẫn không đụng vào** — đó là phần việc riêng, xử lý sau.
 
 ### 2.1 `src.data_loader.load_and_preprocess` — 🛑 KHÔNG DÙNG ĐƯỢC CHO PHẦN 3
 
@@ -186,9 +186,9 @@ Kết luận: phạm vi sâu **không thiếu dữ liệu**, và mật độ vă
 
 **Quy trình thêm dataset mới:**
 
-1. Thả file vào `data/corpus_civil/` (đổi được qua `QA_CORPUS_SOURCE`). Quét đệ quy, nhiều file cũng được.
-2. `python scripts/10_generate_qa_pairs.py --dry-run --rebuild-corpus` — in số document, phân bố nhánh, nguồn file, và 10 tiêu đề đầu để soát mắt.
-3. Nếu tên cột lạ: khai thêm bí danh vào `FIELD_ALIASES` (`config/qa_settings.py`). So khớp sau khi **bỏ dấu** nên `"Nội dung"` tự khớp `noi_dung`, không cần khai bản có dấu.
+1. Thả file vào `backend/data/corpus_civil/` (đổi được qua `QA_CORPUS_SOURCE`). Quét đệ quy, nhiều file cũng được.
+2. `python evol_instruct/scripts/10_generate_qa_pairs.py --dry-run --rebuild-corpus` — in số document, phân bố nhánh, nguồn file, và 10 tiêu đề đầu để soát mắt.
+3. Nếu tên cột lạ: khai thêm bí danh vào `FIELD_ALIASES` (`backend/config/qa_settings.py`). So khớp sau khi **bỏ dấu** nên `"Nội dung"` tự khớp `noi_dung`, không cần khai bản có dấu.
 4. Chạy thật.
 
 | Định dạng | Ghi chú |
@@ -251,7 +251,7 @@ judge = LLMClient(base_url=JUDGE_LLM_BASE_URL, api_key=JUDGE_LLM_API_KEY, model_
 
 | Nguồn | Trạng thái trong repo | Bạn cần làm gì |
 |---|---|---|
-| Nguồn chính: thư mục `data/corpus_civil/` | Người dùng tự thả dataset luật dân sự vào (mọi định dạng ở §2.1c). `corpus_filter.load_scoped_corpus()` đọc thẳng, cache corpus đã lọc vào `data/qa_pairs/raw/scoped_corpus.jsonl` (đã gitignore) | Không phải tải gì. Đổi nguồn thì phải chạy lại với `--rebuild-corpus` |
+| Nguồn chính: thư mục `backend/data/corpus_civil/` | Người dùng tự thả dataset luật dân sự vào (mọi định dạng ở §2.1c). `corpus_filter.load_scoped_corpus()` đọc thẳng, cache corpus đã lọc vào `backend/data/qa_pairs/raw/scoped_corpus.jsonl` (đã gitignore) | Không phải tải gì. Đổi nguồn thì phải chạy lại với `--rebuild-corpus` |
 | Dự phòng: `th1nhng0/vietnamese-legal-documents` (HuggingFace) | Chỉ dùng khi thư mục trên chưa có file nào. Tải runtime | Lần đầu tải **~6 GB** vào HF cache. Xem mục 3.3 về chỗ đặt cache |
 | LM Studio + `Meta-Llama-3.1-8B-Instruct-GGUF-Q4_K_M` | Không có trong repo (file `.gguf` đã gitignore) | Cài LM Studio, tải model, bật Local Server port 1234 — dùng cho bước **sinh cặp** |
 | **Judge model (API ngoài)** | **Không có** — `.env.example` hiện tại chỉ cấu hình LM Studio local | **Bạn phải tự chuẩn bị.** Khuyến nghị `gpt-4o-mini` hoặc `gemini-flash`. Cần API key |
@@ -271,7 +271,7 @@ Nếu tuyệt đối không có ngân sách API, phương án dự phòng: dùng
 | `gemini-2.5-flash` qua lớp OpenAI-compatible | Có — khác luôn nhà cung cấp, lập luận vững nhất | tỷ lệ thuận số câu, xem §3.2 | 🔧 đã nối sẵn, bật bằng 3 dòng env |
 | Dùng lại chính Llama-3.1-8B | **Không** — self-preference bias | \$0 | ❌ chỉ là phương án dự phòng, phải ghi vào Limitations |
 
-**Đổi sang Gemini là việc của cấu hình, không phải của code.** Gemini có endpoint OpenAI-compatible, mà `JudgeClient` vốn dựng trên `openai` SDK. Bỏ comment 3 dòng trong `config/qa.env`:
+**Đổi sang Gemini là việc của cấu hình, không phải của code.** Gemini có endpoint OpenAI-compatible, mà `JudgeClient` vốn dựng trên `openai` SDK. Bỏ comment 3 dòng trong `backend/config/qa.env`:
 
 ```
 JUDGE_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
@@ -306,10 +306,10 @@ Hai cách giảm nếu cần:
 **Đo trên dataset thật thay vì ước lượng bằng tay:**
 
 ```bash
-python scripts/11_verify_labels.py --estimate-cost
+python evol_instruct/scripts/11_verify_labels.py --estimate-cost
 ```
 
-Lệnh này **không gọi API lần nào**. Nó đọc `pairs.jsonl`, trừ đi những câu đã có trong `judge_cache.jsonl`, dựng prompt judge thật cho phần còn lại rồi quy ra token và tiền theo đơn giá trong `config/qa_settings.py` (`QA_JUDGE_PRICE_INPUT_PER_M` / `QA_JUDGE_PRICE_OUTPUT_PER_M` — override được bằng env vì **giá công bố có thể đã đổi**, đừng trích thẳng con số mặc định vào báo cáo). Judge đang chạy local thì nó in \$0 kèm dòng "nếu đổi sang API ngoài thì sẽ là bao nhiêu".
+Lệnh này **không gọi API lần nào**. Nó đọc `pairs.jsonl`, trừ đi những câu đã có trong `judge_cache.jsonl`, dựng prompt judge thật cho phần còn lại rồi quy ra token và tiền theo đơn giá trong `backend/config/qa_settings.py` (`QA_JUDGE_PRICE_INPUT_PER_M` / `QA_JUDGE_PRICE_OUTPUT_PER_M` — override được bằng env vì **giá công bố có thể đã đổi**, đừng trích thẳng con số mặc định vào báo cáo). Judge đang chạy local thì nó in \$0 kèm dòng "nếu đổi sang API ngoài thì sẽ là bao nhiêu".
 
 Nên gọi judge **một câu một lần**, đừng gộp batch nhiều câu vào một prompt: gộp lại làm model bị ảnh hưởng bởi ngữ cảnh các câu lân cận (contamination), phá vỡ tính độc lập của phép đánh giá. Hàm tên là `judge_batch()` nhưng "batch" chỉ nghĩa là duyệt qua một danh sách — mỗi câu vẫn là một lượt gọi riêng.
 
@@ -337,14 +337,14 @@ setx PYTHONIOENCODING utf-8
 
 ```bash
 # Lần đầu, hoặc bất cứ khi nào đổi nguồn / đổi phạm vi / bật cắt theo Điều:
-python scripts/10_generate_qa_pairs.py --dry-run --rebuild-corpus   # soát trước, không gọi LLM
-python scripts/10_generate_qa_pairs.py --max-docs 500 --rebuild-corpus
+python evol_instruct/scripts/10_generate_qa_pairs.py --dry-run --rebuild-corpus   # soát trước, không gọi LLM
+python evol_instruct/scripts/10_generate_qa_pairs.py --max-docs 500 --rebuild-corpus
 
 # Các lần sau (nguồn không đổi) — dùng cache, nhanh hơn nhiều:
-python scripts/10_generate_qa_pairs.py --max-docs 500
+python evol_instruct/scripts/10_generate_qa_pairs.py --max-docs 500
 ```
 
-⚠️ **Bẫy cache.** `data/qa_pairs/raw/scoped_corpus.jsonl` được đọc TRƯỚC mọi thứ khác.
+⚠️ **Bẫy cache.** `backend/data/qa_pairs/raw/scoped_corpus.jsonl` được đọc TRƯỚC mọi thứ khác.
 Đổi nguồn / đổi từ khoá phạm vi / bật `QA_SPLIT_BY_ARTICLE` mà quên `--rebuild-corpus`
 thì corpus cũ vẫn về nguyên và mọi thay đổi trông như không có tác dụng — không có
 thông báo lỗi nào cả.
@@ -374,10 +374,10 @@ thông báo lỗi nào cả.
 
 Sinh cùng lúc từ cùng một văn bản ⇒ hai câu hỏi có cùng chủ đề, cùng lĩnh vực, cùng nguồn — biến duy nhất khác nhau là độ cụ thể. Đây là thiết kế **contrastive pair**, và trong báo cáo có thể diễn đạt là "thiết kế cặp đối chứng nhằm loại bỏ confound về chủ đề".
 
-**Output:** `data/qa_pairs/raw/pairs.jsonl` + `data/qa_pairs/raw/generation_checkpoint.json`
-(kèm `data/qa_pairs/raw/scoped_corpus.jsonl` — cache corpus đã lọc phạm vi, sinh ở lần chạy đầu)
+**Output:** `backend/data/qa_pairs/raw/pairs.jsonl` + `backend/data/qa_pairs/raw/generation_checkpoint.json`
+(kèm `backend/data/qa_pairs/raw/scoped_corpus.jsonl` — cache corpus đã lọc phạm vi, sinh ở lần chạy đầu)
 
-**Kiểm tra trước khi đốt hàng giờ GPU:** `python scripts/10_generate_qa_pairs.py --dry-run` chỉ lọc corpus và in thống kê, không gọi LLM.
+**Kiểm tra trước khi đốt hàng giờ GPU:** `python evol_instruct/scripts/10_generate_qa_pairs.py --dry-run` chỉ lọc corpus và in thống kê, không gọi LLM.
 
 **Xử lý tiếp:** chưa dùng được. Nhãn hiện tại mới chỉ là **provenance label** (câu sinh ở nhánh nào thì mang nhãn đó) — chưa qua kiểm chứng nào. Chuyển thẳng sang Bước 2.
 
@@ -386,7 +386,7 @@ Sinh cùng lúc từ cùng một văn bản ⇒ hai câu hỏi có cùng chủ �
 ### BƯỚC 2 — Gán nhãn và kiểm chứng 3 tầng
 
 ```bash
-python scripts/11_verify_labels.py --input data/qa_pairs/raw/pairs.jsonl
+python evol_instruct/scripts/11_verify_labels.py --input backend/data/qa_pairs/raw/pairs.jsonl
 ```
 
 **Input:** `pairs.jsonl` từ Bước 1
@@ -424,10 +424,10 @@ Item bị loại → ghi sang `pairs_rejected.jsonl` (để phân tích, không 
 **Vì sao dùng tận 3 tầng thay vì tin thẳng provenance:** provenance chỉ nói lên "ta đã YÊU CẦU model sinh câu broad", không nói lên "model đã sinh ra câu broad thật". Model 8B thường xuyên không tuân thủ yêu cầu — nó có thể sinh ra hai câu gần như giống nhau về độ cụ thể. Ba tầng độc lập hội tụ về cùng một nhãn là bằng chứng mạnh hơn nhiều so với một tầng.
 
 **Output:**
-- `data/qa_pairs/labeled/pairs_verified.jsonl`
-- `data/qa_pairs/labeled/pairs_rejected.jsonl`
-- `data/qa_pairs/labeled/verification_stats.json`
-- `data/qa_pairs/labeled/judge_cache.jsonl` — kết quả judge từng câu; chạy lại script không gọi lại API cho câu đã chấm
+- `backend/data/qa_pairs/labeled/pairs_verified.jsonl`
+- `backend/data/qa_pairs/labeled/pairs_rejected.jsonl`
+- `backend/data/qa_pairs/labeled/verification_stats.json`
+- `backend/data/qa_pairs/labeled/judge_cache.jsonl` — kết quả judge từng câu; chạy lại script không gọi lại API cho câu đã chấm
 
 **Xử lý tiếp — đây là checkpoint quyết định, phải đọc số trước khi đi tiếp:**
 
@@ -448,10 +448,10 @@ Nguyên tắc: chất lượng hơn số lượng. Ở quy mô đồ án, phải
 Việc lấy mẫu và tính toán đã được tự động hoá trong script 11; phần gán nhãn là việc tay:
 
 ```bash
-python scripts/11_verify_labels.py --export-manual-sample 100
-# → data/qa_pairs/labeled/manual_sample_blind.jsonl (chỉ có item_id + question + manual_label rỗng)
+python evol_instruct/scripts/11_verify_labels.py --export-manual-sample 100
+# → backend/data/qa_pairs/labeled/manual_sample_blind.jsonl (chỉ có item_id + question + manual_label rỗng)
 # … điền `manual_label` bằng tay …
-python scripts/11_verify_labels.py --compute-kappa data/qa_pairs/labeled/manual_sample_blind.jsonl
+python evol_instruct/scripts/11_verify_labels.py --compute-kappa backend/data/qa_pairs/labeled/manual_sample_blind.jsonl
 # → kappa_report.json
 ```
 
@@ -474,7 +474,7 @@ Nếu κ < 0.6: nghĩa là tiêu chí trong guideline chưa đủ rõ để hai 
 ### BƯỚC 4 — Chia tập và export
 
 ```bash
-python scripts/12_export_dataset.py --input data/qa_pairs/labeled/pairs_verified.jsonl
+python evol_instruct/scripts/12_export_dataset.py --input backend/data/qa_pairs/labeled/pairs_verified.jsonl
 ```
 
 **Input:** `pairs_verified.jsonl`
@@ -489,10 +489,10 @@ python scripts/12_export_dataset.py --input data/qa_pairs/labeled/pairs_verified
 
 **Output:**
 ```
-data/qa_pairs/final/train.json     # ~70%
-data/qa_pairs/final/val.json       # ~15%
-data/qa_pairs/final/test.json      # ~15%
-data/qa_pairs/final/stats.json
+backend/data/qa_pairs/final/train.json     # ~70%
+backend/data/qa_pairs/final/val.json       # ~15%
+backend/data/qa_pairs/final/test.json      # ~15%
+backend/data/qa_pairs/final/stats.json
 ```
 
 ---
@@ -503,11 +503,11 @@ data/qa_pairs/final/stats.json
 
 | # | Sản phẩm | Vị trí | Dùng cho |
 |---|---|---|---|
-| 1 | `train.json` / `val.json` / `test.json` | `data/qa_pairs/final/` | **Chính.** dùng để train/eval query classifier hoặc routing rule |
-| 2 | `stats.json` | `data/qa_pairs/final/` | Bảng thống kê trong báo cáo |
-| 3 | `kappa_report.json` (κ + confusion matrix + số câu bỏ qua) | `data/qa_pairs/labeled/` | Chứng minh độ tin cậy dataset |
-| 4 | `verification_stats.json` (tỷ lệ pass/reject theo tầng) | `data/qa_pairs/labeled/` | Chứng minh quy trình có kiểm chứng, không phải sinh bừa |
-| 5 | `pairs_rejected.jsonl` | `data/qa_pairs/labeled/` | Error analysis định tính — phân tích model hay sai kiểu gì |
+| 1 | `train.json` / `val.json` / `test.json` | `backend/data/qa_pairs/final/` | **Chính.** dùng để train/eval query classifier hoặc routing rule |
+| 2 | `stats.json` | `backend/data/qa_pairs/final/` | Bảng thống kê trong báo cáo |
+| 3 | `kappa_report.json` (κ + confusion matrix + số câu bỏ qua) | `backend/data/qa_pairs/labeled/` | Chứng minh độ tin cậy dataset |
+| 4 | `verification_stats.json` (tỷ lệ pass/reject theo tầng) | `backend/data/qa_pairs/labeled/` | Chứng minh quy trình có kiểm chứng, không phải sinh bừa |
+| 5 | `pairs_rejected.jsonl` | `backend/data/qa_pairs/labeled/` | Error analysis định tính — phân tích model hay sai kiểu gì |
 | 6 | `docs/specificity-guideline.md` | `docs/` | Phụ lục báo cáo, minh chứng tiêu chí gán nhãn có hệ thống |
 
 ### 5.2 Lưu trữ — vấn đề `.gitignore`
@@ -516,20 +516,20 @@ data/qa_pairs/final/stats.json
 
 | Phương án | Cách làm | Trade-off |
 |---|---|---|
-| **A (khuyến nghị)** | Thêm exception cho riêng `data/qa_pairs/final/` | `git pull` là có dataset dùng ngay; kết quả tái lập được; nhược điểm là tăng dung lượng repo (chấp nhận được nếu vài MB) |
+| **A (khuyến nghị)** | Thêm exception cho riêng `backend/data/qa_pairs/final/` | `git pull` là có dataset dùng ngay; kết quả tái lập được; nhược điểm là tăng dung lượng repo (chấp nhận được nếu vài MB) |
 | B | Giữ nguyên gitignore, chia sẻ qua Google Drive, chỉ commit `stats.json` | Repo gọn, nhưng phải đồng bộ thủ công |
 
 **Đã chọn A.** Các dòng đã thêm vào cuối `.gitignore` (chỉ **thêm dòng mới**, không xoá dòng nào có sẵn):
 ```gitignore
 # --- QA Specificity Pipeline (Phần 3) ---
-!data/qa_pairs/final/
-!data/qa_pairs/final/*.json
-config/qa.env
+!backend/data/qa_pairs/final/
+!backend/data/qa_pairs/final/*.json
+backend/config/qa.env
 ```
 
-Đã kiểm chứng bằng `git add -n data/qa_pairs/`: chỉ `final/*.json` được track, `raw/` và `labeled/` vẫn bị chặn.
+Đã kiểm chứng bằng `git add -n backend/data/qa_pairs/`: chỉ `final/*.json` được track, `raw/` và `labeled/` vẫn bị chặn.
 
-Không tạo `config/qa.env.example`: `.env` ở root đã đủ. `qa_settings.py` load `.env` trước rồi mới load `config/qa.env` nếu file đó tồn tại, nên chỉ cần thêm các biến `JUDGE_*` vào `.env` là xong. Cơ chế override vẫn còn đó phòng khi muốn tách API key ra file riêng.
+Không tạo `backend/config/qa.env.example`: `.env` ở root đã đủ. `qa_settings.py` load `.env` trước rồi mới load `backend/config/qa.env` nếu file đó tồn tại, nên chỉ cần thêm các biến `JUDGE_*` vào `.env` là xong. Cơ chế override vẫn còn đó phòng khi muốn tách API key ra file riêng.
 
 ---
 
