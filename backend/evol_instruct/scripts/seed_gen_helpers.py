@@ -34,6 +34,7 @@ def generate_seeds_with_gemini(
     """
     seeds = []
     seen = set()
+    dup_count = 0
     max_docs = min(len(documents), (target_seeds // seeds_per_doc) + 20)
 
     logger.info(
@@ -86,6 +87,7 @@ def generate_seeds_with_gemini(
                 line = line.strip()
                 norm = line.lower()
                 if norm in seen:
+                    dup_count += 1
                     continue
                 seen.add(norm)
 
@@ -110,7 +112,7 @@ def generate_seeds_with_gemini(
 
     logger.info(
         f"Gemini tạo {len(seeds)} seeds | "
-        f"dedup loại {len(seen) - len(seeds)} trùng"
+        f"dedup loại {dup_count} trùng"
     )
     return seeds
 
@@ -135,6 +137,7 @@ def generate_seeds_with_llm_client(
     """
     seeds = []
     seen = set()
+    dup_count = 0
     max_docs = min(len(documents), (target_seeds // seeds_per_doc) + 20)
 
     logger.info(
@@ -193,6 +196,7 @@ def generate_seeds_with_llm_client(
                 line = line.strip()
                 norm = line.lower()
                 if norm in seen:
+                    dup_count += 1
                     continue
                 seen.add(norm)
 
@@ -217,7 +221,7 @@ def generate_seeds_with_llm_client(
 
     logger.info(
         f"LLM tạo {len(seeds)} seeds | "
-        f"dedup loại {len(seen) - len(seeds)} trùng"
+        f"dedup loại {dup_count} trùng"
     )
     return seeds
 

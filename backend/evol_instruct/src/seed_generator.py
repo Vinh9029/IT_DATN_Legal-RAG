@@ -170,6 +170,7 @@ def generate_seeds_from_templates(
     """
     seeds = []
     seen_instructions = set()  # Dedup
+    dup_count = 0
 
     # Tự tính templates_per_doc nếu chưa chỉ định
     if templates_per_doc <= 0:
@@ -228,6 +229,7 @@ def generate_seeds_from_templates(
                 # Dedup: bỏ qua nếu instruction đã tồn tại
                 instruction_normalized = instruction.strip().lower()
                 if instruction_normalized in seen_instructions:
+                    dup_count += 1
                     continue
                 seen_instructions.add(instruction_normalized)
 
@@ -256,7 +258,7 @@ def generate_seeds_from_templates(
 
     logger.info(
         f"Đã tạo {len(seeds)} seed prompts từ {len(documents)} documents "
-        f"(dedup loại {len(seen_instructions) - len(seeds)} trùng)"
+        f"(dedup loại {dup_count} trùng)"
     )
     return seeds
 

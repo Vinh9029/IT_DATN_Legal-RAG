@@ -36,8 +36,13 @@ from config.prompts import (
     EVOL_TECHNIQUES, SYSTEM_EVOL_REWRITER,
     SYSTEM_IRAC_RESPONDER, FEW_SHOT_IRAC_EXAMPLE,
 )
-from evol_instruct.src.gemini_client import GeminiClient
-from evol_instruct.src.filters import instruction_eliminator
+from evol_instruct.src.gemini_client import (
+    GeminiClient, GeminiBlockedError, GeminiTruncatedError,
+)
+from evol_instruct.src.filters import (
+    instruction_eliminator, eliminate_evolved, strip_lead_label, PoolDeduplicator,
+)
+from evol_instruct.src.evol_engine import default_checkpoint_name
 from evol_instruct.src.utils import (
     setup_logging, load_jsonl, append_jsonl,
     Checkpoint, generate_item_id, truncate_text,
@@ -60,30 +65,61 @@ class GeminiEvolPipeline:
         self,
         gemini: GeminiClient,
         output_file: str = "legal_evolved.jsonl",
-        checkpoint_file: str = "gemini_checkpoint.json",
+        checkpoint_file: str = None,
         legal_refs: set[str] = None,
         rate_limit_delay: float = 1.0,
+        rounds: int = 1,
+        sim_threshold: float = None,
+        dedup_pool: bool = True,
+        dedup_threshold: float = None,
+        strict_truncation: bool = True,
     ):
         self.gemini = gemini
         self.output_path = OUTPUT_DIR / output_file
-        self.checkpoint = Checkpoint(OUTPUT_DIR / checkpoint_file)
+        # Checkpoint phải gắn với output file, nếu không lần chạy thứ hai với
+        # --output-file khác sẽ thấy "đã xử lý hết" và sinh ra file rỗng.
+        self.checkpoint = Checkpoint(
+            OUTPUT_DIR / (checkpoint_file or default_checkpoint_name(output_file))
+        )
         self.legal_refs = legal_refs or set()
         self.technique_keys = list(EVOL_TECHNIQUES.keys())
+        self._tech_cycle: list[str] = []
         self.delay = rate_limit_delay  # giây giữa các API calls
+        self.rounds = max(1, rounds)
+        self.sim_threshold = sim_threshold
+        self.strict_truncation = strict_truncation
+
+        self.pool = PoolDeduplicator(dedup_threshold) if dedup_pool else None
+        if self.pool is not None and self.output_path.exists():
+            self.pool.seed_from(
+                [r.get("instruction", "") for r in load_jsonl(self.output_path)]
+            )
+            logger.info(f"Pool dedup: nạp lại {len(self.pool)} instruction đã có")
 
         self.stats = {
             "total": 0,
             "accepted": 0,
             "rejected": 0,
             "errors": 0,
+            "truncated": 0,
+            "saved_answer_calls": 0,
             "rejection_reasons": {},
             "techniques": {},
         }
 
         logger.info(
             f"GeminiEvolPipeline | output={self.output_path.name} | "
-            f"checkpoint={self.checkpoint.processed_count} đã xử lý"
+            f"checkpoint={self.checkpoint.filepath.name} "
+            f"({self.checkpoint.processed_count} đã xử lý) | rounds={self.rounds} | "
+            f"dedup_pool={'on' if self.pool is not None else 'off'}"
         )
+
+    def _next_technique(self) -> str:
+        """Round-robin có xáo trộn — random.choice cho phân bố lệch ở cỡ vài trăm."""
+        if not self._tech_cycle:
+            self._tech_cycle = self.technique_keys[:]
+            random.shuffle(self._tech_cycle)
+        return self._tech_cycle.pop()
 
     # ── Bước 1: Evolve Instruction ────────────────────────────────
 
@@ -95,13 +131,16 @@ class GeminiEvolPipeline:
             (evolved_prompt, technique_key)
         """
         if not technique_key:
-            technique_key = random.choice(self.technique_keys)
+            technique_key = self._next_technique()
 
         tech = EVOL_TECHNIQUES[technique_key]
         user_prompt = tech["prompt"].format(seed_instruction=seed)
 
-        evolved = self.gemini.evolve(SYSTEM_EVOL_REWRITER, user_prompt)
-        return evolved.strip(), technique_key
+        evolved = self.gemini.evolve(
+            SYSTEM_EVOL_REWRITER, user_prompt,
+            allow_truncated=not self.strict_truncation,
+        )
+        return strip_lead_label(evolved), technique_key
 
     # ── Bước 2: Generate IRAC Response ───────────────────────────
 
@@ -110,7 +149,10 @@ class GeminiEvolPipeline:
         Sinh phản hồi IRAC bằng Gemini (temperature thấp → chính xác).
         """
         system = SYSTEM_IRAC_RESPONDER + "\n\n" + FEW_SHOT_IRAC_EXAMPLE
-        response = self.gemini.answer(system, evolved_instruction)
+        response = self.gemini.answer(
+            system, evolved_instruction,
+            allow_truncated=not self.strict_truncation,
+        )
         return response.strip()
 
     # ── Xử lý 1 seed ─────────────────────────────────────────────
@@ -131,9 +173,18 @@ class GeminiEvolPipeline:
         original = seed["instruction"]
 
         try:
-            # Bước 1: Evolve
-            evolved, used_tech = self.evolve_instruction(original, technique_key)
-            time.sleep(self.delay)  # Rate limit
+            # Bước 1: Evolve (lặp `rounds` vòng theo WizardLM)
+            current, techniques = original, []
+            for _ in range(self.rounds):
+                tk = technique_key if (technique_key and not techniques) else None
+                current, used = self.evolve_instruction(current, tk)
+                techniques.append(used)
+                time.sleep(self.delay)  # Rate limit
+            evolved, used_tech = current, techniques[-1]
+
+            self.stats["total"] += 1
+            for tk in techniques:
+                self.stats["techniques"][tk] = self.stats["techniques"].get(tk, 0) + 1
 
             if not evolved or len(evolved) < 20:
                 logger.debug(f"Evolved quá ngắn, bỏ qua: {evolved[:50]}")
@@ -141,20 +192,36 @@ class GeminiEvolPipeline:
                 self._checkpoint(seed_id)
                 return None
 
-            # Bước 2: IRAC response
+            # Bước 2: LỌC SỚM — rớt ở đây thì khỏi tốn lượt gọi sinh IRAC
+            ok, fails = eliminate_evolved(
+                original_prompt=original,
+                evolved_prompt=evolved,
+                sim_threshold=self.sim_threshold,
+                pool=self.pool,
+            )
+            if not ok:
+                self.stats["rejected"] += 1
+                self.stats["saved_answer_calls"] += 1
+                for r in fails:
+                    self.stats["rejection_reasons"][r] = (
+                        self.stats["rejection_reasons"].get(r, 0) + 1
+                    )
+                logger.debug(f"❌ Rejected sớm: {fails} | {truncate_text(evolved, 60)}")
+                self._checkpoint(seed_id)
+                return None
+
+            # Bước 3: IRAC response
             response = self.generate_irac_response(evolved)
             time.sleep(self.delay)
 
-            # Bước 3: Filter
+            # Bước 4: Filter đầy đủ
             passed, fails = instruction_eliminator(
                 original_prompt=original,
                 evolved_prompt=evolved,
                 response=response,
                 legal_refs=self.legal_refs,
+                sim_threshold=self.sim_threshold,
             )
-
-            self.stats["total"] += 1
-            self.stats["techniques"][used_tech] = self.stats["techniques"].get(used_tech, 0) + 1
 
             if passed:
                 record = {
@@ -163,6 +230,8 @@ class GeminiEvolPipeline:
                     "output": response,
                     "metadata": {
                         "technique": used_tech,
+                        "technique_chain": techniques,
+                        "evolution_depth": len(techniques),
                         "seed_id": seed_id,
                         "seed_instruction": original,
                         "source_metadata": seed.get("metadata", {}),
@@ -172,6 +241,8 @@ class GeminiEvolPipeline:
                     },
                 }
                 append_jsonl(record, self.output_path)
+                if self.pool is not None:
+                    self.pool.add(evolved)
                 self.stats["accepted"] += 1
                 logger.info(
                     f"✅ [{used_tech[:15]:15s}] {truncate_text(evolved, 70)}"
@@ -188,16 +259,28 @@ class GeminiEvolPipeline:
             self._checkpoint(seed_id)
             return record
 
-        except Exception as e:
-            logger.error(f"Error seed {seed_id}: {e}")
+        except GeminiBlockedError as e:
+            # Lỗi NỘI DUNG: chạy lại cũng chặn tiếp → đánh dấu xong, khỏi thử lại.
+            logger.warning(f"Seed {seed_id} bị safety chặn: {e}")
             self.stats["errors"] += 1
             self._checkpoint(seed_id)
+            return None
+
+        except Exception as e:
+            # Lỗi TẠM THỜI (mạng, quota, bị cắt vì max_tokens): KHÔNG checkpoint,
+            # để lần chạy sau thử lại. Bản cũ checkpoint ở đây nên một lần rớt
+            # mạng là mất seed vĩnh viễn.
+            if isinstance(e, GeminiTruncatedError):
+                self.stats["truncated"] += 1
+            kind = "bị cắt" if isinstance(e, GeminiTruncatedError) else "tạm thời"
+            logger.error(f"Lỗi {kind} ở seed {seed_id} (sẽ thử lại lần sau): {e}")
+            self.stats["errors"] += 1
             return None
 
     def _checkpoint(self, seed_id: str):
         self.checkpoint.mark_processed(seed_id)
         self.checkpoint.update_stats("stats", self.stats)
-        self.checkpoint.save()
+        self.checkpoint.maybe_save(every=10)
 
     # ── Run full pipeline ─────────────────────────────────────────
 
@@ -217,13 +300,17 @@ class GeminiEvolPipeline:
         logger.info(f"   Output: {self.output_path}")
         logger.info("=" * 60)
 
-        for seed in tqdm(seeds, desc="Gemini Evol-Instruct"):
-            # Dừng sớm nếu đủ target
-            if target > 0 and self.stats["accepted"] >= target:
-                logger.info(f"Đạt target {target} records, dừng.")
-                break
+        try:
+            for seed in tqdm(seeds, desc="Gemini Evol-Instruct"):
+                # Dừng sớm nếu đủ target
+                if target > 0 and self.stats["accepted"] >= target:
+                    logger.info(f"Đạt target {target} records, dừng.")
+                    break
 
-            self.process_seed(seed)
+                self.process_seed(seed)
+        finally:
+            # Luôn ghi checkpoint, kể cả khi Ctrl-C giữa chừng
+            self.checkpoint.save()
 
         self._log_summary(total)
 
@@ -236,6 +323,15 @@ class GeminiEvolPipeline:
         logger.info(f"   Processed: {s['total']} | Errors: {s['errors']}")
         logger.info(f"   Accepted: {s['accepted']} ({rate:.1f}%)")
         logger.info(f"   Rejected: {s['rejected']}")
+        logger.info(
+            f"   Tiết kiệm {s['saved_answer_calls']} lượt gọi Gemini nhờ lọc sớm"
+        )
+        if s["truncated"]:
+            logger.warning(
+                f"   ⚠️  {s['truncated']} item bị cắt vì chạm max_output_tokens. "
+                f"Nâng GEMINI_MAX_OUTPUT_TOKENS trong .env, hoặc chạy với "
+                f"--allow-truncated nếu chấp nhận câu trả lời cụt."
+            )
         if s["rejection_reasons"]:
             for reason, cnt in sorted(s["rejection_reasons"].items(), key=lambda x: -x[1]):
                 logger.info(f"     - {reason}: {cnt}")
@@ -249,11 +345,17 @@ class GeminiEvolPipeline:
 
 # ── Main ──────────────────────────────────────────────────────────
 
-def build_legal_refs(documents: list[dict]) -> set[str]:
-    """Build tập hợp số hiệu luật hợp lệ để check hallucination."""
+def build_legal_refs(metadatas) -> set[str]:
+    """
+    Build tập hợp số hiệu luật hợp lệ để check hallucination.
+
+    Nhận iterable metadata thay vì list document: bản cũ gọi
+    `load_and_preprocess()` lần thứ hai chỉ để lấy `so_hieu`, tức nạp lại toàn bộ
+    2.6 GB `content` vào RAM một cách vô ích.
+    """
     refs = set()
-    for doc in documents:
-        meta = doc.get("metadata", {})
+    for meta in metadatas:
+        meta = meta or {}
         so = meta.get("so_hieu", "")
         loai = meta.get("loai_van_ban", "")
         if so:
@@ -311,11 +413,43 @@ Examples:
         "--test", action="store_true",
         help="Test mode: chỉ xử lý tối đa 10 seeds"
     )
+    parser.add_argument(
+        "--checkpoint-file", default=None,
+        help="File checkpoint (mặc định suy ra từ --output-file)"
+    )
+    parser.add_argument(
+        "--rounds", type=int, default=1,
+        help="Số vòng tiến hoá liên tiếp theo WizardLM (mặc định: 1)"
+    )
+    parser.add_argument(
+        "--sim-threshold", type=float, default=None,
+        help="Ngưỡng similarity seed↔evolved (mặc định lấy từ .env)"
+    )
+    parser.add_argument(
+        "--no-dedup-pool", action="store_true",
+        help="Tắt chống trùng lặp trên toàn bộ pool đã accept"
+    )
+    parser.add_argument(
+        "--dedup-threshold", type=float, default=None,
+        help="Ngưỡng trùng lặp pool (mặc định: 0.92)"
+    )
+    parser.add_argument(
+        "--allow-truncated", action="store_true",
+        help="Chấp nhận cả response bị cắt vì chạm max_output_tokens"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Seed cho random để chạy lại tái lập được"
+    )
     args = parser.parse_args()
 
     log = setup_logging("06_gemini_pipeline.log")
     ensure_directories()
     validate_config()
+
+    if args.seed is not None:
+        random.seed(args.seed)
+        log.info(f"random.seed({args.seed}) — kết quả tái lập được")
 
     if not GEMINI_API_KEY:
         log.error("❌ GEMINI_API_KEY trống! Thêm vào .env")
@@ -373,19 +507,31 @@ Examples:
     # ── Bước 3: Xây dựng legal references ────────────────────────
     legal_refs = set()
     try:
-        from evol_instruct.src.data_loader import load_and_preprocess
-        docs = load_and_preprocess(cache=True)
-        legal_refs = build_legal_refs(docs)
+        from evol_instruct.src.data_loader import iter_document_metadata
+        legal_refs = build_legal_refs(iter_document_metadata())
         log.info(f"Legal refs: {len(legal_refs)} số hiệu")
-    except Exception:
-        log.warning("Không build được legal refs, bỏ qua hallucination check.")
+    except Exception as e:
+        log.warning(f"Không build được legal refs ({e}), bỏ qua hallucination check.")
+
+    if not legal_refs:
+        log.error(
+            "❌ legal_refs RỖNG → bộ lọc hallucination sẽ KHÔNG hoạt động. "
+            "Nhiều khả năng preprocessed_cache.jsonl là cache cũ có metadata rỗng; "
+            "xoá cache rồi chạy lại 01_download_data.py."
+        )
 
     # ── Bước 4: Chạy Evol pipeline ───────────────────────────────
     pipeline = GeminiEvolPipeline(
         gemini=gemini,
         output_file=args.output_file,
+        checkpoint_file=args.checkpoint_file,
         legal_refs=legal_refs,
         rate_limit_delay=args.rate_delay,
+        rounds=args.rounds,
+        sim_threshold=args.sim_threshold,
+        dedup_pool=not args.no_dedup_pool,
+        dedup_threshold=args.dedup_threshold,
+        strict_truncation=not args.allow_truncated,
     )
     pipeline.run(seeds, target=args.target if not args.test else 0)
 
