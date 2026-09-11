@@ -344,6 +344,22 @@ ARTICLE_MIN_LENGTH = int(os.getenv("QA_ARTICLE_MIN_LENGTH", "300"))
 FORCE_NARROW_MODE = os.getenv("QA_FORCE_NARROW_MODE", "").strip().lower()
 
 
+# ── Phiên bản prompt sinh câu ─────────────────────────────────────
+# Đóng dấu vào `metadata.gen_version` của mọi item sinh ra. Dataset cuối trộn
+# hai đợt nên không có dấu này thì không tách được đợt nào ra đợt nào.
+#
+#   v1 — prompt gốc. Ví dụ few-shot situation kết thúc bằng câu hỏi MỞ
+#        ("...có được chấp nhận không?"), model bắt chước, 54,6% câu narrow
+#        kiểu tình huống bị judge bác.
+#   v2 — (2026-09-11) đổi ĐÚNG nhánh situation: bắt câu chốt nhắm một hệ quả
+#        pháp lý xác định, và xoay vòng 4 ví dụ thay vì 1. Prompt citation và
+#        prompt judge GIỮ NGUYÊN — đổi nhiều biến cùng lúc thì không quy được
+#        kết quả cho biến nào. Đo trên pilot 120 cặp: narrow bị bác 54,6% →
+#        30,0%, câu hỏi mở 30,1% → 10,0%, và độ khó thật không đổi (shortcut
+#        baseline 49,5% → 50,0%).
+GEN_VERSION = os.getenv("QA_GEN_VERSION", "v2").strip()
+
+
 # ── Đọc PDF ───────────────────────────────────────────────────────
 # PDF không lưu "văn bản", nó lưu VỊ TRÍ CỦA TỪNG KÝ TỰ. Nên trích ra được thứ
 # gì phụ thuộc hoàn toàn vào cách file được tạo, và có hai kiểu hỏng khác nhau:

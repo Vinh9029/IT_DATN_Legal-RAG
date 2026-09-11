@@ -23,6 +23,7 @@ from config.qa_settings import (
     FORCE_NARROW_MODE,
     GEN_MAX_TOKENS,
     GEN_TEMPERATURE,
+    GEN_VERSION,
     MAX_DOC_CHARS,
 )
 from evol_instruct.src.qa_specificity.schema import QAItem, Specificity
@@ -243,6 +244,7 @@ def generate_pair(doc: dict, llm_client) -> list[QAItem]:
         nganh=metadata.get("nganh", ""),
         so_hieu=metadata.get("so_hieu") or metadata.get("title", ""),
         narrow_mode=narrow_mode,
+        variant_key=doc.get("source_doc_id", ""),
     )
 
     try:
@@ -266,7 +268,15 @@ def generate_pair(doc: dict, llm_client) -> list[QAItem]:
     else:
         # Ghi lại kiểu narrow để audit phân bố sau này — nếu một kiểu bị loại
         # nhiều hơn hẳn, phân bố cuối sẽ lệch và ta cần biết điều đó.
+        #
+        # `gen_version` ghi PHIÊN BẢN PROMPT đã sinh ra câu này. Cần vì dataset
+        # cuối trộn hai đợt: đợt v1 và đợt v2 (v2 chỉ đổi nhánh situation —
+        # prompt citation giữ nguyên). Không có trường này thì "situation gồm
+        # hai phiên bản prompt" là một câu phải thú nhận trong báo cáo mà không
+        # chứng minh được; có nó thì đó là dữ kiện tra được, và chạy được
+        # ablation tách theo phiên bản.
         for item in items:
             item.metadata["narrow_mode"] = narrow_mode
+            item.metadata["gen_version"] = GEN_VERSION
 
     return items

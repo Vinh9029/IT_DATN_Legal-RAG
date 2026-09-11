@@ -11,6 +11,8 @@ NGUYÊN TẮC: mọi tiêu chí trong file này phải bám sát
 sửa guideline trước, sửa prompt sau, và ghi vào bảng nhật ký §8 của guideline.
 """
 
+import hashlib
+
 # ══════════════════════════════════════════════════════════════════
 # (c) FEW-SHOT EXAMPLES — nguồn: guideline §5
 # ══════════════════════════════════════════════════════════════════
@@ -70,10 +72,29 @@ NARROW_MODE_CITATION = "citation"
 # đó là đổi luôn hành vi judge, và mọi so sánh với 4.084 câu đã verified trước
 # đó mất giá trị — đổi hai biến cùng lúc thì không quy được kết quả cho biến
 # nào. Tách hằng số riêng là cách đổi ĐÚNG MỘT biến.
+# BỐN ví dụ chứ không phải một, xoay vòng theo hash doc_id. Đo trên mẻ pilot
+# 120 cặp khi chỉ có MỘT ví dụ: 6,7% câu narrow chép lại nguyên tình huống mẫu
+# ("Ông A mất năm 2019... con riêng...") so với 3,5% ở prompt cũ, và đa dạng mở
+# đầu tụt từ 96,5% xuống 93,3%. Ví dụ càng cụ thể thì model càng bám vào nó —
+# sửa được lỗi hỏi-mở thì lại đẻ ra lỗi chép mẫu.
+#
+# Bốn ví dụ cố ý khác nhau ở CẢ hai chiều: khác chế định (thừa kế / hợp đồng /
+# bồi thường / vay tài sản) và khác KIỂU đại lượng được hỏi (thời hiệu / thời
+# điểm / bên gánh nghĩa vụ / mức tiền). Chỉ đổi chế định mà câu chốt vẫn cùng
+# một khuôn thì model vẫn chép khuôn.
 FEWSHOT_NARROW_SITUATION = (
     "Ông A mất năm 2019, không để lại di chúc. Đến năm 2026, người con riêng của ông "
     "mới yêu cầu chia căn nhà mà ông đứng tên chung với vợ. Thời hiệu để người con "
-    "riêng yêu cầu chia di sản này còn lại bao lâu?"
+    "riêng yêu cầu chia di sản này còn lại bao lâu?",
+
+    "Chị B đặt cọc 200 triệu đồng mua căn hộ của Công ty X ngày 10/3/2024, hai bên ký "
+    "hợp đồng nhưng chưa công chứng. Hợp đồng mua bán này có hiệu lực từ thời điểm nào?",
+
+    "Anh C cho hàng xóm mượn xe máy, người này gây tai nạn làm hỏng tài sản của người "
+    "đi đường. Bên nào phải bồi thường thiệt hại cho người bị hại?",
+
+    "Anh D vay của chị E 500 triệu đồng trong 12 tháng, hai bên chỉ thoả thuận miệng "
+    "là 'có lãi' mà không ghi rõ mức. Lãi suất áp dụng cho khoản vay này là bao nhiêu?",
 )
 
 NARROW_MODE_BLOCK = {
@@ -266,6 +287,7 @@ def build_pair_generator_messages(
     nganh: str = "",
     so_hieu: str = "",
     narrow_mode: str = NARROW_MODE_SITUATION,
+    variant_key: str = "",
 ) -> list[dict]:
     """
     Dựng messages hoàn chỉnh cho bước sinh cặp câu hỏi.
@@ -290,11 +312,18 @@ def build_pair_generator_messages(
     )
     # Ví dụ few-shot phải KHỚP kiểu narrow đang yêu cầu — đưa ví dụ trích dẫn
     # rồi bảo model đừng trích dẫn thì model nghe theo ví dụ, không nghe lời dặn.
-    example_narrow = (
-        FEWSHOT_NARROW_SITUATION
-        if narrow_mode == NARROW_MODE_SITUATION
-        else FEWSHOT_NARROW[0]
-    )
+    if narrow_mode == NARROW_MODE_SITUATION:
+        # Xoay theo hash doc_id chứ không random: cùng corpus thì cùng phân
+        # công ví dụ, nên chạy lại / resume checkpoint tái lập được y hệt.
+        idx = (
+            int(hashlib.sha256(variant_key.encode("utf-8")).hexdigest(), 16)
+            % len(FEWSHOT_NARROW_SITUATION)
+            if variant_key
+            else 0
+        )
+        example_narrow = FEWSHOT_NARROW_SITUATION[idx]
+    else:
+        example_narrow = FEWSHOT_NARROW[0]
     user = USER_PAIR_GENERATOR.format(
         linh_vuc=linh_vuc or "Chưa xác định",
         nganh=nganh or "Chưa xác định",

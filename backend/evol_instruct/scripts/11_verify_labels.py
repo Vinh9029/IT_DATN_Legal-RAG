@@ -65,9 +65,32 @@ def cmd_export_manual_sample(args, logger):
         logger.error(f"❌ Không đọc được item nào từ {args.input_verified}")
         sys.exit(1)
 
+    # Loại những câu đã gán ở vòng trước. Cần khi dataset đã sinh thêm và phải
+    # tính lại κ: người gán đã ĐỌC những câu đó, và thường đã biết mình lệch
+    # chiều nào so với judge — gán lại chính chúng là anchoring, κ bị thổi lên.
+    # Bỏ ~100 câu khỏi tổng vài nghìn gần như không đụng tới tính đại diện.
+    if args.exclude_labeled:
+        done = {
+            r["item_id"] for r in load_jsonl(args.exclude_labeled)
+            if r.get("item_id") and r.get("manual_label")
+        }
+        before = len(items)
+        items = [i for i in items if i.item_id not in done]
+        logger.info(
+            f"Bỏ {before - len(items)} câu đã gán ở {args.exclude_labeled}, "
+            f"còn {len(items)} câu để bốc mẫu"
+        )
+
     n = min(args.export_manual_sample, len(items))
     rng = random.Random(RANDOM_SEED)
     sample = rng.sample(items, n)
+
+    from collections import Counter
+    comp = Counter(
+        (i.metadata.get("gen_version", "?"), i.metadata.get("narrow_mode", "?"))
+        for i in sample
+    )
+    logger.info(f"   Thành phần mẫu: {dict(sorted(comp.items(), key=str))}")
 
     save_jsonl([i.blinded_dict() for i in sample], args.manual_sample, mode="w")
 
@@ -123,6 +146,32 @@ def cmd_compute_kappa(args, logger):
     result["skipped"] = skipped
     result["compared_against"] = "judge_label"
 
+    # κ tách theo phiên bản prompt: dataset trộn v1 và v2, nên cần biết nhãn của
+    # đợt nào kém tin hơn. n mỗi nhóm chỉ vài chục nên đây là chỉ báo, KHÔNG
+    # phải con số để báo cáo thay κ tổng — ghi kèm n để khỏi đọc nhầm.
+    by_version = {}
+    for record in manual_records:
+        machine_record = machine_by_id.get(record.get("item_id"))
+        manual = Specificity.parse(record.get("manual_label"))
+        if machine_record is None or manual is None or manual == Specificity.AMBIGUOUS:
+            continue
+        machine = Specificity.parse(machine_record.get("judge_label"))
+        if machine is None:
+            continue
+        ver = (machine_record.get("metadata") or {}).get("gen_version", "?")
+        by_version.setdefault(ver, ([], []))
+        by_version[ver][0].append(manual.value)
+        by_version[ver][1].append(machine.value)
+
+    result["by_gen_version"] = {
+        ver: {
+            "n": len(man),
+            "cohen_kappa": compute_kappa(man, mac)["cohen_kappa"] if len(set(man)) > 1 else None,
+            "raw_agreement": round(sum(a == b for a, b in zip(man, mac)) / len(man), 4),
+        }
+        for ver, (man, mac) in sorted(by_version.items())
+    }
+
     logger.info("\n📐 COHEN'S KAPPA (nhãn tay vs judge_label)")
     logger.info(f"   n mẫu so sánh : {result['n_samples']} (bỏ qua {skipped})")
     logger.info(f"   κ             : {result['cohen_kappa']}")
@@ -130,6 +179,13 @@ def cmd_compute_kappa(args, logger):
     logger.info(f"   Nhãn          : {result['labels']}")
     logger.info(f"   Confusion     : {result['confusion_matrix']}  (hàng=tay, cột=máy)")
     logger.info(f"   → {result['interpretation']}")
+    if len(result["by_gen_version"]) > 1:
+        logger.info("   Tách theo phiên bản prompt (n nhỏ — chỉ báo, không thay κ tổng):")
+        for ver, d in result["by_gen_version"].items():
+            logger.info(
+                f"      {ver}: n={d['n']:<4} κ={d['cohen_kappa']}  "
+                f"trùng khớp thô={d['raw_agreement']:.1%}"
+            )
 
     out_path = Path(args.compute_kappa).parent / "kappa_report.json"
     save_json(result, out_path)
@@ -302,6 +358,9 @@ def main():
 
     parser.add_argument("--export-manual-sample", type=int, metavar="N",
                         help="Xuất N câu đã ẩn nhãn cho vòng gán tay (Bước 3)")
+    parser.add_argument("--exclude-labeled", type=Path, metavar="FILE",
+                        help="Không bốc lại những câu đã có `manual_label` trong FILE. "
+                             "Dùng khi tính lại κ cho dataset đã sinh thêm.")
     parser.add_argument("--compute-kappa", type=Path, metavar="FILE",
                         help="Tính Cohen's kappa từ file nhãn tay đã điền")
     args = parser.parse_args()
