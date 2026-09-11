@@ -98,5 +98,5 @@
     }
   },
   "leakage_check": "passed",
-  "source_file": "G:\\TDTUSchoolWork\\TDTUCodeWork\\DoAnTotNghiep\\IT_DATN_Legal-RAG\\backend\\data\\qa_pairs\\labeled\\pairs_verified.jsonl"
+  "source_file": "data/qa_pairs/labeled/pairs_verified.jsonl"
 }

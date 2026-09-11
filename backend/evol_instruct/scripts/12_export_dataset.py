@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config.qa_settings import (
+    BASE_DIR,
     QA_FINAL_DIR,
     RANDOM_SEED,
     STATS_FILE,
@@ -42,6 +43,13 @@ from evol_instruct.src.qa_specificity.dataset_builder import (
 )
 from evol_instruct.src.qa_specificity.schema import QAItem, Specificity
 from evol_instruct.src.utils import load_jsonl, setup_logging
+
+
+def relative_to_base(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(BASE_DIR).as_posix()
+    except ValueError:
+        return path.name
 
 
 def main():
@@ -113,7 +121,7 @@ def main():
     export(splits, paths)
 
     stats = build_stats(splits)
-    stats["source_file"] = str(args.input)
+    stats["source_file"] = relative_to_base(args.input)
     stats["random_seed"] = args.seed
     save_json(stats, args.output_dir / STATS_FILE.name)
 
