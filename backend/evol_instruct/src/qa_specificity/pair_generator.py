@@ -19,7 +19,12 @@ from config.qa_prompts import (
     NARROW_MODE_SITUATION,
     build_pair_generator_messages,
 )
-from config.qa_settings import GEN_MAX_TOKENS, GEN_TEMPERATURE, MAX_DOC_CHARS
+from config.qa_settings import (
+    FORCE_NARROW_MODE,
+    GEN_MAX_TOKENS,
+    GEN_TEMPERATURE,
+    MAX_DOC_CHARS,
+)
 from evol_instruct.src.qa_specificity.schema import QAItem, Specificity
 from evol_instruct.src.utils import generate_item_id, truncate_text
 
@@ -77,6 +82,8 @@ def pick_narrow_mode(source_doc_id: str) -> str:
     thì cùng một phân công kiểu, nên chạy lại pipeline tái lập được y hệt và
     resume từ checkpoint không làm lệch phân bố.
     """
+    if FORCE_NARROW_MODE in (NARROW_MODE_SITUATION, NARROW_MODE_CITATION):
+        return FORCE_NARROW_MODE
     digest = generate_item_id(f"narrow_mode|{source_doc_id}")
     return NARROW_MODE_SITUATION if int(digest, 16) % 2 == 0 else NARROW_MODE_CITATION
 

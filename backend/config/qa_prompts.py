@@ -58,6 +58,24 @@ FEWSHOT_AMBIGUOUS = [
 NARROW_MODE_SITUATION = "situation"
 NARROW_MODE_CITATION = "citation"
 
+# Ví dụ few-shot RIÊNG cho generator ở nhánh situation.
+#
+# Vì sao không dùng lại FEWSHOT_NARROW[1]: câu đó kết thúc bằng "Yêu cầu chia
+# di sản này có được chấp nhận không?" — một câu hỏi MỞ. Model bắt chước đúng
+# cái đuôi ấy, và đó là nguyên nhân đo được của 54,6% câu narrow kiểu tình
+# huống bị judge loại (đo trên 2.224 câu, 2026-09-11): hỏi mở thì muốn trả lời
+# đầy đủ phải quét điều kiện + hậu quả + thủ tục, tức là BROAD đội lốt.
+#
+# FEWSHOT_NARROW[1] vẫn giữ NGUYÊN vì `JUDGE_FEWSHOT` dùng chung nó. Sửa vào
+# đó là đổi luôn hành vi judge, và mọi so sánh với 4.084 câu đã verified trước
+# đó mất giá trị — đổi hai biến cùng lúc thì không quy được kết quả cho biến
+# nào. Tách hằng số riêng là cách đổi ĐÚNG MỘT biến.
+FEWSHOT_NARROW_SITUATION = (
+    "Ông A mất năm 2019, không để lại di chúc. Đến năm 2026, người con riêng của ông "
+    "mới yêu cầu chia căn nhà mà ông đứng tên chung với vợ. Thời hiệu để người con "
+    "riêng yêu cầu chia di sản này còn lại bao lâu?"
+)
+
 NARROW_MODE_BLOCK = {
     NARROW_MODE_SITUATION: """2. Câu NARROW lần này phải hẹp bằng TÌNH HUỐNG CỤ THỂ (trục 3), KHÔNG bằng trích dẫn:
    - Dựng một tình huống có chủ thể, hành vi, mốc thời gian, con số cụ thể.
@@ -66,7 +84,20 @@ NARROW_MODE_BLOCK = {
      Không được viết "Theo Điều 5...", "Theo Nghị định 100/2020/NĐ-CP...",
      "Căn cứ khoản 2...". Câu hỏi phải tự nhiên như người dân hỏi, người dân
      không thuộc số hiệu văn bản.
-   - Tình huống phải đủ dữ kiện để áp thẳng quy định vào, không được chung chung.""",
+   - Tình huống phải đủ dữ kiện để áp thẳng quy định vào, không được chung chung.
+   - CÂU HỎI CHỐT PHẢI NHẮM ĐÚNG MỘT HỆ QUẢ PHÁP LÝ XÁC ĐỊNH, nằm gọn trong
+     văn bản đã cho và trả lời được bằng 1-2 điều luật: một mốc thời hiệu, một
+     thời điểm, một điều kiện, một mức tiền/tỷ lệ, hoặc bên nào gánh nghĩa vụ.
+       ĐÚNG: "...thì thời hiệu yêu cầu chia di sản còn lại bao lâu?"
+             "...thì hợp đồng này có hiệu lực từ thời điểm nào?"
+             "...thì bên nào phải chịu chi phí vận chuyển?"
+       SAI : "...thì xử lý thế nào?"
+             "...có hợp pháp không?"
+             "...yêu cầu này có được chấp nhận không?"
+             "...thì phải làm gì?"
+     Mấy câu SAI nghe rất cụ thể nhưng để trả lời ĐẦY ĐỦ phải quét nhiều chế
+     định cùng lúc (điều kiện có hiệu lực + hậu quả + thủ tục), nên chúng là
+     câu BROAD đội lốt tình huống và sẽ bị loại ở khâu kiểm chứng.""",
 
     NARROW_MODE_CITATION: """2. Câu NARROW lần này phải hẹp bằng TRÍCH DẪN ĐÍCH DANH (trục 1):
    - Nêu rõ số điều (và khoản nếu có) của văn bản đã cho.
@@ -260,7 +291,9 @@ def build_pair_generator_messages(
     # Ví dụ few-shot phải KHỚP kiểu narrow đang yêu cầu — đưa ví dụ trích dẫn
     # rồi bảo model đừng trích dẫn thì model nghe theo ví dụ, không nghe lời dặn.
     example_narrow = (
-        FEWSHOT_NARROW[1] if narrow_mode == NARROW_MODE_SITUATION else FEWSHOT_NARROW[0]
+        FEWSHOT_NARROW_SITUATION
+        if narrow_mode == NARROW_MODE_SITUATION
+        else FEWSHOT_NARROW[0]
     )
     user = USER_PAIR_GENERATOR.format(
         linh_vuc=linh_vuc or "Chưa xác định",

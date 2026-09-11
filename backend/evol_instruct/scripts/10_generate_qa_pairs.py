@@ -54,6 +54,11 @@ def main():
                         help="Chỉ lọc corpus và in thống kê, không gọi LLM")
     parser.add_argument("--source", type=Path, default=None,
                         help=f"Thư mục/file corpus cho lần chạy này (mặc định {CORPUS_SOURCE})")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="Chỉ xử lý tối đa N document CHƯA có trong checkpoint. "
+                             "Khác --max-docs: cái đó cắt corpus TRƯỚC khi trừ checkpoint, "
+                             "nên khi đã chạy dở thì không đoán được còn lại bao nhiêu. "
+                             "Dùng --limit để chạy một mẻ thử có kích thước xác định.")
     parser.add_argument("--rebuild-corpus", action="store_true",
                         help="Bỏ qua cache scoped_corpus.jsonl và nạp lại từ nguồn. "
                              "BẮT BUỘC dùng sau khi đổi nguồn dữ liệu, đổi phạm vi, "
@@ -87,10 +92,20 @@ def main():
         from collections import Counter
         scopes = Counter(d.get("scope", "") or "unknown" for d in documents)
         sources = Counter(d.get("source_file", "") or "unknown" for d in documents)
+        kinds = Counter(d.get("source_kind", "") or "unknown" for d in documents)
         n_articles = sum(1 for d in documents if d.get("article_number"))
         logger.info(f"[dry-run] {len(documents)} documents trong phạm vi")
         logger.info(f"[dry-run] Phân bố nhánh dân sự: {dict(scopes)}")
+        logger.info(f"[dry-run] Nguồn (cục bộ / HuggingFace): {dict(kinds)}")
         logger.info(f"[dry-run] Nguồn file: {dict(sources.most_common(10))}")
+        # Độ dài trung bình là cách rẻ nhất để bắt PDF scan / .doc convert hỏng:
+        # trích được ít chữ thì con số này tụt hẳn so với các file khác.
+        if documents:
+            lengths = sorted(d.get("content_length", 0) for d in documents)
+            logger.info(
+                f"[dry-run] Độ dài content: min={lengths[0]} "
+                f"trung vị={lengths[len(lengths) // 2]} max={lengths[-1]} ký tự"
+            )
         logger.info(
             f"[dry-run] Cắt theo Điều: {'BẬT' if SPLIT_BY_ARTICLE else 'TẮT'} "
             f"({n_articles} document con là một Điều)"
@@ -119,6 +134,10 @@ def main():
         logger.info("✅ Tất cả documents đã được xử lý. Không còn gì để làm.")
         return
     logger.info(f"Còn {len(pending)}/{len(documents)} documents cần xử lý")
+
+    if args.limit and len(pending) > args.limit:
+        pending = pending[:args.limit]
+        logger.info(f"--limit: lần chạy này chỉ xử lý {len(pending)} documents")
 
     # ── LLM ───────────────────────────────────────────────────────
     llm = LLMClient()

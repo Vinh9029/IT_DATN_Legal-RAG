@@ -44,6 +44,13 @@ google-genai>=2.0.0          # Google Gemini API SDK (mode gemini của script 0
 # dùng thư viện chuẩn, không cần cài gì thêm.
 python-docx>=1.1.0           # Đọc .docx (văn bản luật tải từ trang tra cứu)
 openpyxl>=3.1.0              # Đọc .xlsx/.xlsm (dataset xuất từ Excel)
+pymupdf>=1.24.0              # Đọc .pdf — giữ đúng thứ tự đọc và dấu tiếng Việt
+striprtf>=0.0.26             # Đọc .rtf, và .doc thực chất là RTF đổi đuôi
+# .doc NHỊ PHÂN (Word 97-2003) không có thư viện Python nào đọc nổi cho ra
+# tiếng Việt đúng dấu — phải convert sang .docx bằng công cụ ngoài:
+#   - LibreOffice (khuyến nghị): cài rồi thôi, corpus_loader tự gọi soffice
+#   - hoặc đã có Microsoft Word: pip install pywin32
+# Thiếu cả hai thì chỉ những file .doc đó bị bỏ, phần còn lại vẫn chạy.
 
 # Filters
 scikit-learn>=1.3.0          # TF-IDF + Cosine Similarity (bộ lọc độ tương đồng)

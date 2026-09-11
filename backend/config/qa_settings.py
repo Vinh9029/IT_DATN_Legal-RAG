@@ -104,11 +104,25 @@ def judge_is_remote() -> bool:
 # Thư mục không tồn tại hoặc không có file nào đọc được ⇒ tự động rơi về (2).
 CORPUS_SOURCE = BASE_DIR / os.getenv("QA_CORPUS_SOURCE", "data/corpus_civil")
 
+# Mặc định hai nguồn LOẠI TRỪ nhau: có file cục bộ thì HuggingFace không được
+# đụng tới. Bật cờ này để GỘP cả hai — corpus cục bộ (file tự tải: .pdf, .doc,
+# .docx...) đứng trước, dataset HF bù thêm phần còn thiếu.
+#
+# Vì sao không bật mặc định: corpus cục bộ là nguồn đã chọn tay nên sạch, còn
+# HF là nguồn cũ rộng hơn phạm vi. Gộp vào là đổi lấy SỐ LƯỢNG bằng ĐỘ THUẦN,
+# và đó phải là quyết định có ý thức, ghi được vào báo cáo — không phải thứ tự
+# xảy ra vì thư mục tình cờ rỗng.
+CORPUS_MERGE_HF = os.getenv("QA_CORPUS_MERGE_HF", "0").strip().lower() in (
+    "1", "true", "yes", "on"
+)
+
 # Định dạng `corpus_loader` đọc được. Phải khớp với `_READERS` trong file đó
 # (có assert kiểm tra), nằm ở đây để thông báo lỗi có chỗ mà tra.
 SUPPORTED_SUFFIXES = [
     ".jsonl", ".ndjson", ".json", ".csv", ".tsv",
-    ".xlsx", ".xlsm", ".docx", ".txt", ".md", ".html", ".htm", ".parquet",
+    ".xlsx", ".xlsm",
+    ".docx", ".doc", ".rtf", ".pdf",
+    ".txt", ".md", ".html", ".htm", ".parquet",
 ]
 
 # Bí danh tên cột. Nguồn mới gần như chắc chắn đặt tên cột khác nguồn cũ, nên
@@ -228,6 +242,71 @@ INCLUDED_DOC_TYPES = [
 SCOPE_FILTER_MODE = os.getenv("QA_SCOPE_FILTER_MODE", "auto").strip().lower()
 SCOPE_AUTO_MIN_RATIO = float(os.getenv("QA_SCOPE_AUTO_MIN_RATIO", "0.20"))
 
+# ══════════════════════════════════════════════════════════════════
+# HẠN NGẠCH THEO NHÁNH — giữ dân sự làm trọng tâm
+# ══════════════════════════════════════════════════════════════════
+# Đo được khi bật QA_CORPUS_MERGE_HF=1: corpus ra 16.400 Điều, nhưng đất
+# đai/nhà ở chiếm 4.554 và tố tụng 3.984, còn thừa kế chỉ 126. Hai nhánh luật
+# chuyên ngành lấn át đúng cái lõi mà đề tài nhắm tới.
+#
+# Cách hỏng ở đây KHÔNG lộ ra ở pass rate — pass rate vẫn đẹp. Nó lộ ra ở chỗ
+# classifier được gọi là học "độ cụ thể" nhưng thực chất học trên một phân bố
+# chủ đề lệch hẳn so với phạm vi đã tuyên bố ở báo cáo. Nên phải chặn ở tầng
+# corpus, không phải ở tầng nhãn.
+#
+# Trần dưới đây CHỈ áp cho phần BỔ SUNG (nguồn HuggingFace). Corpus cục bộ —
+# BLDS + BLTTDS tự tải, là nguồn neo của đề tài — luôn giữ nguyên vẹn và không
+# đếm vào trần.
+#
+# Con số cần ghi vào báo cáo là TỈ LỆ ba tầng, không phải trần tuyệt đối:
+#   lõi dân sự (BLDS và các chế định trực thuộc)   ~74%
+#   tố tụng / thi hành án (thủ tục thực thi quyền)  ~17%
+#   luật chuyên ngành lân cận (phụ, để có độ phủ)    ~9%
+SCOPE_QUOTAS = {
+    # ── Lõi dân sự ────────────────────────────────────────────────
+    "dan_su_chung": 1400,
+    "hop_dong_bao_dam": 700,
+    "hon_nhan_gia_dinh": 600,
+    "boi_thuong": 400,
+    "thua_ke": 126,              # nguồn chỉ có đúng 126 Điều — lấy hết
+    # ── Thủ tục ───────────────────────────────────────────────────
+    "to_tung_thi_hanh_an": 400,
+    # ── Phụ / extra ───────────────────────────────────────────────
+    # Có mặt để corpus không hụt hẳn các chế định lân cận, nhưng không được
+    # lấn lõi. Đất đai bị siết mạnh nhất (4.554 → 200) vì đo ra nó chính là
+    # nhánh lan man nhất.
+    "dat_dai_nha_o": 200,
+    "so_huu_tri_tue": 130,
+    "giai_quyet_tranh_chap": 100,
+}
+
+# Nhánh không có tên trong `SCOPE_QUOTAS` (kể cả "unknown") dùng trần này. Đặt
+# thấp là CỐ Ý: nhánh lạ xuất hiện nghĩa là từ khoá phạm vi chưa phủ hết nguồn
+# — lúc đó nó nên vào đủ ít để còn nhìn thấy trong log, chứ không vào ồ ạt.
+SCOPE_QUOTA_DEFAULT = int(os.getenv("QA_SCOPE_QUOTA_DEFAULT", "100"))
+
+# Đổi quy mô không cần sửa code: QA_SCOPE_QUOTAS="dan_su_chung=2000,dat_dai_nha_o=0"
+_quota_override = os.getenv("QA_SCOPE_QUOTAS", "").strip()
+if _quota_override:
+    for _entry in _quota_override.split(","):
+        if "=" not in _entry:
+            continue
+        _key, _value = _entry.split("=", 1)
+        SCOPE_QUOTAS[_key.strip()] = int(_value.strip())
+
+# Tắt để lấy TRỌN phần bổ sung. Chỉ nên tắt khi cố ý muốn corpus rộng và chấp
+# nhận tự giải trình phân bố lệch ở phần Limitations.
+SCOPE_QUOTA_ENABLED = os.getenv("QA_SCOPE_QUOTA_ENABLED", "1").strip().lower() in (
+    "1", "true", "yes", "on"
+)
+
+# Nhánh nào được tính là "lõi dân sự" khi log tỉ lệ ba tầng. Chỉ dùng để BÁO
+# CÁO, không tham gia lọc — nên sửa ở đây không đổi corpus, chỉ đổi con số in ra.
+SCOPE_CORE_BRANCHES = [
+    "dan_su_chung", "hop_dong_bao_dam", "hon_nhan_gia_dinh",
+    "boi_thuong", "thua_ke",
+]
+
 MIN_CONTENT_LENGTH = int(os.getenv("QA_MIN_CONTENT_LENGTH", "500"))
 MAX_DOC_CHARS = int(os.getenv("QA_MAX_DOC_CHARS", "2000"))  # cắt context như seed_generator
 
@@ -247,6 +326,41 @@ SPLIT_BY_ARTICLE = os.getenv("QA_SPLIT_BY_ARTICLE", "0").strip().lower() in (
 # Điều quá ngắn ("Điều 3. Giải thích từ ngữ" chỉ có một dòng dẫn) không đủ nội
 # dung để sinh nổi một cặp broad/narrow.
 ARTICLE_MIN_LENGTH = int(os.getenv("QA_ARTICLE_MIN_LENGTH", "300"))
+
+
+# ── Ép kiểu câu narrow cho một lần chạy ───────────────────────────
+# Mặc định rỗng: `pick_narrow_mode()` bốc theo hash doc_id, luân phiên ~50/50.
+# Đặt "situation" hoặc "citation" để ép cả mẻ về MỘT kiểu.
+#
+# Vì sao cần: sinh 50/50 nhưng khâu kiểm chứng loại citation 23,6% còn situation
+# 71,1%, nên tập verified ra 68,5/31,5 — lệch hẳn về phía citation. Mà đo trên
+# tập test thì một regex "có số Điều ⇒ narrow" đã đạt 99,5% trên nhánh citation
+# và chỉ 49,5% trên nhánh situation: phần dữ liệu thực sự bắt model học ngữ
+# nghĩa nằm ở situation, và pipeline đang vứt đi đúng phần đó.
+#
+# Bù lại bằng cách sinh riêng một mẻ situation rồi gộp vào — không sinh lại
+# citation (nhánh đó pass 76%, đang thừa). Cờ này là cách nói "mẻ này chỉ
+# situation" mà không phải sờ vào `pick_narrow_mode`.
+FORCE_NARROW_MODE = os.getenv("QA_FORCE_NARROW_MODE", "").strip().lower()
+
+
+# ── Đọc PDF ───────────────────────────────────────────────────────
+# PDF không lưu "văn bản", nó lưu VỊ TRÍ CỦA TỪNG KÝ TỰ. Nên trích ra được thứ
+# gì phụ thuộc hoàn toàn vào cách file được tạo, và có hai kiểu hỏng khác nhau:
+#
+#   1. PDF SCAN (ảnh chụp) — trích ra gần như 0 ký tự. Không phải lỗi code,
+#      cần OCR. Ngưỡng dưới đây là để PHÁT HIỆN và báo, thay vì im lặng nạp
+#      một văn bản rỗng rồi để nó bị loại vì "content quá ngắn".
+#   2. PDF text nhưng bố cục theo trang — mỗi trang kéo theo header/footer,
+#      số trang, và câu bị cắt giữa chừng ở cuối dòng.
+PDF_MIN_CHARS_PER_PAGE = int(os.getenv("QA_PDF_MIN_CHARS_PER_PAGE", "50"))
+
+# Nối lại các dòng bị PDF cắt giữa câu. Tắt nếu thấy nối nhầm trên nguồn lạ.
+PDF_REFLOW = os.getenv("QA_PDF_REFLOW", "1").strip().lower() in ("1", "true", "yes", "on")
+
+# Dòng lặp lại trên >= tỉ lệ này số trang thì coi là header/footer chạy suốt
+# văn bản và bị bỏ. Chỉ áp dụng khi file có >= 3 trang.
+PDF_HEADER_REPEAT_RATIO = float(os.getenv("QA_PDF_HEADER_REPEAT_RATIO", "0.6"))
 
 
 # ── Heuristic weak labeler (guideline §6) ─────────────────────────
@@ -270,6 +384,11 @@ MANUAL_SAMPLE_SIZE = int(os.getenv("QA_MANUAL_SAMPLE_SIZE", "100"))
 # ── Output paths ──────────────────────────────────────────────────
 QA_DATA_DIR = BASE_DIR / os.getenv("QA_DATA_DIR", "data/qa_pairs")
 QA_RAW_DIR = QA_DATA_DIR / "raw"
+
+# .doc (Word nhị phân đời cũ) phải convert sang .docx mới đọc được. Bản convert
+# nằm NGOÀI thư mục corpus — để trong đó thì `rglob` quét lại chính nó và mỗi
+# văn bản vào corpus hai lần.
+CONVERTED_DOC_DIR = QA_RAW_DIR / "converted_doc"
 QA_LABELED_DIR = QA_DATA_DIR / "labeled"
 QA_FINAL_DIR = QA_DATA_DIR / "final"
 LOG_DIR = BASE_DIR / "logs"
@@ -350,9 +469,23 @@ def validate_qa_config() -> list[str]:
             f"QA_SCOPE_AUTO_MIN_RATIO ({SCOPE_AUTO_MIN_RATIO}) phải trong khoảng [0, 1]"
         )
 
+    negative_quotas = {k: v for k, v in SCOPE_QUOTAS.items() if v < 0}
+    if negative_quotas:
+        errors.append(f"SCOPE_QUOTAS có trần âm: {negative_quotas} (0 = bỏ hẳn nhánh)")
+    if SCOPE_QUOTA_DEFAULT < 0:
+        errors.append(f"QA_SCOPE_QUOTA_DEFAULT ({SCOPE_QUOTA_DEFAULT}) phải >= 0")
+
+    # Trần chỉ áp cho phần bổ sung, nên bật trần mà không gộp nguồn là vô hiệu.
+    # Cảnh báo để khỏi mất công đi tìm xem trần "không có tác dụng" ở đâu.
+    if SCOPE_QUOTA_ENABLED and not CORPUS_MERGE_HF:
+        warnings.append(
+            "SCOPE_QUOTA_ENABLED=1 nhưng QA_CORPUS_MERGE_HF=0 → không có nguồn bổ sung "
+            "nào để áp trần, hạn ngạch theo nhánh sẽ không làm gì cả."
+        )
+
     # Cảnh báo sớm về nguồn dữ liệu: rẻ hơn nhiều so với việc phát hiện ở giữa
     # một mẻ chạy đã gọi vài trăm lượt LLM.
-    from src.qa_specificity.corpus_loader import has_local_corpus
+    from evol_instruct.src.qa_specificity.corpus_loader import has_local_corpus
 
     if not has_local_corpus(CORPUS_SOURCE):
         warnings.append(

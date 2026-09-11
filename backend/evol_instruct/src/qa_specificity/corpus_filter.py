@@ -30,6 +30,8 @@ chiếu với dataset thật thì giả định nền của thiết kế đó sa
 """
 
 import json
+import random
+from collections import defaultdict
 
 from loguru import logger
 from tqdm import tqdm
@@ -37,15 +39,21 @@ from tqdm import tqdm
 from config.qa_settings import (
     CIVIL_ANCHOR_TITLES,
     CIVIL_METADATA_KEYWORDS,
+    CORPUS_MERGE_HF,
     CORPUS_SOURCE,
     HF_CONFIG_CONTENT,
     HF_CONFIG_METADATA,
     HF_DATASET_NAME,
     INCLUDED_DOC_TYPES,
     MIN_CONTENT_LENGTH,
+    RANDOM_SEED,
     SCOPE_ANTI_KEYWORDS,
     SCOPE_AUTO_MIN_RATIO,
+    SCOPE_CORE_BRANCHES,
     SCOPE_FILTER_MODE,
+    SCOPE_QUOTA_DEFAULT,
+    SCOPE_QUOTA_ENABLED,
+    SCOPE_QUOTAS,
     SCOPED_CORPUS_CACHE,
     SPLIT_BY_ARTICLE,
 )
@@ -297,6 +305,251 @@ def _load_corpus_hf(threshold: int) -> list[dict]:
 
 
 # ══════════════════════════════════════════════════════════════════
+# Gộp hai nguồn
+# ══════════════════════════════════════════════════════════════════
+
+def _doc_signature(doc: dict) -> str:
+    """
+    Chữ ký nhận dạng MỘT VĂN BẢN, dùng để bắt trùng giữa hai nguồn khác nhau.
+
+    `source_doc_id` không đủ: cùng Bộ luật Dân sự 2015, bản .pdf tự tải và bản
+    trên HuggingFace mang id hoàn toàn khác nhau, nội dung cũng không byte nào
+    giống byte nào (một bên qua PDF, một bên qua HTML). Thứ duy nhất trùng là
+    số hiệu văn bản — nên số hiệu là chữ ký chính, tiêu đề là phương án hai.
+
+    Chữ ký rỗng (nguồn không có cả số hiệu lẫn tiêu đề) thì KHÔNG dedup theo
+    chữ ký: thà giữ trùng còn hơn gộp nhầm hai văn bản khác nhau.
+    """
+    metadata = _metadata_of(doc)
+    so_ky_hieu = _normalize(metadata.get("so_ky_hieu") or metadata.get("so_hieu"))
+    if so_ky_hieu:
+        return f"sh:{so_ky_hieu}"
+    title = _normalize(metadata.get("title"))
+    return f"tt:{title}" if title else ""
+
+
+def merge_corpora(primary: list[dict], secondary: list[dict]) -> list[dict]:
+    """
+    Gộp hai corpus, `primary` được ưu tiên khi trùng.
+
+    Vì sao phải dedup chứ không nối thẳng: cùng một văn bản lọt vào hai lần thì
+    câu hỏi sinh từ bản này và bản kia rơi vào hai split khác nhau — data
+    leakage đúng kiểu mà `source_doc_id` sinh ra để chặn, chỉ khác là lần này
+    nó lách qua được vì hai bản mang hai id khác nhau.
+    """
+    seen_ids = {doc.get("source_doc_id") for doc in primary}
+    seen_signatures = {sig for sig in map(_doc_signature, primary) if sig}
+
+    merged = list(primary)
+    dropped = 0
+    for doc in secondary:
+        signature = _doc_signature(doc)
+        if doc.get("source_doc_id") in seen_ids or (signature and signature in seen_signatures):
+            dropped += 1
+            continue
+        seen_ids.add(doc.get("source_doc_id"))
+        if signature:
+            seen_signatures.add(signature)
+        merged.append(doc)
+
+    logger.info(
+        f"Gộp nguồn: {len(primary)} cục bộ + {len(secondary)} HuggingFace "
+        f"→ {len(merged)} document ({dropped} bị loại vì trùng văn bản)"
+    )
+    return merged
+
+
+# ══════════════════════════════════════════════════════════════════
+# Hạn ngạch theo nhánh
+# ══════════════════════════════════════════════════════════════════
+
+def _log_quota_report(
+    result: list[dict],
+    report: list[tuple[str, int, int]],
+    total_before: int,
+) -> None:
+    """In bảng trước/sau và tỉ lệ ba tầng — con số đi thẳng vào báo cáo."""
+    n_local = sum(1 for doc in result if doc.get("source_kind") == "local")
+    logger.info(
+        f"Áp trần theo nhánh — chỉ trên phần bổ sung, {n_local} document cục bộ giữ nguyên:"
+    )
+    for scope, before, after in sorted(report, key=lambda row: -row[1]):
+        mark = "  (hết nguồn)" if after == before else ""
+        logger.info(f"    {scope:<24} {before:>6} → {after:>5}{mark}")
+
+    total = len(result)
+    if not total:
+        return
+    core = sum(1 for doc in result if (doc.get("scope") or "") in SCOPE_CORE_BRANCHES)
+    procedural = sum(
+        1 for doc in result if (doc.get("scope") or "") == "to_tung_thi_hanh_an"
+    )
+    other = total - core - procedural
+    logger.info(
+        f"  Tổng {total_before} → {total} document · "
+        f"lõi dân sự {core} ({core / total:.1%}) · "
+        f"tố tụng {procedural} ({procedural / total:.1%}) · "
+        f"chuyên ngành lân cận {other} ({other / total:.1%})"
+    )
+
+
+def _iter_cache_lines():
+    """Sinh từng dòng non-empty của file cache, kèm chỉ số đã bỏ dòng trống."""
+    with open(SCOPED_CORPUS_CACHE, "r", encoding="utf-8") as f:
+        index = 0
+        for line in f:
+            line = line.strip()
+            if line:
+                yield index, line
+                index += 1
+
+
+def _read_cached_corpus() -> list[dict]:
+    """
+    Đọc cache và áp trần theo nhánh mà KHÔNG giữ cả corpus trong RAM.
+
+    Cache là corpus ĐẦY ĐỦ (đo được: 16.400 document, 283MB JSON) trong khi
+    phần thực dùng chỉ ~5.000. Đọc thẳng thành list rồi mới lọc là ôm trọn
+    16.400 dict cùng lúc — và đó chính là cái đã làm tiến trình sinh bị hệ điều
+    hành kill vì hết RAM khi chạy song song với llama-server (2026-09-10, chết
+    ở document 3.481/5.017).
+
+    Nên đọc HAI LƯỢT:
+      1. parse từng dòng, lấy đúng 3 trường hạn ngạch cần rồi bỏ dict đi ngay;
+      2. đọc lại, chỉ dựng dict cho những dòng đã được chọn.
+
+    Lượt 1 tốn thêm một lần parse (~1 giây trên file này) và đổi lại đỉnh RAM
+    chỉ còn đúng phần thực sự dùng. Đây là đánh đổi CPU lấy RAM, cố ý — RAM mới
+    là thứ đang thiếu.
+    """
+    if not SCOPE_QUOTA_ENABLED:
+        # Không áp trần thì lượt 1 không tiết kiệm được gì, đọc thẳng một lượt.
+        return [json.loads(line) for _, line in _iter_cache_lines()]
+
+    # Cache đời cũ không có `source_kind` → không phân biệt được nguồn nào là
+    # nguồn nào, áp trần sẽ cắt nhầm cả corpus cục bộ mà không báo gì.
+    seen_source_kind = False
+
+    def _entries():
+        nonlocal seen_source_kind
+        for _, line in _iter_cache_lines():
+            doc = json.loads(line)
+            if "source_kind" in doc:
+                seen_source_kind = True
+            yield doc.get("scope"), doc.get("source_kind"), doc.get("source_doc_id")
+
+    keep, report = _choose_quota_indices(_entries())
+
+    if not seen_source_kind:
+        logger.warning(
+            "Cache không có trường `source_kind` (cache đời cũ?) → BỎ QUA hạn ngạch "
+            "theo nhánh. Chạy lại với --rebuild-corpus để áp được trần."
+        )
+        return [json.loads(line) for _, line in _iter_cache_lines()]
+
+    documents = [
+        json.loads(line) for index, line in _iter_cache_lines() if index in keep
+    ]
+    if report is None:
+        return documents
+
+    _log_quota_report(documents, report, total_before=_cache_line_count())
+    return documents
+
+
+def _cache_line_count() -> int:
+    """Số document trong cache — chỉ để in ra 'tổng N → M', không parse JSON."""
+    return sum(1 for _ in _iter_cache_lines())
+
+
+def _choose_quota_indices(entries) -> tuple[set[int], list[tuple[str, int, int]] | None]:
+    """
+    Chọn chỉ số document được giữ lại sau khi áp trần.
+
+    Nhận iterable của `(scope, source_kind, source_doc_id)` — CỐ Ý không nhận
+    cả doc dict: đường đọc cache cần quyết định giữ cái nào TRƯỚC khi dựng dict
+    đầy đủ, nếu không thì phải ôm trọn corpus trong RAM đúng cái lúc muốn tránh.
+
+    Trả `(keep, None)` khi không có gì để áp trần (không có phần bổ sung), để
+    hàm gọi biết mà trả nguyên đầu vào thay vì dựng lại danh sách.
+    """
+    supplement_by_scope: dict[str, list[int]] = defaultdict(list)
+    keep: set[int] = set()
+    doc_ids: dict[int, str] = {}
+    for index, (scope, source_kind, source_doc_id) in enumerate(entries):
+        if source_kind == "local":
+            keep.add(index)
+        else:
+            supplement_by_scope[scope or "unknown"].append(index)
+            doc_ids[index] = str(source_doc_id or "")
+
+    if not supplement_by_scope:
+        return keep, None
+
+    rng = random.Random(RANDOM_SEED)
+    report: list[tuple[str, int, int]] = []
+    for scope in sorted(supplement_by_scope):
+        pool = sorted(supplement_by_scope[scope], key=lambda i: doc_ids[i])
+        quota = SCOPE_QUOTAS.get(scope, SCOPE_QUOTA_DEFAULT)
+        picked = pool if len(pool) <= quota else rng.sample(pool, quota)
+        keep.update(picked)
+        report.append((scope, len(pool), len(picked)))
+
+    return keep, report
+
+
+def apply_scope_quota(documents: list[dict]) -> list[dict]:
+    """
+    Áp trần `SCOPE_QUOTAS` cho từng nhánh, CHỈ trên phần bổ sung (HuggingFace).
+
+    Corpus cục bộ (`source_kind == "local"`) đi thẳng qua, không đếm vào trần:
+    đó là BLDS + BLTTDS, nguồn neo của đề tài, cắt bớt nó thì gộp thêm HF hoá
+    ra lại làm corpus nghèo đi.
+
+    ─── Vì sao lấy mẫu ngẫu nhiên chứ không cắt N cái đầu ───
+
+    `documents[:N]` trông cũng ra đúng số lượng, nhưng document xếp theo id mà
+    id lại đi theo cơ quan ban hành và năm ban hành — cắt đầu danh sách là ôm
+    trọn vài văn bản đầu rồi bỏ sạch phần còn lại của nhánh. Trần 200 cho đất
+    đai khi đó không phải "200 Điều đại diện cho đất đai", mà là "toàn bộ 2-3
+    nghị định đầu tiên".
+
+    Lấy mẫu có seed (`RANDOM_SEED`) trải đều trên cả nhánh và VẪN lặp lại được
+    y hệt giữa các lần chạy — điều kiện để con số trong báo cáo tái lập được.
+    Pool được sắp theo `source_doc_id` trước khi bốc, vì seed chỉ tái lập nếu
+    thứ tự đầu vào cũng cố định, mà thứ tự đọc file/dataset thì không hứa gì.
+
+    Thứ tự document trong kết quả giữ nguyên như đầu vào (lọc theo chỉ số chứ
+    không nối hai danh sách), nên log "10 văn bản đầu" vẫn đọc được như cũ.
+    """
+    if not SCOPE_QUOTA_ENABLED:
+        logger.info("QA_SCOPE_QUOTA_ENABLED=0 → không áp trần theo nhánh")
+        return documents
+
+    # Cache đời cũ (ghi trước khi có `source_kind`) không phân biệt được nguồn
+    # nào là nguồn nào. Áp trần lúc đó sẽ cắt nhầm cả corpus cục bộ — mà cắt
+    # nhầm thì im lặng, không có lỗi nào báo. Thà bỏ qua kèm cảnh báo.
+    if not any("source_kind" in doc for doc in documents):
+        logger.warning(
+            "Corpus không có trường `source_kind` (cache đời cũ?) → BỎ QUA hạn ngạch "
+            "theo nhánh. Chạy lại với --rebuild-corpus để áp được trần."
+        )
+        return documents
+
+    keep, report = _choose_quota_indices(
+        (doc.get("scope"), doc.get("source_kind"), doc.get("source_doc_id"))
+        for doc in documents
+    )
+    if report is None:
+        return documents
+
+    result = [doc for index, doc in enumerate(documents) if index in keep]
+
+    _log_quota_report(result, report, total_before=len(documents))
+    return result
+
+
+# ══════════════════════════════════════════════════════════════════
 # Điểm vào
 # ══════════════════════════════════════════════════════════════════
 
@@ -323,6 +576,10 @@ def load_scoped_corpus(
     Lưu ý về `max_items`: luôn lọc phạm vi TRƯỚC rồi mới cắt. Cắt trước khi lọc
     (như `load_and_preprocess(max_items=N)` làm) sẽ lấy N document đầu nguồn,
     gần như không có văn bản dân sự nào trong đó.
+
+    Lưu ý về hạn ngạch: cache lưu corpus ĐẦY ĐỦ, `SCOPE_QUOTAS` áp lúc ĐỌC —
+    nên đổi hạn ngạch KHÔNG cần `--rebuild-corpus`, khác với đổi nguồn hay đổi
+    phạm vi. Đây là ngoại lệ duy nhất của cái bẫy cache nói ở dưới.
     """
     threshold = MIN_CONTENT_LENGTH if min_content_length is None else min_content_length
 
@@ -333,33 +590,49 @@ def load_scoped_corpus(
     if cache and not rebuild and SCOPED_CORPUS_CACHE.exists():
         logger.info(f"Đọc scoped corpus từ CACHE: {SCOPED_CORPUS_CACHE}")
         logger.info("  (đổi nguồn hoặc đổi phạm vi thì phải chạy lại với --rebuild-corpus)")
-        documents = []
-        with open(SCOPED_CORPUS_CACHE, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    documents.append(json.loads(line))
-        logger.info(f"  {len(documents)} documents từ cache")
+        documents = _read_cached_corpus()
+        logger.info(f"  {len(documents)} documents dùng từ cache (đã áp trần)")
         if max_items > 0:
             documents = documents[:max_items]
         return documents
 
     # ── Nạp thô ───────────────────────────────────────────────────
+    # Bộ lọc phạm vi được áp RIÊNG cho từng nguồn rồi mới gộp, không phải gộp
+    # xong mới lọc một lượt. Vì đường HuggingFace đã lọc phạm vi ngay từ bước
+    # metadata, gộp trước thì phần HF (toàn document đã lọt) kéo tỉ lệ lọt lên
+    # gần 100% và lối thoát "auto" của corpus cục bộ không bao giờ kích hoạt —
+    # tức là mất đúng cái cảnh báo cho biết từ khoá không khớp nguồn mới.
     chosen = source if source is not None else CORPUS_SOURCE
+
+    local_documents: list[dict] = []
     if has_local_corpus(chosen):
-        documents = load_local_corpus(chosen, min_content_length=threshold)
-    else:
+        local_documents = load_local_corpus(chosen, min_content_length=threshold)
+        for doc in local_documents:
+            doc["source_kind"] = "local"
+        local_documents = apply_scope_filter(local_documents)
+
+    hf_documents: list[dict] = []
+    if not local_documents:
         logger.warning(
             f"Không có file corpus ở {chosen} → dùng dataset HuggingFace "
             f"({HF_DATASET_NAME}) làm nguồn dự phòng."
         )
-        documents = _load_corpus_hf(threshold)
+        hf_documents = _load_corpus_hf(threshold)
+    elif CORPUS_MERGE_HF:
+        logger.info(
+            f"QA_CORPUS_MERGE_HF=1 → gộp thêm dataset HuggingFace ({HF_DATASET_NAME}) "
+            f"vào {len(local_documents)} document cục bộ."
+        )
+        hf_documents = _load_corpus_hf(threshold)
 
-    if not documents:
-        return []
+    for doc in hf_documents:
+        doc["source_kind"] = "hf"
 
-    # ── Lọc phạm vi ───────────────────────────────────────────────
-    documents = apply_scope_filter(documents)
+    if local_documents and hf_documents:
+        documents = merge_corpora(local_documents, hf_documents)
+    else:
+        documents = local_documents or hf_documents
+
     if not documents:
         return []
 
@@ -377,6 +650,12 @@ def load_scoped_corpus(
             for doc in documents:
                 f.write(json.dumps(doc, ensure_ascii=False) + "\n")
         logger.info(f"Đã cache → {SCOPED_CORPUS_CACHE}")
+
+    # ── Hạn ngạch theo nhánh ──────────────────────────────────────
+    # Áp SAU khi ghi cache là cố ý: cache giữ corpus ĐẦY ĐỦ, trần áp lúc đọc.
+    # Nhờ vậy chỉnh `SCOPE_QUOTAS` rồi chạy lại là thấy kết quả ngay, không
+    # phải tải và parse lại HuggingFace (đo được: ~7 phút mỗi lượt).
+    documents = apply_scope_quota(documents)
 
     if max_items > 0:
         documents = documents[:max_items]

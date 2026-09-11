@@ -1,0 +1,102 @@
+{
+  "random_seed": 42,
+  "ratios": {
+    "train": 0.7,
+    "val": 0.15,
+    "test": 0.15
+  },
+  "total_items": 4084,
+  "total_pairs": 2042,
+  "total_source_docs": 2033,
+  "splits": {
+    "train": {
+      "n_items": 2858,
+      "n_pairs": 1429,
+      "n_source_docs": 1423,
+      "label_counts": {
+        "broad": 1429,
+        "narrow": 1429
+      },
+      "label_balance": {
+        "broad": 0.5,
+        "narrow": 0.5
+      },
+      "scope_counts": {
+        "dan_su_chung": 1278,
+        "to_tung_thi_hanh_an": 480,
+        "hop_dong_bao_dam": 324,
+        "thua_ke": 66,
+        "so_huu_tri_tue": 52,
+        "hon_nhan_gia_dinh": 388,
+        "dat_dai_nha_o": 88,
+        "giai_quyet_tranh_chap": 50,
+        "boi_thuong": 132
+      },
+      "question_words": {
+        "mean": 32.51,
+        "min": 9,
+        "max": 136
+      }
+    },
+    "val": {
+      "n_items": 614,
+      "n_pairs": 307,
+      "n_source_docs": 305,
+      "label_counts": {
+        "broad": 307,
+        "narrow": 307
+      },
+      "label_balance": {
+        "broad": 0.5,
+        "narrow": 0.5
+      },
+      "scope_counts": {
+        "dan_su_chung": 302,
+        "to_tung_thi_hanh_an": 108,
+        "dat_dai_nha_o": 16,
+        "hop_dong_bao_dam": 58,
+        "hon_nhan_gia_dinh": 66,
+        "boi_thuong": 34,
+        "so_huu_tri_tue": 4,
+        "thua_ke": 20,
+        "giai_quyet_tranh_chap": 6
+      },
+      "question_words": {
+        "mean": 31.58,
+        "min": 8,
+        "max": 114
+      }
+    },
+    "test": {
+      "n_items": 612,
+      "n_pairs": 306,
+      "n_source_docs": 305,
+      "label_counts": {
+        "broad": 306,
+        "narrow": 306
+      },
+      "label_balance": {
+        "broad": 0.5,
+        "narrow": 0.5
+      },
+      "scope_counts": {
+        "dan_su_chung": 260,
+        "to_tung_thi_hanh_an": 106,
+        "dat_dai_nha_o": 20,
+        "hon_nhan_gia_dinh": 68,
+        "hop_dong_bao_dam": 80,
+        "so_huu_tri_tue": 14,
+        "thua_ke": 10,
+        "boi_thuong": 40,
+        "giai_quyet_tranh_chap": 14
+      },
+      "question_words": {
+        "mean": 32.84,
+        "min": 10,
+        "max": 124
+      }
+    }
+  },
+  "leakage_check": "passed",
+  "source_file": "G:\\TDTUSchoolWork\\TDTUCodeWork\\DoAnTotNghiep\\IT_DATN_Legal-RAG\\backend\\data\\qa_pairs\\labeled\\pairs_verified.jsonl"
+}
