@@ -2,8 +2,8 @@
 Script 01: Tải và tiền xử lý dataset pháp luật Việt Nam từ HuggingFace.
 
 Usage:
-    python scripts/01_download_data.py
-    python scripts/01_download_data.py --max-items 100
+    python evol_instruct/scripts/01_download_data.py
+    python evol_instruct/scripts/01_download_data.py --max-items 100
 """
 
 import argparse
@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # Thêm project root vào sys.path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config.settings import ensure_directories, validate_config
 from evol_instruct.src.utils import setup_logging

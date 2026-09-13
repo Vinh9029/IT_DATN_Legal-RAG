@@ -2,7 +2,7 @@
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import pytest
 from unittest.mock import MagicMock, patch
@@ -18,7 +18,7 @@ class TestEvolPipeline:
 
     @pytest.fixture
     def pipeline(self, mock_llm, tmp_path):
-        with patch("src.evol_engine.OUTPUT_DIR", tmp_path):
+        with patch("evol_instruct.src.evol_engine.OUTPUT_DIR", tmp_path):
             return EvolPipeline(
                 llm_client=mock_llm,
                 output_file="test_output.jsonl",

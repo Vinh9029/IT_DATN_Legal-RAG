@@ -8,9 +8,9 @@ Quy trình:
 4. Chạy filters và lưu vào JSONL chuẩn Alpaca
 
 Usage:
-    python scripts/05_manual_chatgpt.py export --max-seeds 10
-    python scripts/05_manual_chatgpt.py import --input data/manual/batch_01_done.txt
-    python scripts/05_manual_chatgpt.py export-all
+    python evol_instruct/scripts/05_manual_chatgpt.py export --max-seeds 10
+    python evol_instruct/scripts/05_manual_chatgpt.py import --input data/manual/batch_01_done.txt
+    python evol_instruct/scripts/05_manual_chatgpt.py export-all
 """
 
 import argparse
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config.settings import ensure_directories, OUTPUT_DIR, SEEDS_DIR, BASE_DIR
 from config.prompts import (
@@ -64,7 +64,7 @@ def export_seeds_for_chatgpt(seeds: list[dict], batch_size: int = 5, batch_num: 
             f.write("3. Copy kết quả trả về.\n")
             f.write("4. Paste vào file: batch_{:03d}_done.txt\n".format(batch_id))
             f.write("5. Lưu file vào thư mục: data/manual/\n")
-            f.write("6. Chạy: python scripts/05_manual_chatgpt.py import "
+            f.write("6. Chạy: python evol_instruct/scripts/05_manual_chatgpt.py import "
                     "--input data/manual/batch_{:03d}_done.txt\n\n".format(batch_id))
 
             # ── PHẦN 1: PROMPT TIẾN HÓA (Evolution) ──
@@ -395,7 +395,7 @@ def export_json_for_gemini(seeds: list[dict], batch_size: int = 20):
     print(f"   1. Mở file gemini_batch_XXX_prompt.txt")
     print(f"   2. Copy toàn bộ → paste vào Gemini Pro")
     print(f"   3. Copy JSON output → paste vào gemini_batch_XXX_done.json")
-    print(f"   4. Chạy: python scripts/05_manual_chatgpt.py import-json --input data/manual/gemini_batch_XXX_done.json")
+    print(f"   4. Chạy: python evol_instruct/scripts/05_manual_chatgpt.py import-json --input data/manual/gemini_batch_XXX_done.json")
 
 
 def import_json_results(input_path: str):
@@ -522,7 +522,7 @@ def main():
     if args.command == "export":
         seeds = load_jsonl(SEEDS_DIR / args.seeds_file)
         if not seeds:
-            print(f"❌ Không tìm thấy seeds. Chạy scripts/02_generate_seeds.py trước.")
+            print(f"❌ Không tìm thấy seeds. Chạy evol_instruct/scripts/02_generate_seeds.py trước.")
             sys.exit(1)
         seeds = seeds[: args.max_seeds]
         export_seeds_for_chatgpt(seeds, args.batch_size)
@@ -538,7 +538,7 @@ def main():
     elif args.command == "export-json":
         seeds = load_jsonl(SEEDS_DIR / args.seeds_file)
         if not seeds:
-            print(f"❌ Không tìm thấy seeds. Chạy scripts/02_generate_seeds.py trước.")
+            print(f"❌ Không tìm thấy seeds. Chạy evol_instruct/scripts/02_generate_seeds.py trước.")
             sys.exit(1)
         seeds = seeds[: args.max_seeds]
         export_json_for_gemini(seeds, args.batch_size)

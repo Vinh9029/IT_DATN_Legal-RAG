@@ -18,8 +18,8 @@ from tqdm import tqdm
 
 from config.prompts import SEED_TEMPLATES, SYSTEM_SEED_GENERATOR
 from config.settings import SEEDS_DIR, MAX_SEEDS
-from src.llm_client import LLMClient
-from src.utils import save_jsonl, load_jsonl, generate_item_id
+from evol_instruct.src.llm_client import LLMClient
+from evol_instruct.src.utils import save_jsonl, load_jsonl, generate_item_id
 
 
 # ── NER cho Pháp luật Việt Nam ────────────────────────────────────
@@ -170,6 +170,7 @@ def generate_seeds_from_templates(
     """
     seeds = []
     seen_instructions = set()  # Dedup
+    dup_count = 0
 
     # Tự tính templates_per_doc nếu chưa chỉ định
     if templates_per_doc <= 0:
@@ -228,6 +229,7 @@ def generate_seeds_from_templates(
                 # Dedup: bỏ qua nếu instruction đã tồn tại
                 instruction_normalized = instruction.strip().lower()
                 if instruction_normalized in seen_instructions:
+                    dup_count += 1
                     continue
                 seen_instructions.add(instruction_normalized)
 
@@ -256,7 +258,7 @@ def generate_seeds_from_templates(
 
     logger.info(
         f"Đã tạo {len(seeds)} seed prompts từ {len(documents)} documents "
-        f"(dedup loại {len(seen_instructions) - len(seeds)} trùng)"
+        f"(dedup loại {dup_count} trùng)"
     )
     return seeds
 

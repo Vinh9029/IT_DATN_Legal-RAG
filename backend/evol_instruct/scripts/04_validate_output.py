@@ -2,8 +2,8 @@
 Script 04: Kiểm tra và đánh giá chất lượng output.
 
 Usage:
-    python scripts/04_validate_output.py
-    python scripts/04_validate_output.py --input data/output/legal_evolved.jsonl
+    python evol_instruct/scripts/04_validate_output.py
+    python evol_instruct/scripts/04_validate_output.py --input data/evol_instruct/output/legal_evolved.jsonl
 """
 
 import argparse
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from collections import Counter
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config.settings import ensure_directories, OUTPUT_DIR
 from evol_instruct.src.utils import setup_logging, load_jsonl

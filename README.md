@@ -20,12 +20,14 @@ python -m venv venv
 venv\Scripts\activate    # Windows
 
 # Cài dependencies
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # Cấu hình
-cp .env.example .env
-# Chỉnh sửa .env nếu cần
+cp backend/.env.example backend/.env
+# Chỉnh sửa backend/.env nếu cần
 ```
+
+> Mọi lệnh pipeline bên dưới chạy từ thư mục `backend/` (`cd backend`).
 
 ## 🚀 Sử dụng
 
@@ -38,47 +40,59 @@ cp .env.example .env
 
 ```bash
 # 1. Tải & tiền xử lý dataset
-python scripts/01_download_data.py
+python evol_instruct/scripts/01_download_data.py
 
 # 2. Tạo seed prompts
-python scripts/02_generate_seeds.py --mode template
+python evol_instruct/scripts/02_generate_seeds.py --mode template
 
 # 3. Chạy Evol-Instruct
-python scripts/03_run_evolution.py
+python evol_instruct/scripts/03_run_evolution.py
 
 # 4. Kiểm tra chất lượng
-python scripts/04_validate_output.py
+python evol_instruct/scripts/04_validate_output.py
 ```
 
 ### Tùy chọn nâng cao
 
 ```bash
 # Tạo seeds bằng LLM (đa dạng hơn)
-python scripts/02_generate_seeds.py --mode llm --max-seeds 200
+python evol_instruct/scripts/02_generate_seeds.py --mode llm --max-seeds 200
 
 # Chạy với batch size lớn
-python scripts/03_run_evolution.py --batch-size 50
+python evol_instruct/scripts/03_run_evolution.py --batch-size 50
 
 # Giới hạn số lượng documents
-python scripts/01_download_data.py --max-items 500
+python evol_instruct/scripts/01_download_data.py --max-items 500
 ```
 
 ## 📁 Cấu trúc
 
 ```
-├── config/           # Cấu hình & prompt templates
-│   ├── settings.py   # Load .env, validation
-│   └── prompts.py    # 6 kỹ thuật Evol-Instruct + IRAC prompts
-├── src/              # Source code chính
-│   ├── data_loader.py    # Load HuggingFace dataset
-│   ├── seed_generator.py # Tạo seed prompts (template + LLM)
-│   ├── evol_engine.py    # Core Evol-Instruct pipeline
-│   ├── filters.py        # 6 bộ lọc chất lượng
-│   ├── llm_client.py     # OpenAI-compatible LLM client
-│   └── utils.py          # Logging, JSONL I/O, checkpoint
-├── scripts/          # Scripts chạy pipeline
-├── tests/            # Unit tests
-└── data/             # Dữ liệu (git-ignored)
+backend/                       # Toàn bộ code Python (root của sys.path)
+├── config/                    # Cấu hình & prompt dùng chung
+│   ├── settings.py            # Load .env, validation
+│   ├── prompts.py             # 6 kỹ thuật Evol-Instruct + IRAC prompts
+│   ├── qa_settings.py         # Cấu hình riêng QA Specificity (Phần 3)
+│   └── qa_prompts.py          # Prompt sinh cặp QA + rubric judge
+├── src/                       # RAG online (retrieval, indexing, API)
+├── evol_instruct/             # Pipeline sinh dữ liệu (Phần 2 + Phần 3)
+│   ├── src/
+│   │   ├── data_loader.py     # Load HuggingFace dataset
+│   │   ├── seed_generator.py  # Tạo seed prompts (template + LLM)
+│   │   ├── evol_engine.py     # Core Evol-Instruct pipeline
+│   │   ├── filters.py         # 6 bộ lọc chất lượng
+│   │   ├── llm_client.py      # OpenAI-compatible LLM client
+│   │   ├── gemini_client.py   # Google Gemini client
+│   │   ├── utils.py           # Logging, JSONL I/O, checkpoint
+│   │   └── qa_specificity/    # Phần 3 — phân loại độ cụ thể câu hỏi
+│   ├── scripts/               # 01–06 (Evol-Instruct), 10–12 (QA Specificity)
+│   └── tests/                 # Unit tests
+├── scripts/offline_rag/       # Pipeline dựng index cho RAG
+└── data/                      # Dữ liệu (git-ignored)
+    ├── rag/                   # raw / processed / indexes
+    ├── evol_instruct/         # seeds / output
+    ├── corpus_civil/          # nguồn luật dân sự (Phần 3)
+    └── qa_pairs/              # raw / labeled / final
 ```
 
 ## 🔬 6 Kỹ thuật Tiến hóa
@@ -95,7 +109,8 @@ python scripts/01_download_data.py --max-items 500
 ## 🧪 Testing
 
 ```bash
-pytest tests/ -v
+cd backend
+pytest evol_instruct/tests/ -v
 ```
 
 ## 📊 Output Format (Alpaca JSONL)

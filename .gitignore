@@ -85,3 +85,19 @@ coverage.xml
 *.bak
 *.tmp
 *.temp
+
+# --- QA Specificity Pipeline (Phần 3) ---
+# *.json / *.jsonl ở trên chặn toàn cục nên deliverables mặc định không lên git.
+backend/data/qa_pairs/raw/
+backend/data/qa_pairs/labeled/
+!backend/data/qa_pairs/final/
+!backend/data/qa_pairs/final/*.json
+
+# Nguồn corpus luật dân sự do người dùng tự thả vào (QA_CORPUS_SOURCE).
+# Không đẩy lên git: dung lượng lớn, và bản quyền nguồn thì tuỳ nơi tải về.
+backend/data/corpus_civil/*
+!backend/data/corpus_civil/README.md
+
+# File override tuỳ chọn của Phần 3 (nếu muốn tách API key judge khỏi .env chung).
+# Không bắt buộc — mặc định cứ để JUDGE_* trong .env ở root là đủ.
+backend/config/qa.env

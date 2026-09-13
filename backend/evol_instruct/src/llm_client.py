@@ -24,6 +24,15 @@ from config.settings import (
 )
 
 
+class TruncatedResponseError(RuntimeError):
+    """
+    Response bị cắt vì chạm trần max_tokens (finish_reason='length').
+
+    Nội dung cụt vẫn dài > 200 ký tự và vẫn chứa đủ từ khoá IRAC nên lọt hết bộ
+    lọc — phải chặn ở tầng client, không phát hiện được ở tầng filter.
+    """
+
+
 class LLMClient:
     """
     Client gọi LLM qua OpenAI-compatible API.
@@ -70,6 +79,7 @@ class LLMClient:
         max_tokens: int = None,
         top_p: float = None,
         stop: list[str] = None,
+        allow_truncated: bool = True,
     ) -> str:
         """
         Gọi LLM chat completion.
@@ -80,25 +90,43 @@ class LLMClient:
             max_tokens: Số token tối đa cho response
             top_p: Nucleus sampling threshold
             stop: Danh sách stop tokens
+            allow_truncated: True (mặc định, giữ nguyên hành vi cũ) thì response bị
+                cắt chỉ ghi cảnh báo. Đặt False để raise TruncatedResponseError —
+                dùng cho pipeline sinh dữ liệu huấn luyện, nơi một câu trả lời cụt
+                lọt vào dataset còn tệ hơn là mất hẳn item đó.
 
         Returns:
             Nội dung response từ LLM (string).
 
         Raises:
             openai.APIError: Khi tất cả retry attempts đều thất bại.
+            TruncatedResponseError: Khi bị cắt và allow_truncated=False.
         """
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens or MAX_TOKENS,
-            top_p=top_p or TOP_P,
-            stop=stop or STOP_TOKENS,
+            max_tokens=MAX_TOKENS if max_tokens is None else max_tokens,
+            top_p=TOP_P if top_p is None else top_p,
+            stop=STOP_TOKENS if stop is None else stop,
         )
 
-        content = response.choices[0].message.content
+        choice = response.choices[0]
+        content = choice.message.content
         if content:
             content = content.strip()
+
+        finish_reason = getattr(choice, "finish_reason", None)
+        if finish_reason == "length":
+            msg = (
+                f"Response bị cắt (finish_reason='length', "
+                f"max_tokens={MAX_TOKENS if max_tokens is None else max_tokens}). "
+                f"Nội dung cụt: {(content or '')[-60:]!r}"
+            )
+            if allow_truncated:
+                logger.warning(f"⚠️  {msg}")
+            else:
+                raise TruncatedResponseError(msg)
 
         # Log thống kê usage nếu có
         if response.usage:

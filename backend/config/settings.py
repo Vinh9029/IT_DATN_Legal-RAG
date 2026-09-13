@@ -11,10 +11,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
-# ── LLM API Configuration ──────────────────────────────────────────
+# ── LLM API Configuration (LM Studio - fallback) ─────────────────
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:1234/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "lm-studio")
 LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "meta-llama-3.1-8b-instruct")
+
+# ── Gemini API Configuration ──────────────────────────────────────
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_EVOL_TEMPERATURE = float(os.getenv("GEMINI_EVOL_TEMPERATURE", "1.0"))
+GEMINI_ANSWER_TEMPERATURE = float(os.getenv("GEMINI_ANSWER_TEMPERATURE", "0.2"))
+GEMINI_MAX_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "3"))
 
 # ── Temperature Strategy ───────────────────────────────────────────
 EVOL_TEMPERATURE = float(os.getenv("EVOL_TEMPERATURE", "0.85"))

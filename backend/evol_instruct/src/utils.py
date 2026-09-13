@@ -6,6 +6,7 @@ Tiện ích chung cho Evol-Instruct Pipeline.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -114,39 +115,76 @@ class Checkpoint:
     Quản lý checkpoint để resume pipeline khi bị gián đoạn.
 
     Lưu trạng thái processed_ids vào file JSON.
+
+    Ghi chú triển khai:
+    - Tra cứu dùng `set` (O(1)) thay vì quét list (O(n)); `data["processed_ids"]`
+      vẫn là list để định dạng file trên đĩa không đổi.
+    - `save()` ghi qua file tạm rồi `os.replace()` (atomic). Ngắt giữa chừng lúc
+      ghi sẽ không để lại file JSON hỏng làm mất sạch tiến độ.
+    - `_load()` tự phục hồi nếu gặp file hỏng từ lần chạy cũ thay vì raise.
     """
 
     def __init__(self, checkpoint_file: str | Path):
         self.filepath = Path(checkpoint_file)
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         self.data = self._load()
+        self._processed = set(self.data.get("processed_ids", []))
+        self._dirty = 0
 
     def _load(self) -> dict:
         if self.filepath.exists():
-            with open(self.filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            logger.info(f"Checkpoint loaded: {len(data.get('processed_ids', []))} items đã xử lý")
+            try:
+                with open(self.filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                backup = self.filepath.with_suffix(self.filepath.suffix + ".corrupt")
+                self.filepath.replace(backup)
+                logger.error(
+                    f"Checkpoint hỏng ({e}). Đã chuyển sang {backup.name}, "
+                    f"bắt đầu lại từ đầu."
+                )
+                return {"processed_ids": [], "last_updated": None, "stats": {}}
+            data.setdefault("processed_ids", [])
+            data.setdefault("stats", {})
+            logger.info(f"Checkpoint loaded: {len(data['processed_ids'])} items đã xử lý")
             return data
         return {"processed_ids": [], "last_updated": None, "stats": {}}
 
     def save(self):
         self.data["last_updated"] = datetime.now().isoformat()
-        with open(self.filepath, "w", encoding="utf-8") as f:
+        tmp = self.filepath.with_suffix(self.filepath.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(self.data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, self.filepath)
+        self._dirty = 0
+
+    def maybe_save(self, every: int = 10):
+        """
+        Ghi checkpoint sau mỗi `every` lần mark_processed.
+
+        `save()` viết lại toàn bộ file, gọi sau từng item sẽ thành O(n²) khi pool
+        lớn dần. Dùng hàm này trong vòng lặp và gọi `save()` một lần khi kết thúc.
+        """
+        if self._dirty >= every:
+            self.save()
 
     def is_processed(self, item_id: str) -> bool:
-        return item_id in self.data["processed_ids"]
+        return item_id in self._processed
 
     def mark_processed(self, item_id: str):
-        if item_id not in self.data["processed_ids"]:
+        if item_id not in self._processed:
+            self._processed.add(item_id)
             self.data["processed_ids"].append(item_id)
+            self._dirty += 1
 
     def update_stats(self, key: str, value):
         self.data["stats"][key] = value
 
     @property
     def processed_count(self) -> int:
-        return len(self.data["processed_ids"])
+        return len(self._processed)
 
 
 # ── Text Utilities ────────────────────────────────────────────────
