@@ -1,0 +1,67 @@
+{
+  "hien_tai": {
+    "data_dir": "data/qa_pairs/final",
+    "n_train": 4588,
+    "n_test": 948,
+    "shortcut": {
+      "tong": 0.7320675105485233,
+      "n": 948,
+      "theo_nhanh": {
+        "citation": {
+          "acc": 0.997737556561086,
+          "n": 442
+        },
+        "situation": {
+          "acc": 0.5,
+          "n": 506
+        }
+      }
+    },
+    "tfidf": 0.9789029535864979,
+    "chuyen_nhanh": {
+      "citation→situation": {
+        "acc": 0.5355731225296443,
+        "n_train": 2132,
+        "n_test": 506
+      },
+      "situation→citation": {
+        "acc": 0.5203619909502263,
+        "n_train": 2456,
+        "n_test": 442
+      }
+    }
+  },
+  "doi_chieu": {
+    "data_dir": "data/qa_pairs/_archive_v2/final",
+    "n_train": 3870,
+    "n_test": 830,
+    "shortcut": {
+      "tong": 0.7301204819277108,
+      "n": 830,
+      "theo_nhanh": {
+        "citation": {
+          "acc": 1.0,
+          "n": 384
+        },
+        "situation": {
+          "acc": 0.4977578475336323,
+          "n": 446
+        }
+      }
+    },
+    "tfidf": 0.9891566265060241,
+    "chuyen_nhanh": {
+      "citation→situation": {
+        "acc": 0.6434977578475336,
+        "n_train": 1970,
+        "n_test": 446
+      },
+      "situation→citation": {
+        "acc": 0.5052083333333334,
+        "n_train": 1900,
+        "n_test": 384
+      }
+    },
+    "ghi_chu": "Bản v1+v2. Thư mục nguồn đã xoá ngày 2026-09-15 — số giữ lại ở đây để đối chiếu, KHÔNG tái lập được bằng --compare nữa."
+  }
+}

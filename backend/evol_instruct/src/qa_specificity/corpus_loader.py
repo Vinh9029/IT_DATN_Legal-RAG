@@ -959,4 +959,24 @@ def expand_documents_by_article(documents: list[dict]) -> list[dict]:
         f"Cắt theo Điều: {n_split}/{len(documents)} văn bản cắt được "
         f"→ {len(expanded)} document con"
     )
+
+    # Biểu mẫu/phụ lục bên trong một văn bản có thể chứa lại chữ "Điều N."
+    # (mẫu quyết định, mẫu đơn...), khi đó hai mảnh khác nhau cùng mang
+    # `doc#dieu-N`. Checkpoint của bước sinh khử trùng theo id nên mảnh sau bị bỏ
+    # MÀ KHÔNG BÁO GÌ — đo được 2 văn bản / 4.050 ở lần chạy 2026-09-14.
+    # Số lượng nhỏ nên không đổi cách cắt; nhưng mất dữ liệu im lặng thì phải lên log.
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for child in expanded:
+        doc_id = child["source_doc_id"]
+        if doc_id in seen:
+            duplicates.append(doc_id)
+        seen.add(doc_id)
+    if duplicates:
+        logger.warning(
+            f"{len(duplicates)} document con trùng `source_doc_id` (văn bản có biểu mẫu "
+            f"lặp lại chữ 'Điều N'). Bước sinh chỉ xử lý mảnh ĐẦU, các mảnh sau bị bỏ. "
+            f"Ví dụ: {duplicates[:3]}"
+        )
+
     return expanded

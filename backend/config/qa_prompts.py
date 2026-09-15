@@ -136,15 +136,27 @@ Trục 1 — Mức chỉ định văn bản/điều khoản:
   → BROAD:  không nêu văn bản nào, hoặc chỉ nêu tên lĩnh vực ("theo pháp luật dân sự").
 
 Trục 2 — Số lượng điều luật cần để trả lời đầy đủ:
-  → NARROW: 1-2 điều là đủ; câu trả lời có dạng "theo Điều X thì...".
-  → BROAD:  từ 3 điều trở lên, phải tổng hợp nhiều văn bản (luật + nghị định + thông tư),
+  TRƯỚC HẾT phải LIỆT KÊ tên các chế định/điều luật cần dẫn, rồi mới đếm.
+  CHỈ liệt kê chế định BẮT BUỘC phải dẫn mới trả lời được đúng CÂU HỎI ĐƯỢC
+  HỎI. KHÔNG kể chế định liên quan, bổ trợ, hoặc "cũng cần biết". Phép thử:
+  bỏ một mục ra mà vẫn trả lời được câu hỏi thì mục đó THỪA, phải bỏ.
+  Danh sách một mục là bình thường và hay gặp. Đừng cố liệt kê cho đủ ba.
+  → NARROW: danh sách 1-2 mục; câu trả lời có dạng "theo Điều X thì...".
+  → BROAD:  danh sách từ 3 mục trở lên, phải bắc cầu luật → nghị định → thông tư,
             hoặc câu trả lời đúng là một DANH SÁCH nhiều mục.
+  → unknown: không liệt kê nổi vì không đủ căn cứ — KHÔNG đoán.
 
 Trục 3 — Mức chi tiết của tình huống:
   → NARROW: có tình huống với chủ thể, hành vi, mốc thời gian, con số cụ thể
             ("Anh A vay của chị B 200 triệu, quá hạn 6 tháng chưa trả...").
   → BROAD:  câu hỏi khái niệm/định nghĩa/tổng quan, hoặc tình huống chung chung
             không đủ dữ kiện.
+
+  PHÉP THỬ XOÁ TÌNH HUỐNG — bắt buộc với mọi câu có tình huống, làm TRƯỚC trục 2 và 3:
+  xoá hết dữ kiện (tên, ngày, số tiền) rồi đọc lại câu hỏi.
+  - Đáp án KHÔNG đổi ⇒ tình huống chỉ là vỏ: trục 3 = broad, trục 2 chấm trên câu đã bỏ vỏ.
+  - Đáp án ĐỔI (mốc thời gian quyết định thời hiệu, con số quyết định mức lãi,
+    quan hệ nhân thân quyết định hàng thừa kế) ⇒ tình huống là thật: trục 3 = narrow.
 
 QUY TẮC TỔNG HỢP: >= 2/3 trục nghiêng narrow ⇒ narrow; ngược lại ⇒ broad.
 
@@ -223,6 +235,11 @@ PAIR_MARKER_NARROW = "NARROW"
 # ══════════════════════════════════════════════════════════════════
 # (b) LLM JUDGE
 # ══════════════════════════════════════════════════════════════════
+# Phiên bản prompt judge. Cache kết quả khoá theo `item_id`, KHÔNG theo nội
+# dung prompt — nên đổi tiêu chí mà không đổi hằng số này thì cache cũ trả về
+# nhãn chấm bằng prompt cũ, và thay đổi vừa làm biến mất không một lời báo.
+# Đổi hằng số này mỗi lần sửa CRITERIA_BLOCK hoặc định dạng đầu ra của judge.
+JUDGE_PROMPT_VERSION = "v3-axis2-toi-thieu"
 # CỐ Ý không tiết lộ provenance (câu này sinh ở nhánh nào), không đưa
 # văn bản gốc, không đưa câu còn lại trong cặp. Judge chỉ thấy đúng
 # một câu hỏi trần → giữ tính độc lập của phép đánh giá.
@@ -240,7 +257,11 @@ số điều luật cần dẫn khác nhau rõ rệt ⇒ ambiguous.
 Trả về `ambiguous` là ĐÚNG QUY TRÌNH, không phải thất bại. Đừng ép nhãn khi phân vân.
 
 ĐỊNH DẠNG ĐẦU RA — CHỈ một object JSON hợp lệ, không kèm markdown, không giải thích thêm:
-{{"axis1": "narrow|broad", "axis2": "narrow|broad|unknown", "axis3": "narrow|broad", "label": "narrow|broad|ambiguous", "reason": "<tối đa 20 từ>"}}"""
+{{"axis1": "narrow|broad", "axis2_list": ["<chế định 1>", "..."], "axis2": "narrow|broad|unknown", "axis3": "narrow|broad", "label": "narrow|broad|ambiguous", "reason": "<tối đa 20 từ>"}}
+
+`axis2_list` phải điền TRƯỚC `axis2` và quyết định `axis2`: 1-2 mục ⇒ narrow, >= 3 mục ⇒ broad,
+không liệt kê được ⇒ [] và axis2 = "unknown". Mỗi mục tối đa 8 từ.
+KHÔNG độn danh sách cho đủ ba mục. Rất nhiều câu chỉ cần MỘT chế định."""
 
 
 USER_SPECIFICITY_JUDGE = """Câu hỏi cần phân loại:
@@ -255,27 +276,31 @@ Chấm 3 trục rồi kết luận. Trả về đúng một object JSON."""
 JUDGE_FEWSHOT = [
     (
         FEWSHOT_NARROW[0],
-        '{"axis1": "narrow", "axis2": "narrow", "axis3": "broad", "label": "narrow", '
+        '{"axis1": "narrow", "axis2_list": ["thời hiệu chia di sản"], "axis2": "narrow", '
+        '"axis3": "broad", "label": "narrow", '
         '"reason": "Nêu đích danh khoản 1 Điều 623, phủ quyết trục 1"}',
     ),
     (
         FEWSHOT_NARROW[1],
-        '{"axis1": "broad", "axis2": "narrow", "axis3": "narrow", "label": "narrow", '
+        '{"axis1": "broad", "axis2_list": ["thời hiệu chia di sản"], "axis2": "narrow", '
+        '"axis3": "narrow", "label": "narrow", '
         '"reason": "Tình huống đủ dữ kiện, khoá vào khoảng 2 điều luật"}',
     ),
     (
         FEWSHOT_BROAD[0],
-        '{"axis1": "broad", "axis2": "broad", "axis3": "broad", "label": "broad", '
+        '{"axis1": "broad", "axis2_list": ["quyền của người thừa kế", "nghĩa vụ tài sản", '
+        '"thời hiệu"], "axis2": "broad", "axis3": "broad", "label": "broad", '
         '"reason": "Hỏi liệt kê quyền và nghĩa vụ, phải tổng hợp nhiều điều"}',
     ),
     (
         FEWSHOT_BROAD[1],
-        '{"axis1": "broad", "axis2": "broad", "axis3": "broad", "label": "broad", '
+        '{"axis1": "broad", "axis2_list": ["quyền của người thừa kế", "nghĩa vụ tài sản", '
+        '"thời hiệu"], "axis2": "broad", "axis3": "broad", "label": "broad", '
         '"reason": "Nhiều phương thức, nhiều chế định, nhiều văn bản"}',
     ),
     (
         FEWSHOT_AMBIGUOUS[0],
-        '{"axis1": "broad", "axis2": "unknown", "axis3": "broad", "label": "ambiguous", '
+        '{"axis1": "broad", "axis2_list": [], "axis2": "unknown", "axis3": "broad", "label": "ambiguous", '
         '"reason": "Không rõ vô hiệu toàn bộ hay từng phần, trục 2 không chấm được"}',
     ),
 ]

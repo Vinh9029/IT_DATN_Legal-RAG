@@ -318,7 +318,7 @@ Nên gọi judge **một câu một lần**, đừng gộp batch nhiều câu v�
 **1. HF cache mặc định nằm trên ổ C:.** Dataset chiếm ~6 GB. Nếu C: gần đầy sẽ chết giữa chừng với `RuntimeError: ... IO Error: There is not enough space on the disk. (os error 112)` — thông báo này nằm sâu trong stack trace của `huggingface_hub`, rất dễ tưởng nhầm là lỗi mạng. Chuyển cache sang ổ còn chỗ:
 
 ```
-setx HF_HOME "G:\hf_cache"
+setx HF_HOME "<ổ-còn-chỗ>:\hf_cache"
 ```
 
 Phải set ở **cấp OS**, không đặt trong `.env` được: `data_loader.py` import `datasets` *trước* khi `config.settings` gọi `load_dotenv()`, nên biến trong `.env` đến quá muộn.

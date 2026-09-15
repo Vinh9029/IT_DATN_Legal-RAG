@@ -31,6 +31,7 @@ from config.qa_settings import (
     TRAIN_RATIO,
     VAL_RATIO,
 )
+from evol_instruct.src.qa_specificity.corpus_filter import _so_hieu_from_title
 from evol_instruct.src.qa_specificity.schema import QAItem, Specificity
 
 
@@ -310,6 +311,26 @@ def group_split(
     return splits
 
 
+def _article_key(item: QAItem) -> tuple[str, str] | None:
+    """
+    Định danh MỘT ĐIỀU LUẬT độc lập với nguồn: `(số hiệu văn bản, số điều)`.
+
+    Số hiệu lấy từ metadata, thiếu thì bóc từ tiêu đề bằng đúng hàm mà
+    `corpus_filter` dùng để dedup — bắt buộc phải là CÙNG một hàm, vì item sinh
+    từ PDF cục bộ có `so_hieu` rỗng, mà đó lại đúng là phía gây ra trùng. Dùng
+    hàm khác ở hai nơi thì lưới an toàn này sẽ luôn xanh một cách giả tạo.
+
+    Trả None khi vẫn không ra số hiệu, hoặc thiếu số điều — không đoán, vì đoán
+    sai thì hai điều khác nhau bị coi là một và assert báo rò rỉ không có thật.
+    """
+    metadata = item.metadata or {}
+    so_hieu = str(metadata.get("so_hieu") or "").strip()
+    if not so_hieu:
+        so_hieu = _so_hieu_from_title(metadata.get("title"))
+    dieu = str(metadata.get("dieu") or "").strip()
+    return (so_hieu.lower(), dieu) if so_hieu and dieu else None
+
+
 def assert_no_leakage(splits: dict[str, list[QAItem]]):
     """
     Bất biến bắt buộc: không `source_doc_id` nào xuất hiện ở hai split.
@@ -317,16 +338,39 @@ def assert_no_leakage(splits: dict[str, list[QAItem]]):
     Kéo theo cả hai vế của mọi cặp luôn nằm cùng một split, vì cặp nào cũng
     chia sẻ `source_doc_id`.
 
+    ─── Vì sao phải kiểm thêm `(số hiệu, số điều)` ───
+
+    Kiểm theo `source_doc_id` là kiểm ĐÚNG cái nó hứa, nhưng hứa chưa đủ: cùng
+    một Điều 623 BLDS 2015 vào corpus qua hai nguồn (PDF cục bộ + HuggingFace)
+    thì mang hai `source_doc_id` khác nhau, bất biến trên vẫn xanh trong khi
+    train và test đã thấy chung một điều luật. Đo trên bản export cũ: 124 Điều
+    BLDS trùng, 54 rơi khác split — assert cũ không hé một lời nào.
+
+    Gốc rễ được vá ở `corpus_filter._doc_signature()`; kiểm ở đây là lưới an
+    toàn thứ hai, vì dedup phía trên chỉ chạy khi `--rebuild-corpus`.
+
     Raises:
         AssertionError: khi phát hiện rò rỉ.
     """
     doc_ids = {name: {i.source_doc_id for i in subset} for name, subset in splits.items()}
+    article_keys = {
+        name: {key for key in map(_article_key, subset) if key}
+        for name, subset in splits.items()
+    }
 
     for a, b in (("train", "val"), ("train", "test"), ("val", "test")):
         overlap = doc_ids[a] & doc_ids[b]
         assert not overlap, (
             f"DATA LEAKAGE: {len(overlap)} source_doc_id xuất hiện ở cả '{a}' và '{b}'. "
             f"Ví dụ: {sorted(overlap)[:5]}"
+        )
+
+        same_article = article_keys[a] & article_keys[b]
+        assert not same_article, (
+            f"DATA LEAKAGE: {len(same_article)} điều luật xuất hiện ở cả '{a}' và '{b}' "
+            f"dưới hai source_doc_id khác nhau — dấu hiệu một văn bản lọt vào corpus "
+            f"hai lần qua hai nguồn. Chạy lại với --rebuild-corpus để dedup ăn. "
+            f"Ví dụ: {sorted(same_article)[:5]}"
         )
 
     pair_split: dict[str, str] = {}

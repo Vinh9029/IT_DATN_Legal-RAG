@@ -21,6 +21,7 @@ from config.qa_prompts import (
 )
 from config.qa_settings import (
     FORCE_NARROW_MODE,
+    NARROW_MODE_SITUATION_SHARE,
     GEN_MAX_TOKENS,
     GEN_TEMPERATURE,
     GEN_VERSION,
@@ -77,16 +78,26 @@ def has_legal_citation(text: str) -> bool:
 
 def pick_narrow_mode(source_doc_id: str) -> str:
     """
-    Chọn kiểu sinh câu narrow cho một document, luân phiên ~50/50.
+    Chọn kiểu sinh câu narrow cho một document theo `NARROW_MODE_SITUATION_SHARE`.
 
     Bốc theo hash của `source_doc_id` chứ không bốc ngẫu nhiên: cùng một corpus
     thì cùng một phân công kiểu, nên chạy lại pipeline tái lập được y hệt và
     resume từ checkpoint không làm lệch phân bố.
+
+    Tỉ lệ mặc định KHÔNG phải 50/50 — xem chú thích ở
+    `qa_settings.NARROW_MODE_SITUATION_SHARE`: hai nhánh có pass rate khác nhau
+    nên chia đều lúc giao sẽ ra tập verified lệch về citation, mà lệch về
+    citation chính là shortcut "có nhắc số Điều = narrow" mà Phần 3 phải tránh.
     """
     if FORCE_NARROW_MODE in (NARROW_MODE_SITUATION, NARROW_MODE_CITATION):
         return FORCE_NARROW_MODE
     digest = generate_item_id(f"narrow_mode|{source_doc_id}")
-    return NARROW_MODE_SITUATION if int(digest, 16) % 2 == 0 else NARROW_MODE_CITATION
+    bucket = int(digest, 16) % 10_000
+    return (
+        NARROW_MODE_SITUATION
+        if bucket < NARROW_MODE_SITUATION_SHARE * 10_000
+        else NARROW_MODE_CITATION
+    )
 
 
 def _clean_question(text: str) -> str:
