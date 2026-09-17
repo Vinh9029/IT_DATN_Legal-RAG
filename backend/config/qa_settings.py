@@ -469,6 +469,14 @@ TRAIN_FILE = QA_FINAL_DIR / "train.json"
 VAL_FILE = QA_FINAL_DIR / "val.json"
 TEST_FILE = QA_FINAL_DIR / "test.json"
 STATS_FILE = QA_FINAL_DIR / "stats.json"
+BASELINES_FILE = QA_FINAL_DIR / "baselines.json"   # script 14
+KAPPA_REPORT_FILE = QA_LABELED_DIR / "kappa_report.json"  # script 11 --compute-kappa
+
+
+# ── Dataset card cho bản trên HuggingFace ─────────────────────────
+# Chỉ hai thứ đi vào nội dung card; việc đẩy lên Hub là lệnh `hf upload`.
+HF_DATASET_REPO_ID = os.getenv("QA_HF_REPO_ID", "").strip()
+HF_DATASET_VERSION = os.getenv("QA_DATASET_VERSION", "v3").strip()
 
 
 # ── Ngưỡng quyết định của spec §4 bước 2 ──────────────────────────

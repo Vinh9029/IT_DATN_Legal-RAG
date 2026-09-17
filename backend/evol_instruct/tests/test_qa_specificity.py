@@ -17,6 +17,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from evol_instruct.src.qa_specificity import corpus_filter
+from evol_instruct.src.qa_specificity import hf_publisher
 from evol_instruct.src.qa_specificity.corpus_filter import (
     _doc_signature,
     _so_hieu_from_title,
@@ -1151,3 +1152,69 @@ class TestSplitByArticle:
                "content_length": 900, "metadata": {}}
         out = expand_documents_by_article([doc])
         assert out == [doc]
+
+
+# ══════════════════════════════════════════════════════════════════
+# DATASET CARD CHO BẢN ĐƯA LÊN HUGGINGFACE
+# ══════════════════════════════════════════════════════════════════
+
+class TestHFCard:
+    """Card phải phản ánh ĐÚNG file thống kê, kể cả khi thiếu file."""
+
+    STATS = {
+        "random_seed": 42,
+        "ratios": {"train": 0.7, "val": 0.15, "test": 0.15},
+        "total_items": 6506, "total_pairs": 3253, "total_source_docs": 2414,
+        "splits": {
+            "train": {"n_items": 4588, "n_pairs": 2294, "n_source_docs": 1689,
+                      "label_counts": {"broad": 2294, "narrow": 2294},
+                      "scope_counts": {"dan_su_chung": 1262}},
+            "val": {"n_items": 970, "n_pairs": 485, "n_source_docs": 362,
+                    "label_counts": {"broad": 485, "narrow": 485},
+                    "scope_counts": {"dan_su_chung": 250}},
+            "test": {"n_items": 948, "n_pairs": 474, "n_source_docs": 363,
+                     "label_counts": {"broad": 474, "narrow": 474},
+                     "scope_counts": {"dan_su_chung": 250}},
+        },
+    }
+    ALIAS = {"train": "train", "val": "validation", "test": "test"}
+
+    def _render(self, **kwargs):
+        args = {"repo_id": "u/d", "version": "v3", "stats": self.STATS,
+                "baselines": {}, "kappa": {}, "split_alias": self.ALIAS}
+        args.update(kwargs)
+        return hf_publisher.render_card_body(**args)
+
+    def test_so_lieu_lay_tu_stats_khong_hardcode(self):
+        card = self._render()
+        assert "6.506" in card and "3.253" in card
+        # tên split trên Hub, không phải tên file trên đĩa
+        assert "| `validation` |" in card and "| `val` |" not in card
+
+    def test_thieu_file_thong_ke_van_sinh_duoc_card(self):
+        card = self._render()
+        assert "Chưa chạy" in card
+        assert card.startswith("# Vietnamese Legal QA")
+
+    def test_kappa_tach_theo_nhanh_duoc_neu_ro(self):
+        card = self._render(kappa={
+            "cohen_kappa": 0.8427, "raw_agreement": 0.9211, "n_samples": 76,
+            "by_narrow_mode": {"citation": {"cohen_kappa": 1.0, "n": 52},
+                               "situation": {"cohen_kappa": 0.5, "n": 24}},
+        })
+        # Con số tổng che mất nhánh situation yếu — card phải nói ra điều đó.
+        assert "0.8427" in card and "0.5" in card
+        assert "situation" in card
+
+    def test_repo_id_va_version_vao_card(self):
+        card = self._render(repo_id="vu/legal-qa", version="v4")
+        assert 'load_dataset("vu/legal-qa")' in card
+        assert "v4" in card.splitlines()[0]   # tiêu đề mang số phiên bản
+
+    def test_frontmatter_khai_bao_dung_3_split(self):
+        # Không để Hub đoán split từ tên file: đổi tên file một cái là viewer
+        # lặng lẽ gom hết vào `train`.
+        fm = hf_publisher.render_frontmatter("v3", "other", self.ALIAS)
+        assert "- split: validation\n        path: val.json" in fm
+        assert "- split: train\n        path: train.json" in fm
+        assert "- split: test\n        path: test.json" in fm

@@ -47,6 +47,7 @@ Hệ thống cần tự động phân biệt câu hỏi rộng (cần retrieve n
 | `weak_labeler.py` | Gán nhãn heuristic (rule-based) độc lập, dựa trên đặc trưng bề mặt của câu hỏi theo đúng tiêu chí trong guideline | `heuristic_label(question)`, các hàm chấm điểm từng trục |
 | `llm_judge.py` | Gọi model **khác** model sinh, đưa câu hỏi vào mà **không tiết lộ nguồn gốc**, yêu cầu tự phân loại broad/narrow | `JudgeClient`, `judge_batch(items)` |
 | `dataset_builder.py` | Hợp nhất kết quả 3 tầng nhãn, lọc mẫu đồng thuận, chia train/val/test theo group, tính thống kê, export | `filter_consensus(items)`, `group_split(items)`, `build_stats(splits)`, `export(splits)` |
+| `hf_publisher.py` | Sinh dataset card (README.md) từ `stats.json` + `baselines.json` + `kappa_report.json`, để đưa dataset lên HuggingFace bằng tay.
 
 ### 1.4 Scripts (CLI entrypoint)
 
