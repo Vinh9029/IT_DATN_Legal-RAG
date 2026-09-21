@@ -5,95 +5,92 @@
     "val": 0.15,
     "test": 0.15
   },
-  "total_items": 5560,
-  "total_pairs": 2780,
-  "total_source_docs": 2312,
+  "total_items": 6506,
+  "total_pairs": 3253,
+  "total_source_docs": 2414,
   "splits": {
     "train": {
-      "n_items": 3870,
-      "n_pairs": 1935,
-      "n_source_docs": 1618,
+      "n_items": 4588,
+      "n_pairs": 2294,
+      "n_source_docs": 1689,
       "label_counts": {
-        "broad": 1935,
-        "narrow": 1935
+        "broad": 2294,
+        "narrow": 2294
       },
       "label_balance": {
         "broad": 0.5,
         "narrow": 0.5
       },
       "scope_counts": {
-        "dan_su_chung": 1740,
-        "to_tung_thi_hanh_an": 674,
-        "hop_dong_bao_dam": 428,
-        "thua_ke": 94,
-        "so_huu_tri_tue": 72,
-        "dat_dai_nha_o": 108,
-        "hon_nhan_gia_dinh": 496,
-        "giai_quyet_tranh_chap": 64,
-        "boi_thuong": 194
+        "dan_su_chung": 1262,
+        "to_tung_thi_hanh_an": 1208,
+        "dat_dai_nha_o": 212,
+        "so_huu_tri_tue": 166,
+        "hon_nhan_gia_dinh": 828,
+        "hop_dong_bao_dam": 478,
+        "giai_quyet_tranh_chap": 168,
+        "boi_thuong": 266
       },
       "question_words": {
-        "mean": 32.95,
+        "mean": 34.0,
         "min": 8,
-        "max": 136
+        "max": 137
       }
     },
     "val": {
-      "n_items": 860,
-      "n_pairs": 430,
-      "n_source_docs": 347,
+      "n_items": 970,
+      "n_pairs": 485,
+      "n_source_docs": 362,
       "label_counts": {
-        "broad": 430,
-        "narrow": 430
+        "broad": 485,
+        "narrow": 485
       },
       "label_balance": {
         "broad": 0.5,
         "narrow": 0.5
       },
       "scope_counts": {
-        "dan_su_chung": 428,
-        "to_tung_thi_hanh_an": 168,
-        "hon_nhan_gia_dinh": 86,
-        "hop_dong_bao_dam": 94,
-        "dat_dai_nha_o": 10,
-        "thua_ke": 14,
-        "so_huu_tri_tue": 10,
-        "boi_thuong": 40,
-        "giai_quyet_tranh_chap": 10
+        "dan_su_chung": 250,
+        "to_tung_thi_hanh_an": 238,
+        "dat_dai_nha_o": 24,
+        "so_huu_tri_tue": 42,
+        "hon_nhan_gia_dinh": 198,
+        "hop_dong_bao_dam": 106,
+        "giai_quyet_tranh_chap": 38,
+        "boi_thuong": 74
       },
       "question_words": {
-        "mean": 32.13,
-        "min": 9,
-        "max": 93
+        "mean": 34.57,
+        "min": 8,
+        "max": 132
       }
     },
     "test": {
-      "n_items": 830,
-      "n_pairs": 415,
-      "n_source_docs": 347,
+      "n_items": 948,
+      "n_pairs": 474,
+      "n_source_docs": 363,
       "label_counts": {
-        "broad": 415,
-        "narrow": 415
+        "broad": 474,
+        "narrow": 474
       },
       "label_balance": {
         "broad": 0.5,
         "narrow": 0.5
       },
       "scope_counts": {
-        "dan_su_chung": 358,
-        "to_tung_thi_hanh_an": 112,
-        "hop_dong_bao_dam": 114,
-        "dat_dai_nha_o": 32,
-        "hon_nhan_gia_dinh": 116,
-        "giai_quyet_tranh_chap": 16,
-        "boi_thuong": 52,
-        "so_huu_tri_tue": 12,
-        "thua_ke": 18
+        "dan_su_chung": 234,
+        "to_tung_thi_hanh_an": 238,
+        "dat_dai_nha_o": 48,
+        "so_huu_tri_tue": 34,
+        "hon_nhan_gia_dinh": 158,
+        "hop_dong_bao_dam": 92,
+        "giai_quyet_tranh_chap": 54,
+        "boi_thuong": 90
       },
       "question_words": {
-        "mean": 33.52,
+        "mean": 33.75,
         "min": 9,
-        "max": 128
+        "max": 130
       }
     }
   },

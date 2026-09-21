@@ -1,6 +1,6 @@
 # Guideline gán nhãn độ cụ thể câu hỏi pháp lý (Query Specificity)
 
-**Phiên bản:** 1.2 — *đã thu hẹp phạm vi về luật dân sự*
+**Phiên bản:** 1.3 — *trục 2 phải liệt kê; thêm phép thử xoá tình huống*
 **Vị trí trong repo:** `docs/specificity-guideline.md`
 **Phạm vi áp dụng:** câu hỏi pháp lý tiếng Việt thuộc lĩnh vực **luật dân sự** và các chế định lân cận
 (thừa kế, hợp đồng & giao dịch bảo đảm, sở hữu/tài sản, hôn nhân & gia đình, đất đai & nhà ở,
@@ -62,12 +62,19 @@ Mỗi câu hỏi được chấm độc lập trên 3 trục. Mỗi trục cho 1
 
 *Để trả lời trọn vẹn, cần dẫn bao nhiêu điều luật?*
 
-| Điểm | Biểu hiện |
-|---|---|
-| **→ narrow** | 1–2 điều luật là đủ. Câu trả lời có dạng "theo Điều X thì…" |
-| **→ broad** | Từ 3 điều trở lên, hoặc phải tổng hợp từ nhiều văn bản khác nhau (luật + nghị định + thông tư), hoặc phải liệt kê nhiều trường hợp/điều kiện |
+**Không được chọn thẳng narrow/broad.** Phải **viết ra danh sách** các chế định/điều luật cần dẫn, rồi mới đếm.
 
-Đây là trục **khó chấm nhất** vì đòi hỏi hiểu biết về nội dung luật. Khi không chắc, dùng phép thử thay thế: *"câu trả lời đúng có phải là một danh sách nhiều mục không?"* — nếu có, nghiêng về broad.
+Chỉ liệt kê chế định **bắt buộc** phải dẫn mới trả lời được đúng câu hỏi được hỏi — không kể chế định liên quan hay bổ trợ. Phép thử: bỏ một mục ra mà vẫn trả lời được thì mục đó thừa. Đo trên pilot 248 câu: bỏ chi dẫn này thì LLM độn đúng 3 mục ở 25/27 câu — và 3 chính là ngưỡng broad, nên trục 2 hóa thành máy đếm đến ba chứ không còn đo gì.
+
+| Danh sách liệt kê được | Điểm |
+|---|---|
+| 1–2 mục | **→ narrow** |
+| ≥ 3 mục, hoặc phải bắc cầu luật → nghị định → thông tư, hoặc phải liệt kê nhiều trường hợp/điều kiện | **→ broad** |
+| Không liệt kê nổi vì không đủ hiểu biết về chế định đó | `ambiguous` — **không đoán** |
+
+Danh sách được lưu cùng nhãn (`axis2_list`). Khi người và judge bất đồng thì đối chiếu hai danh sách, không tranh luận về nhãn.
+
+Đây là trục **khó chấm nhất**, và là trục **duy nhất** mang đúng tín hiệu ở mục 2.1 — trục 1 và trục 3 chỉ là dấu hiệu bề mặt ăn theo. Đo trên 198 câu gán tay: bỏ trục 2 thì κ nhánh `situation` tăng 0,363 → 0,668, nhưng nhãn khi đó chỉ còn phụ thuộc hai đặc trưng bề mặt và giải được bằng regex. Nên giữ trục 2 và bắt nó liệt kê, chứ không bỏ.
 
 ### Trục 3 — Mức chi tiết của tình huống
 
@@ -77,6 +84,13 @@ Mỗi câu hỏi được chấm độc lập trên 3 trục. Mỗi trục cho 1
 |---|---|
 | **→ narrow** | Có tình huống với chủ thể, hành vi, mốc thời gian, con số cụ thể (*"Anh A làm việc 3 năm, bị cho nghỉ không báo trước 45 ngày…"*) — đủ dữ kiện để áp dụng luật vào ngay |
 | **→ broad** | Câu hỏi khái niệm, định nghĩa, tổng quan, hoặc tình huống nêu chung chung không đủ dữ kiện (*"Người thừa kế có những quyền gì?"*) |
+
+**Phép thử xoá tình huống** — bắt buộc với mọi câu có tình huống, làm TRƯỚC khi chấm trục 2 và trục 3. Xoá hết dữ kiện (tên, ngày, số tiền) rồi đọc lại câu hỏi:
+
+- Đáp án **không đổi** → tình huống chỉ là vỏ: trục 3 chấm **broad**, và trục 2 chấm trên câu đã bỏ vỏ.
+- Đáp án **đổi** (mốc thời gian quyết định thời hiệu, con số quyết định mức lãi, quan hệ nhân thân quyết định hàng thừa kế) → tình huống là thật: trục 3 chấm **narrow**.
+
+Đây là ca bản v1.2 bỏ trống, và là nguồn gốc của toàn bộ bất đồng ở nhánh `situation` (κ = 0,16–0,36, trong khi nhánh `citation` đạt 0,95).
 
 ---
 
@@ -218,6 +232,10 @@ python evol_instruct/scripts/11_verify_labels.py --compute-kappa backend/data/qa
 5. Tính `sklearn.metrics.cohen_kappa_score(nhan_tay, judge_label)` *(tự động)*
 
 Câu gán tay là `ambiguous` bị **loại khỏi phép tính κ**, không phải tính như một lớp thứ ba: dataset là nhị phân, đưa lớp thứ ba vào làm κ không còn so sánh được với thang đọc bên dưới. Số câu bị bỏ qua được in ra và ghi trong `kappa_report.json` — phải báo cáo con số này kèm κ, vì bỏ qua quá nhiều câu là dấu hiệu tiêu chí còn mơ hồ.
+
+**Bắt buộc tách κ theo `narrow_mode`** (`citation` / `situation`), không chỉ báo số gộp: đo được κ gộp = 0,708 trong khi `citation` = 0,95 còn `situation` = 0,36 — số gộp che mất đúng nhánh đang hỏng. Ngưỡng dừng bên dưới áp cho **nhánh thấp nhất**, và mỗi nhánh cần ≥ 50 câu thì κ mới đọc được.
+
+Trước khi gán hàng loạt, làm **vòng hiệu chuẩn 20 câu**: gán tay, đối chiếu **từng trục** với judge, thống nhất cách hiểu rồi mới gán mẫu thật.
 
 **Đọc kết quả:**
 

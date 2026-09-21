@@ -31,6 +31,7 @@ chiếu với dataset thật thì giả định nền của thiết kế đó sa
 
 import json
 import random
+import re
 from collections import defaultdict
 
 from loguru import logger
@@ -41,6 +42,8 @@ from config.qa_settings import (
     CIVIL_METADATA_KEYWORDS,
     CORPUS_MERGE_HF,
     CORPUS_SOURCE,
+    EFFECT_FILTER_ENABLED,
+    EFFECT_STATUSES_KEPT,
     HF_CONFIG_CONTENT,
     HF_CONFIG_METADATA,
     HF_DATASET_NAME,
@@ -168,6 +171,34 @@ def is_normative_doc(doc: dict) -> bool:
     if not loai:
         return True
     return loai in INCLUDED_DOC_TYPES
+
+
+def is_effective(doc: dict) -> bool:
+    """
+    Văn bản còn hiệu lực (hoặc chưa rõ) không?
+
+    Trả True khi nguồn không khai `tinh_trang_hieu_luc` — corpus cục bộ (.pdf)
+    không có trường này, siết ở đây là xoá sạch BLDS/BLTTDS mà không báo lỗi gì.
+    """
+    if not EFFECT_FILTER_ENABLED:
+        return True
+    return _normalize(_metadata_of(doc).get("tinh_trang_hieu_luc")) in EFFECT_STATUSES_KEPT
+
+
+def apply_effect_filter(documents: list[dict]) -> list[dict]:
+    """Bỏ document thuộc văn bản đã hết hiệu lực toàn bộ. Ô trống được giữ."""
+    if not EFFECT_FILTER_ENABLED:
+        logger.info("QA_CORPUS_EFFECT_FILTER=0 → không lọc theo tình trạng hiệu lực")
+        return documents
+
+    kept = [doc for doc in documents if is_effective(doc)]
+    dropped = len(documents) - len(kept)
+    if dropped:
+        logger.info(
+            f"Lọc hiệu lực: bỏ {dropped} Điều thuộc văn bản hết hiệu lực toàn bộ "
+            f"→ còn {len(kept)}"
+        )
+    return kept
 
 
 def is_in_scope(doc: dict) -> bool:
@@ -308,6 +339,37 @@ def _load_corpus_hf(threshold: int) -> list[dict]:
 # Gộp hai nguồn
 # ══════════════════════════════════════════════════════════════════
 
+# Số hiệu trong ngoặc đơn của tên file cục bộ: "... (91-2015-QH13) - Phần 1".
+_PAREN_RE = re.compile(r"\(([^)]{4,40})\)")
+_DOC_CODE_RE = re.compile(
+    r"^(\d{1,4})\s*[-/]\s*(\d{4})\s*[-/]\s*([A-ZĐ][A-ZĐ0-9\-/]{1,30})$",
+    re.IGNORECASE,
+)
+
+
+def _so_hieu_from_title(title) -> str:
+    """
+    Bóc số hiệu từ tiêu đề, CHỈ nhận phần nằm trong ngoặc đơn.
+
+    Nguồn cục bộ là .pdf nên không mang metadata: `so_hieu` rỗng, chữ ký rơi
+    xuống tiêu đề, mà "Bộ luật Dân sự 2015 (91-2015-QH13) - Phần 1" thì không
+    đời nào khớp "Bộ luật Dân sự số 91/2015/QH13" của HF → cùng một bộ luật vào
+    corpus hai lần. Đo trên dataset đã export: 124 Điều trùng, 54 trong số đó
+    rơi vào hai split khác nhau.
+
+    Vì sao chỉ đọc trong ngoặc: tiêu đề văn bản sửa đổi có chứa số hiệu của văn
+    bản BỊ sửa ("Thông tư ... Sửa đổi Nghị định 158/2005/NĐ-CP"). Quét cả tiêu
+    đề thì bốc phải số hiệu của văn bản khác rồi gộp nhầm hai văn bản — đo được
+    18/688 văn bản bị bắt sai kiểu đó. Giới hạn trong ngoặc thì kích hoạt đúng
+    5 file cục bộ, 0 ca sai.
+    """
+    for inner in _PAREN_RE.findall(str(title or "")):
+        match = _DOC_CODE_RE.match(inner.strip())
+        if match:
+            return f"{match.group(1)}/{match.group(2)}/{match.group(3)}"
+    return ""
+
+
 def _doc_signature(doc: dict) -> str:
     """
     Chữ ký nhận dạng MỘT VĂN BẢN, dùng để bắt trùng giữa hai nguồn khác nhau.
@@ -315,17 +377,21 @@ def _doc_signature(doc: dict) -> str:
     `source_doc_id` không đủ: cùng Bộ luật Dân sự 2015, bản .pdf tự tải và bản
     trên HuggingFace mang id hoàn toàn khác nhau, nội dung cũng không byte nào
     giống byte nào (một bên qua PDF, một bên qua HTML). Thứ duy nhất trùng là
-    số hiệu văn bản — nên số hiệu là chữ ký chính, tiêu đề là phương án hai.
+    số hiệu văn bản — nên số hiệu là chữ ký chính. Nguồn không khai số hiệu thì
+    thử bóc từ tiêu đề (`_so_hieu_from_title`) trước khi rơi xuống so tiêu đề.
 
     Chữ ký rỗng (nguồn không có cả số hiệu lẫn tiêu đề) thì KHÔNG dedup theo
     chữ ký: thà giữ trùng còn hơn gộp nhầm hai văn bản khác nhau.
     """
     metadata = _metadata_of(doc)
+    title = metadata.get("title")
     so_ky_hieu = _normalize(metadata.get("so_ky_hieu") or metadata.get("so_hieu"))
+    if not so_ky_hieu:
+        so_ky_hieu = _normalize(_so_hieu_from_title(title))
     if so_ky_hieu:
         return f"sh:{so_ky_hieu}"
-    title = _normalize(metadata.get("title"))
-    return f"tt:{title}" if title else ""
+    normalized_title = _normalize(title)
+    return f"tt:{normalized_title}" if normalized_title else ""
 
 
 def merge_corpora(primary: list[dict], secondary: list[dict]) -> list[dict]:
@@ -404,6 +470,11 @@ def _iter_cache_lines():
                 index += 1
 
 
+def _parse_effective_lines() -> list[dict]:
+    """Đọc cả cache thành list, đã bỏ document hết hiệu lực (đường KHÔNG áp trần)."""
+    return apply_effect_filter([json.loads(line) for _, line in _iter_cache_lines()])
+
+
 def _read_cached_corpus() -> list[dict]:
     """
     Đọc cache và áp trần theo nhánh mà KHÔNG giữ cả corpus trong RAM.
@@ -424,7 +495,7 @@ def _read_cached_corpus() -> list[dict]:
     """
     if not SCOPE_QUOTA_ENABLED:
         # Không áp trần thì lượt 1 không tiết kiệm được gì, đọc thẳng một lượt.
-        return [json.loads(line) for _, line in _iter_cache_lines()]
+        return _parse_effective_lines()
 
     # Cache đời cũ không có `source_kind` → không phân biệt được nguồn nào là
     # nguồn nào, áp trần sẽ cắt nhầm cả corpus cục bộ mà không báo gì.
@@ -436,7 +507,12 @@ def _read_cached_corpus() -> list[dict]:
             doc = json.loads(line)
             if "source_kind" in doc:
                 seen_source_kind = True
-            yield doc.get("scope"), doc.get("source_kind"), doc.get("source_doc_id")
+            yield (
+                doc.get("scope"),
+                doc.get("source_kind"),
+                doc.get("source_doc_id"),
+                is_effective(doc),
+            )
 
     keep, report = _choose_quota_indices(_entries())
 
@@ -445,7 +521,7 @@ def _read_cached_corpus() -> list[dict]:
             "Cache không có trường `source_kind` (cache đời cũ?) → BỎ QUA hạn ngạch "
             "theo nhánh. Chạy lại với --rebuild-corpus để áp được trần."
         )
-        return [json.loads(line) for _, line in _iter_cache_lines()]
+        return _parse_effective_lines()
 
     documents = [
         json.loads(line) for index, line in _iter_cache_lines() if index in keep
@@ -466,9 +542,15 @@ def _choose_quota_indices(entries) -> tuple[set[int], list[tuple[str, int, int]]
     """
     Chọn chỉ số document được giữ lại sau khi áp trần.
 
-    Nhận iterable của `(scope, source_kind, source_doc_id)` — CỐ Ý không nhận
-    cả doc dict: đường đọc cache cần quyết định giữ cái nào TRƯỚC khi dựng dict
-    đầy đủ, nếu không thì phải ôm trọn corpus trong RAM đúng cái lúc muốn tránh.
+    Nhận iterable của `(scope, source_kind, source_doc_id, effective)` — CỐ Ý
+    không nhận cả doc dict: đường đọc cache cần quyết định giữ cái nào TRƯỚC khi
+    dựng dict đầy đủ, nếu không thì phải ôm trọn corpus trong RAM đúng cái lúc
+    muốn tránh.
+
+    `effective=False` bị bỏ NGAY, trước khi đếm trần: trần phải áp trên phần
+    thực sự dùng được, không thì hạn ngạch bị văn bản hết hiệu lực ăn mất chỗ.
+    Chỉ số vẫn đếm theo TOÀN BỘ đầu vào (bỏ qua chứ không bỏ khỏi `enumerate`),
+    vì hàm gọi đối chiếu `keep` với số thứ tự dòng trong cache.
 
     Trả `(keep, None)` khi không có gì để áp trần (không có phần bổ sung), để
     hàm gọi biết mà trả nguyên đầu vào thay vì dựng lại danh sách.
@@ -476,7 +558,9 @@ def _choose_quota_indices(entries) -> tuple[set[int], list[tuple[str, int, int]]
     supplement_by_scope: dict[str, list[int]] = defaultdict(list)
     keep: set[int] = set()
     doc_ids: dict[int, str] = {}
-    for index, (scope, source_kind, source_doc_id) in enumerate(entries):
+    for index, (scope, source_kind, source_doc_id, effective) in enumerate(entries):
+        if not effective:
+            continue
         if source_kind == "local":
             keep.add(index)
         else:
@@ -537,7 +621,8 @@ def apply_scope_quota(documents: list[dict]) -> list[dict]:
         return documents
 
     keep, report = _choose_quota_indices(
-        (doc.get("scope"), doc.get("source_kind"), doc.get("source_doc_id"))
+        (doc.get("scope"), doc.get("source_kind"), doc.get("source_doc_id"),
+         is_effective(doc))
         for doc in documents
     )
     if report is None:
@@ -577,9 +662,11 @@ def load_scoped_corpus(
     (như `load_and_preprocess(max_items=N)` làm) sẽ lấy N document đầu nguồn,
     gần như không có văn bản dân sự nào trong đó.
 
-    Lưu ý về hạn ngạch: cache lưu corpus ĐẦY ĐỦ, `SCOPE_QUOTAS` áp lúc ĐỌC —
-    nên đổi hạn ngạch KHÔNG cần `--rebuild-corpus`, khác với đổi nguồn hay đổi
-    phạm vi. Đây là ngoại lệ duy nhất của cái bẫy cache nói ở dưới.
+    Lưu ý về hạn ngạch và lọc hiệu lực: cache lưu corpus ĐẦY ĐỦ, cả
+    `SCOPE_QUOTAS` lẫn `QA_CORPUS_EFFECT_FILTER` đều áp lúc ĐỌC — nên đổi hai
+    thứ đó KHÔNG cần `--rebuild-corpus`, khác với đổi nguồn hay đổi phạm vi.
+    Đó là hai ngoại lệ duy nhất của cái bẫy cache nói ở dưới; riêng dedup giữa
+    hai nguồn (`merge_corpora`) chạy TRƯỚC khi ghi cache nên vẫn cần rebuild.
     """
     threshold = MIN_CONTENT_LENGTH if min_content_length is None else min_content_length
 
@@ -650,6 +737,11 @@ def load_scoped_corpus(
             for doc in documents:
                 f.write(json.dumps(doc, ensure_ascii=False) + "\n")
         logger.info(f"Đã cache → {SCOPED_CORPUS_CACHE}")
+
+    # ── Lọc hiệu lực ──────────────────────────────────────────────
+    # Cũng áp SAU khi ghi cache, cùng lý do với hạn ngạch: cache giữ corpus ĐẦY
+    # ĐỦ nên tắt/bật `QA_CORPUS_EFFECT_FILTER` không cần --rebuild-corpus.
+    documents = apply_effect_filter(documents)
 
     # ── Hạn ngạch theo nhánh ──────────────────────────────────────
     # Áp SAU khi ghi cache là cố ý: cache giữ corpus ĐẦY ĐỦ, trần áp lúc đọc.

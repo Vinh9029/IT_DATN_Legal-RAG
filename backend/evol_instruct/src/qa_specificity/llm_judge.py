@@ -24,7 +24,7 @@ import openai
 from loguru import logger
 from tqdm import tqdm
 
-from config.qa_prompts import build_judge_messages
+from config.qa_prompts import JUDGE_PROMPT_VERSION, build_judge_messages
 from config.qa_settings import (
     CHARS_PER_TOKEN_VI,
     JUDGE_EST_OUTPUT_TOKENS,
@@ -86,6 +86,11 @@ def parse_judge_response(text: str) -> dict:
         for key in ("axis1", "axis2", "axis3")
         if payload.get(key) is not None
     }
+    # Danh sách chế định của trục 2: giữ lại để khi người và judge bất đồng thì
+    # đối chiếu được HAI DANH SÁCH thay vì tranh luận về nhãn (guideline §3).
+    axis2_list = payload.get("axis2_list")
+    if isinstance(axis2_list, list):
+        result["axes"]["axis2_list"] = [str(x)[:60] for x in axis2_list[:6]]
     return result
 
 
@@ -213,12 +218,17 @@ def estimate_judge_cost(
     được quyết định "có đủ rẻ để chạy không".
 
     Chỉ tính những câu CHƯA có trong cache — đó mới là phần thực sự phải trả.
+    Bản ghi chấm bằng prompt đời trước bị tính là CHƯA có, đúng như `judge_batch`
+    sẽ xử lý, nếu không thì báo giá rẻ hơn hẳn số tiền thực sự bị trừ.
 
     Returns:
         dict thống kê; `usd_total` là con số để ra quyết định.
     """
     cache = _load_cache(cache_path)
-    pending = [i for i in items if i.item_id not in cache]
+    pending = [
+        i for i in items
+        if cache.get(i.item_id, {}).get("prompt_version") != JUDGE_PROMPT_VERSION
+    ]
 
     input_chars = sum(
         len(msg["content"])
@@ -273,9 +283,15 @@ def judge_batch(
     n_cached = 0
     n_called = 0
     n_failed = 0
+    n_stale = 0
 
     for item in tqdm(items, desc="LLM judge"):
         cached = cache.get(item.item_id)
+        # Bỏ qua bản ghi chấm bằng prompt đời trước: dùng lại là trộn hai bộ
+        # tiêu chí vào cùng một dataset mà không có cách nào phát hiện về sau.
+        if cached is not None and cached.get("prompt_version") != JUDGE_PROMPT_VERSION:
+            cached = None
+            n_stale += 1
         if cached is not None:
             result = {
                 "label": Specificity.parse(cached.get("judge_label")),
@@ -293,6 +309,7 @@ def judge_batch(
                         "judge_label": result["label"].value if result["label"] else None,
                         "judge_reason": result["reason"],
                         "judge_axes": result["axes"],
+                        "prompt_version": JUDGE_PROMPT_VERSION,
                         "judge_model": judge.model_name,
                     },
                     cache_path,
@@ -306,6 +323,7 @@ def judge_batch(
 
     logger.info(
         f"Judge xong: {n_called} lượt gọi mới, {n_cached} lấy từ cache, "
+        f"{n_stale} chấm lại vì cache thuộc prompt đời trước, "
         f"{n_failed} không parse được nhãn"
     )
     if n_failed and n_failed / max(len(items), 1) > 0.1:

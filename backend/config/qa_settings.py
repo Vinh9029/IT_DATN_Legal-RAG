@@ -76,7 +76,7 @@ JUDGE_PRICE_INPUT_PER_M = float(os.getenv("QA_JUDGE_PRICE_INPUT_PER_M", "0.30"))
 JUDGE_PRICE_OUTPUT_PER_M = float(os.getenv("QA_JUDGE_PRICE_OUTPUT_PER_M", "2.50"))
 
 # Output judge là một object JSON ngắn (label + reason cắt 200 ký tự + 3 trục).
-JUDGE_EST_OUTPUT_TOKENS = int(os.getenv("QA_JUDGE_EST_OUTPUT_TOKENS", "80"))
+JUDGE_EST_OUTPUT_TOKENS = int(os.getenv("QA_JUDGE_EST_OUTPUT_TOKENS", "110"))
 
 # Tiếng Việt tốn token hơn tiếng Anh nhiều: ~2,5 ký tự/token chứ không phải 4
 # (spec §3.2). Ước lượng theo ký tự là CỐ Ý — đếm token chính xác cần gọi API,
@@ -179,7 +179,6 @@ CIVIL_ANCHOR_TITLES = {
     "hon_nhan_gia_dinh": ["hôn nhân và gia đình", "hôn nhân gia đình",
                           "luật con nuôi", "nuôi con nuôi",
                           "luật hộ tịch", "luật quốc tịch"],
-    "thua_ke": ["thừa kế", "di chúc"],
     "dat_dai_nha_o": ["luật đất đai", "luật nhà ở", "kinh doanh bất động sản",
                       "quyền sử dụng đất", "bồi thường, hỗ trợ, tái định cư"],
     "so_huu_tri_tue": ["sở hữu trí tuệ", "quyền tác giả", "sở hữu công nghiệp"],
@@ -196,7 +195,6 @@ CIVIL_ANCHOR_TITLES = {
 CIVIL_METADATA_KEYWORDS = {
     "to_tung_thi_hanh_an": ["thi hành án dân sự", "tố tụng dân sự"],
     "hon_nhan_gia_dinh": ["hôn nhân", "hộ tịch", "quốc tịch", "con nuôi"],
-    "thua_ke": ["thừa kế"],
     "dat_dai_nha_o": ["đất đai", "nhà ở", "bất động sản"],
     "so_huu_tri_tue": ["sở hữu trí tuệ"],
     "hop_dong_bao_dam": ["giao dịch bảo đảm", "công chứng", "chứng thực"],
@@ -242,12 +240,27 @@ INCLUDED_DOC_TYPES = [
 SCOPE_FILTER_MODE = os.getenv("QA_SCOPE_FILTER_MODE", "auto").strip().lower()
 SCOPE_AUTO_MIN_RATIO = float(os.getenv("QA_SCOPE_AUTO_MIN_RATIO", "0.20"))
 
+# Lọc theo tình trạng hiệu lực. Đo trên corpus đã gộp: 8.550/16.400 Điều thuộc
+# văn bản "Hết hiệu lực toàn bộ" — sinh câu hỏi từ đó là dạy model luật đã bị
+# thay thế. "Hết hiệu lực một phần" vẫn giữ, vì phần bị bãi bỏ thường chỉ là
+# vài điều trong khi phần còn lại vẫn đang áp dụng.
+#
+# Ô TRỐNG LUÔN ĐƯỢC GIỮ: corpus cục bộ (.pdf) không mang trường này, siết ở đây
+# là xoá sạch BLDS/BLTTDS mà không có lỗi nào báo — cùng kiểu hỏng mà
+# `is_normative_doc()` đã phải né.
+EFFECT_FILTER_ENABLED = os.getenv("QA_CORPUS_EFFECT_FILTER", "1").strip().lower() in (
+    "1", "true", "yes", "on"
+)
+EFFECT_STATUSES_KEPT = frozenset({
+    "", "còn hiệu lực", "hết hiệu lực một phần", "chưa xác định", "chưa có hiệu lực",
+})
+
 # ══════════════════════════════════════════════════════════════════
 # HẠN NGẠCH THEO NHÁNH — giữ dân sự làm trọng tâm
 # ══════════════════════════════════════════════════════════════════
-# Đo được khi bật QA_CORPUS_MERGE_HF=1: corpus ra 16.400 Điều, nhưng đất
-# đai/nhà ở chiếm 4.554 và tố tụng 3.984, còn thừa kế chỉ 126. Hai nhánh luật
-# chuyên ngành lấn át đúng cái lõi mà đề tài nhắm tới.
+# Không có trần thì corpus lệch hẳn khỏi phạm vi đã tuyên bố: đo sau khi lọc
+# hiệu lực và dedup, corpus còn 6.881 Điều nhưng lõi dân sự chỉ chiếm 32,1%,
+# còn đất đai + sở hữu trí tuệ chiếm 38%.
 #
 # Cách hỏng ở đây KHÔNG lộ ra ở pass rate — pass rate vẫn đẹp. Nó lộ ra ở chỗ
 # classifier được gọi là học "độ cụ thể" nhưng thực chất học trên một phân bố
@@ -258,26 +271,35 @@ SCOPE_AUTO_MIN_RATIO = float(os.getenv("QA_SCOPE_AUTO_MIN_RATIO", "0.20"))
 # BLDS + BLTTDS tự tải, là nguồn neo của đề tài — luôn giữ nguyên vẹn và không
 # đếm vào trần.
 #
-# Con số cần ghi vào báo cáo là TỈ LỆ ba tầng, không phải trần tuyệt đối:
-#   lõi dân sự (BLDS và các chế định trực thuộc)   ~74%
-#   tố tụng / thi hành án (thủ tục thực thi quyền)  ~17%
-#   luật chuyên ngành lân cận (phụ, để có độ phủ)    ~9%
+# ─── Vì sao trần của lõi cao hơn nguồn có ───
+#
+# Sau khi lọc hiệu lực, bốn nhánh lõi đã CẠN (nguồn HF còn ít hơn trần), nên
+# trần của chúng không cắt gì cả — để nguyên là cố ý, vì chúng là trần danh
+# nghĩa phòng khi nguồn nở ra. Chỉ 4 trần dưới đây thực sự cắt. XOÁ tên một
+# nhánh khỏi dict này KHÔNG có nghĩa "lấy hết": nhánh không có tên sẽ rơi về
+# `SCOPE_QUOTA_DEFAULT` (=100) và bị cắt xuống còn 100.
+#
+# Con số đo được với trần hiện tại (4.050 Điều) — ghi vào báo cáo theo tỉ lệ
+# ba tầng chứ không phải trần tuyệt đối:
+#   lõi dân sự (BLDS và các chế định trực thuộc)   54,6%
+#   tố tụng / thi hành án (thủ tục thực thi quyền) 25,0%
+#   luật chuyên ngành lân cận (phụ, để có độ phủ)  20,4%
 SCOPE_QUOTAS = {
-    # ── Lõi dân sự ────────────────────────────────────────────────
-    "dan_su_chung": 1400,
-    "hop_dong_bao_dam": 700,
-    "hon_nhan_gia_dinh": 600,
-    "boi_thuong": 400,
-    "thua_ke": 126,              # nguồn chỉ có đúng 126 Điều — lấy hết
+    # ── Lõi dân sự: nguồn đã cạn, trần chỉ là chặn trên danh nghĩa ──
+    "dan_su_chung": 1400,        # nguồn HF có 275
+    "hop_dong_bao_dam": 700,     # nguồn HF có 417
+    "hon_nhan_gia_dinh": 800,    # nguồn HF có 755
+    "boi_thuong": 400,           # nguồn HF có 267
     # ── Thủ tục ───────────────────────────────────────────────────
-    "to_tung_thi_hanh_an": 400,
+    "to_tung_thi_hanh_an": 550,  # nguồn HF có 1.345 → trần CẮT
     # ── Phụ / extra ───────────────────────────────────────────────
     # Có mặt để corpus không hụt hẳn các chế định lân cận, nhưng không được
-    # lấn lõi. Đất đai bị siết mạnh nhất (4.554 → 200) vì đo ra nó chính là
-    # nhánh lan man nhất.
-    "dat_dai_nha_o": 200,
-    "so_huu_tri_tue": 130,
-    "giai_quyet_tranh_chap": 100,
+    # lấn lõi. Trần cũ (200/130/100) siết tới mức tập test chỉ còn 6 cặp sở
+    # hữu trí tuệ — không đủ để báo cáo metric theo nhánh. Mức dưới đây là
+    # ngưỡng thấp nhất cho ~40 cặp test mỗi nhánh mà lõi vẫn quá bán.
+    "dat_dai_nha_o": 350,        # nguồn HF có 1.579 → trần CẮT
+    "so_huu_tri_tue": 250,       # nguồn HF có 1.057 → trần CẮT
+    "giai_quyet_tranh_chap": 225,  # nguồn HF có 225 → lấy hết
 }
 
 # Nhánh không có tên trong `SCOPE_QUOTAS` (kể cả "unknown") dùng trần này. Đặt
@@ -302,10 +324,28 @@ SCOPE_QUOTA_ENABLED = os.getenv("QA_SCOPE_QUOTA_ENABLED", "1").strip().lower() i
 
 # Nhánh nào được tính là "lõi dân sự" khi log tỉ lệ ba tầng. Chỉ dùng để BÁO
 # CÁO, không tham gia lọc — nên sửa ở đây không đổi corpus, chỉ đổi con số in ra.
+# `thua_ke` KHONG con la mot nhanh: xem chu thich o SCOPE_QUOTAS.
 SCOPE_CORE_BRANCHES = [
     "dan_su_chung", "hop_dong_bao_dam", "hon_nhan_gia_dinh",
-    "boi_thuong", "thua_ke",
+    "boi_thuong",
 ]
+
+# Phần document được giao cho nhánh `situation` (phần còn lại đi `citation`).
+#
+# Không đặt 0.5: hai nhánh có pass rate KHÁC NHAU nên chia đều lúc giao sẽ ra
+# một tập verified lệch. Đo trên pilot 150 document: citation qua 73,3%,
+# situation qua 53,1% — chia 50/50 thì verified thành 58/42 nghiêng citation.
+#
+# Lệch đó không vô hại: nhanh narrow của citation LUÔN có trích dẫn còn broad thì
+# không, nên càng nhiều citation thì luật "có nhắc số Điều = narrow" càng đoán
+# đúng — đo được: tập verified 68/32 cho regex 84,0%, tập 50/50 cho ~74%.
+# Đây chính là shortcut mà Phần 3 phải tránh.
+#
+# 0.58 = 73,3 / (73,3 + 53,1), tức nghịch đảo pass rate để verified ra ~50/50.
+# Đo lại pass rate mỗi lần đổi prompt rồi chỉnh lại số này.
+NARROW_MODE_SITUATION_SHARE = float(
+    os.getenv("QA_NARROW_MODE_SITUATION_SHARE", "0.58")
+)
 
 MIN_CONTENT_LENGTH = int(os.getenv("QA_MIN_CONTENT_LENGTH", "500"))
 MAX_DOC_CHARS = int(os.getenv("QA_MAX_DOC_CHARS", "2000"))  # cắt context như seed_generator
@@ -357,7 +397,13 @@ FORCE_NARROW_MODE = os.getenv("QA_FORCE_NARROW_MODE", "").strip().lower()
 #        kết quả cho biến nào. Đo trên pilot 120 cặp: narrow bị bác 54,6% →
 #        30,0%, câu hỏi mở 30,1% → 10,0%, và độ khó thật không đổi (shortcut
 #        baseline 49,5% → 50,0%).
-GEN_VERSION = os.getenv("QA_GEN_VERSION", "v2").strip()
+#   v3 — (2026-09-14) đổi đồng thời corpus và tiêu chí, nên KHÔNG so trực tiếp
+#        được với v2: corpus đã lọc văn bản hết hiệu lực và khử bản BLDS/BLTTDS
+#        trùng; guideline lên v1.3 (trục 2 phải liệt kê `axis2_list`, thêm phép
+#        thử xoá tình huống); `NARROW_MODE_SITUATION_SHARE` cân lại hai nhánh.
+#        Đo trên pilot 150 văn bản: pass rate 46,1% → 58,5%, nhánh situation
+#        37,0% → 52,1%, shortcut trích dẫn 84,0% → 75,0%, nhánh verified 50/50.
+GEN_VERSION = os.getenv("QA_GEN_VERSION", "v3").strip()
 
 
 # ── Đọc PDF ───────────────────────────────────────────────────────
@@ -423,6 +469,14 @@ TRAIN_FILE = QA_FINAL_DIR / "train.json"
 VAL_FILE = QA_FINAL_DIR / "val.json"
 TEST_FILE = QA_FINAL_DIR / "test.json"
 STATS_FILE = QA_FINAL_DIR / "stats.json"
+BASELINES_FILE = QA_FINAL_DIR / "baselines.json"   # script 14
+KAPPA_REPORT_FILE = QA_LABELED_DIR / "kappa_report.json"  # script 11 --compute-kappa
+
+
+# ── Dataset card cho bản trên HuggingFace ─────────────────────────
+# Chỉ hai thứ đi vào nội dung card; việc đẩy lên Hub là lệnh `hf upload`.
+HF_DATASET_REPO_ID = os.getenv("QA_HF_REPO_ID", "").strip()
+HF_DATASET_VERSION = os.getenv("QA_DATASET_VERSION", "v3").strip()
 
 
 # ── Ngưỡng quyết định của spec §4 bước 2 ──────────────────────────

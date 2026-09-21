@@ -17,11 +17,17 @@ import pytest
 from unittest.mock import MagicMock
 
 from evol_instruct.src.qa_specificity import corpus_filter
+from evol_instruct.src.qa_specificity import hf_publisher
 from evol_instruct.src.qa_specificity.corpus_filter import (
+    _doc_signature,
+    _so_hieu_from_title,
+    apply_effect_filter,
     apply_scope_filter,
     derive_doc_id,
+    is_effective,
     is_in_scope,
     is_normative_doc,
+    merge_corpora,
     scope_of,
 )
 from evol_instruct.src.qa_specificity.corpus_loader import (
@@ -39,6 +45,7 @@ from evol_instruct.src.qa_specificity.dataset_builder import (
     resolve_item,
 )
 from evol_instruct.src.qa_specificity.llm_judge import estimate_judge_cost, parse_judge_response
+from config.qa_prompts import JUDGE_PROMPT_VERSION
 from config.qa_prompts import (
     NARROW_MODE_CITATION,
     NARROW_MODE_SITUATION,
@@ -638,6 +645,30 @@ class TestParseJudgeResponse:
 # dataset_builder — hợp nhất nhãn
 # ══════════════════════════════════════════════════════════════════
 
+class TestAxis2List:
+    def test_giu_danh_sach_che_dinh_cua_truc_2(self):
+        out = parse_judge_response(
+            '{"axis1":"broad","axis2_list":["A"],"axis2":"narrow",'
+            '"axis3":"narrow","label":"narrow","reason":"x"}'
+        )
+        assert out["axes"]["axis2_list"] == ["A"]
+
+    def test_judge_doi_cu_khong_co_truong_nay_van_parse_duoc(self):
+        out = parse_judge_response(
+            '{"axis1":"broad","axis2":"narrow","axis3":"narrow","label":"narrow"}')
+        assert out["label"] is Specificity.NARROW
+        assert "axis2_list" not in out["axes"]
+
+    @pytest.mark.parametrize("bad", ['"chuoi"', "123", "null", '{"a":1}'])
+    def test_sai_kieu_thi_bo_qua_chu_khong_no(self, bad):
+        out = parse_judge_response(
+            '{"axis1":"broad","axis2_list":%s,"axis2":"narrow","axis3":"narrow",'
+            '"label":"narrow"}' % bad
+        )
+        assert out["label"] is Specificity.NARROW
+        assert "axis2_list" not in out["axes"]
+
+
 class TestResolveItem:
     def test_ba_tang_dong_thuan_thi_giu(self):
         item = resolve_item(make_item(judge=Specificity.BROAD))
@@ -796,6 +827,98 @@ class TestAssertNoLeakage:
             "test": make_pair(3, doc_id="docC"),
         })
 
+    def test_bat_cung_mot_dieu_luat_qua_hai_nguon(self):
+        """Cung Dieu 623 BLDS vao qua PDF cuc bo va qua HF - hai doc_id, mot dieu."""
+        tu_pdf = make_pair(1, doc_id="doc_local#dieu-623")
+        tu_hf = make_pair(2, doc_id="doc_hf#dieu-623")
+        for item in tu_pdf:
+            item.metadata = {"title": "Bộ luật Dân sự 2015 (91-2015-QH13) - Phần 2",
+                             "so_hieu": "", "dieu": "623"}
+        for item in tu_hf:
+            item.metadata = {"title": "Bộ luật Dân sự số 91/2015/QH13",
+                             "so_hieu": "91/2015/QH13", "dieu": "623"}
+        with pytest.raises(AssertionError, match="hai source_doc_id khác nhau"):
+            assert_no_leakage({"train": tu_pdf, "val": [], "test": tu_hf})
+
+    def test_thieu_so_hieu_va_dieu_thi_khong_bao_oan(self):
+        a = make_pair(1, doc_id="docA")
+        b = make_pair(2, doc_id="docB")
+        for item in a + b:
+            item.metadata = {"title": "Văn bản không rõ", "so_hieu": "", "dieu": ""}
+        assert_no_leakage({"train": a, "val": [], "test": b})
+
+
+class TestSoHieuTuTitle:
+    def test_boc_duoc_so_hieu_trong_ngoac(self):
+        assert _so_hieu_from_title(
+            "Bộ luật Dân sự 2015 (91-2015-QH13) - Phần 1") == "91/2015/QH13"
+
+    def test_khong_boc_so_hieu_cua_van_ban_bi_sua_doi(self):
+        """So hieu ngoai ngoac la cua van ban KHAC - boc vao la gop nham."""
+        assert _so_hieu_from_title(
+            "Thông tư 06/2012/TTLT-BTP-BNG Sửa đổi Nghị định 158/2005/NĐ-CP") == ""
+
+    def test_title_rong_hoac_none(self):
+        assert _so_hieu_from_title("") == ""
+        assert _so_hieu_from_title(None) == ""
+
+
+class TestDocSignature:
+    def test_ban_pdf_va_ban_hf_cung_mot_chu_ky(self):
+        pdf = {"metadata": {"title": "Bộ luật Dân sự 2015 (91-2015-QH13) - Phần 2",
+                            "so_hieu": ""}}
+        hf = {"metadata": {"title": "Bộ luật Dân sự số 91/2015/QH13",
+                           "so_hieu": "91/2015/QH13"}}
+        assert _doc_signature(pdf) == _doc_signature(hf) == "sh:91/2015/qh13"
+
+    def test_hai_van_ban_khac_nhau_khong_dung_chung_chu_ky(self):
+        a = {"metadata": {"title": "Luật Hôn nhân và gia đình số 52/2014/QH13",
+                          "so_hieu": "52/2014/QH13"}}
+        b = {"metadata": {"title": "Bộ luật Dân sự số 91/2015/QH13",
+                          "so_hieu": "91/2015/QH13"}}
+        assert _doc_signature(a) != _doc_signature(b)
+
+    def test_khong_co_gi_de_nhan_dang_thi_chu_ky_rong(self):
+        assert _doc_signature({"metadata": {"title": "", "so_hieu": ""}}) == ""
+
+    def test_merge_loai_ban_hf_giu_ban_cuc_bo(self):
+        pdf = {"source_doc_id": "loc1", "source_kind": "local",
+               "metadata": {"title": "Bộ luật Dân sự 2015 (91-2015-QH13) - Phần 1",
+                            "so_hieu": ""}}
+        hf = {"source_doc_id": "hf1", "source_kind": "hf",
+              "metadata": {"title": "Bộ luật Dân sự số 91/2015/QH13",
+                           "so_hieu": "91/2015/QH13"}}
+        khac = {"source_doc_id": "hf2", "source_kind": "hf",
+                "metadata": {"title": "Luật Hộ tịch số 60/2014/QH13",
+                             "so_hieu": "60/2014/QH13"}}
+        merged = merge_corpora([pdf], [hf, khac])
+        assert [d["source_doc_id"] for d in merged] == ["loc1", "hf2"]
+
+
+class TestLocHieuLuc:
+    @pytest.mark.parametrize("trang_thai", [
+        "", None, "Còn hiệu lực", "Hết hiệu lực một phần", "Chưa xác định",
+    ])
+    def test_giu_lai(self, trang_thai):
+        assert is_effective({"metadata": {"tinh_trang_hieu_luc": trang_thai}})
+
+    def test_bo_van_ban_het_hieu_luc_toan_bo(self):
+        assert not is_effective(
+            {"metadata": {"tinh_trang_hieu_luc": "Hết hiệu lực toàn bộ"}})
+
+    def test_nguon_cuc_bo_khong_khai_truong_nay_van_duoc_giu(self):
+        """PDF khong mang metadata hieu luc - siet o day la xoa sach BLDS."""
+        assert is_effective({"metadata": {"title": "BLDS 2015"}})
+        assert apply_effect_filter([{"metadata": {"title": "BLDS 2015"}}])
+
+    def test_apply_effect_filter_giu_dung_thu_tu(self):
+        docs = [
+            {"id": "a", "metadata": {"tinh_trang_hieu_luc": "Còn hiệu lực"}},
+            {"id": "b", "metadata": {"tinh_trang_hieu_luc": "Hết hiệu lực toàn bộ"}},
+            {"id": "c", "metadata": {"tinh_trang_hieu_luc": ""}},
+        ]
+        assert [d["id"] for d in apply_effect_filter(docs)] == ["a", "c"]
+
 
 # ══════════════════════════════════════════════════════════════════
 # Cohen's kappa
@@ -849,14 +972,32 @@ class TestEstimateJudgeCost:
 
         cache = tmp_path / "judge_cache.jsonl"
         cache.write_text(
-            json.dumps({"item_id": "q0", "judge_label": "broad"}, ensure_ascii=False) + "\n"
-            + json.dumps({"item_id": "q1", "judge_label": None}, ensure_ascii=False) + "\n",
+            json.dumps({"item_id": "q0", "judge_label": "broad",
+                        "prompt_version": JUDGE_PROMPT_VERSION}, ensure_ascii=False) + "\n"
+            + json.dumps({"item_id": "q1", "judge_label": None,
+                          "prompt_version": JUDGE_PROMPT_VERSION}, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
         items = [make_item(item_id=f"q{i}") for i in range(3)]
         est = estimate_judge_cost(items, cache_path=cache)
         assert est["n_cached"] == 1        # chỉ q0
         assert est["n_calls"] == 2         # q1 (hỏng) + q2
+
+    def test_cache_cua_prompt_doi_truoc_van_phai_tra_tien(self, tmp_path):
+        """Doi tieu chi ma cache cu van dung lai thi thay doi bien mat im lang."""
+        import json
+
+        cache = tmp_path / "judge_cache.jsonl"
+        cache.write_text(
+            json.dumps({"item_id": "q0", "judge_label": "broad"}, ensure_ascii=False) + "\n"
+            + json.dumps({"item_id": "q1", "judge_label": "narrow",
+                          "prompt_version": "v0-doi-cu"}, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        items = [make_item(item_id=f"q{i}") for i in range(2)]
+        est = estimate_judge_cost(items, cache_path=cache)
+        assert est["n_calls"] == 2
+        assert est["n_cached"] == 0
 
     def test_bo_fewshot_thi_prompt_ngan_lai(self):
         items = [make_item()]
@@ -1011,3 +1152,69 @@ class TestSplitByArticle:
                "content_length": 900, "metadata": {}}
         out = expand_documents_by_article([doc])
         assert out == [doc]
+
+
+# ══════════════════════════════════════════════════════════════════
+# DATASET CARD CHO BẢN ĐƯA LÊN HUGGINGFACE
+# ══════════════════════════════════════════════════════════════════
+
+class TestHFCard:
+    """Card phải phản ánh ĐÚNG file thống kê, kể cả khi thiếu file."""
+
+    STATS = {
+        "random_seed": 42,
+        "ratios": {"train": 0.7, "val": 0.15, "test": 0.15},
+        "total_items": 6506, "total_pairs": 3253, "total_source_docs": 2414,
+        "splits": {
+            "train": {"n_items": 4588, "n_pairs": 2294, "n_source_docs": 1689,
+                      "label_counts": {"broad": 2294, "narrow": 2294},
+                      "scope_counts": {"dan_su_chung": 1262}},
+            "val": {"n_items": 970, "n_pairs": 485, "n_source_docs": 362,
+                    "label_counts": {"broad": 485, "narrow": 485},
+                    "scope_counts": {"dan_su_chung": 250}},
+            "test": {"n_items": 948, "n_pairs": 474, "n_source_docs": 363,
+                     "label_counts": {"broad": 474, "narrow": 474},
+                     "scope_counts": {"dan_su_chung": 250}},
+        },
+    }
+    ALIAS = {"train": "train", "val": "validation", "test": "test"}
+
+    def _render(self, **kwargs):
+        args = {"repo_id": "u/d", "version": "v3", "stats": self.STATS,
+                "baselines": {}, "kappa": {}, "split_alias": self.ALIAS}
+        args.update(kwargs)
+        return hf_publisher.render_card_body(**args)
+
+    def test_so_lieu_lay_tu_stats_khong_hardcode(self):
+        card = self._render()
+        assert "6.506" in card and "3.253" in card
+        # tên split trên Hub, không phải tên file trên đĩa
+        assert "| `validation` |" in card and "| `val` |" not in card
+
+    def test_thieu_file_thong_ke_van_sinh_duoc_card(self):
+        card = self._render()
+        assert "Chưa chạy" in card
+        assert card.startswith("# Vietnamese Legal QA")
+
+    def test_kappa_tach_theo_nhanh_duoc_neu_ro(self):
+        card = self._render(kappa={
+            "cohen_kappa": 0.8427, "raw_agreement": 0.9211, "n_samples": 76,
+            "by_narrow_mode": {"citation": {"cohen_kappa": 1.0, "n": 52},
+                               "situation": {"cohen_kappa": 0.5, "n": 24}},
+        })
+        # Con số tổng che mất nhánh situation yếu — card phải nói ra điều đó.
+        assert "0.8427" in card and "0.5" in card
+        assert "situation" in card
+
+    def test_repo_id_va_version_vao_card(self):
+        card = self._render(repo_id="vu/legal-qa", version="v4")
+        assert 'load_dataset("vu/legal-qa")' in card
+        assert "v4" in card.splitlines()[0]   # tiêu đề mang số phiên bản
+
+    def test_frontmatter_khai_bao_dung_3_split(self):
+        # Không để Hub đoán split từ tên file: đổi tên file một cái là viewer
+        # lặng lẽ gom hết vào `train`.
+        fm = hf_publisher.render_frontmatter("v3", "other", self.ALIAS)
+        assert "- split: validation\n        path: val.json" in fm
+        assert "- split: train\n        path: train.json" in fm
+        assert "- split: test\n        path: test.json" in fm

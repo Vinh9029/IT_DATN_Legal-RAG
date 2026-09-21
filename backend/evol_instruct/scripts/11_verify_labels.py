@@ -47,6 +47,7 @@ from evol_instruct.src.qa_specificity.dataset_builder import (
     filter_consensus,
     save_json,
 )
+from config.qa_prompts import JUDGE_PROMPT_VERSION
 from evol_instruct.src.qa_specificity.llm_judge import JudgeClient, estimate_judge_cost, judge_batch
 from evol_instruct.src.qa_specificity.schema import QAItem, Specificity
 from evol_instruct.src.qa_specificity.weak_labeler import label_items
@@ -149,7 +150,7 @@ def cmd_compute_kappa(args, logger):
     # κ tách theo phiên bản prompt: dataset trộn v1 và v2, nên cần biết nhãn của
     # đợt nào kém tin hơn. n mỗi nhóm chỉ vài chục nên đây là chỉ báo, KHÔNG
     # phải con số để báo cáo thay κ tổng — ghi kèm n để khỏi đọc nhầm.
-    by_version = {}
+    by_mode = {}
     for record in manual_records:
         machine_record = machine_by_id.get(record.get("item_id"))
         manual = Specificity.parse(record.get("manual_label"))
@@ -158,18 +159,24 @@ def cmd_compute_kappa(args, logger):
         machine = Specificity.parse(machine_record.get("judge_label"))
         if machine is None:
             continue
-        ver = (machine_record.get("metadata") or {}).get("gen_version", "?")
-        by_version.setdefault(ver, ([], []))
-        by_version[ver][0].append(manual.value)
-        by_version[ver][1].append(machine.value)
+        # Tách theo `narrow_mode`, KHÔNG theo `gen_version`. Từ lúc mọi đợt được
+        # chấm lại bằng cùng một JUDGE_PROMPT_VERSION, `gen_version` chỉ còn cho
+        # biết câu sinh ở lượt chạy nào — nó không phân biệt tiêu chí nhãn nữa,
+        # nên tách theo nó là con số vô nghĩa mà lại trông như có ý nghĩa. Chỗ
+        # thật sự chênh là kiểu sinh câu narrow: đo 2026-09-15 trên tập gộp,
+        # citation giữ 72-77% còn situation chỉ 45-49%.
+        mode = (machine_record.get("metadata") or {}).get("narrow_mode", "?")
+        by_mode.setdefault(mode, ([], []))
+        by_mode[mode][0].append(manual.value)
+        by_mode[mode][1].append(machine.value)
 
-    result["by_gen_version"] = {
-        ver: {
+    result["by_narrow_mode"] = {
+        mode: {
             "n": len(man),
             "cohen_kappa": compute_kappa(man, mac)["cohen_kappa"] if len(set(man)) > 1 else None,
             "raw_agreement": round(sum(a == b for a, b in zip(man, mac)) / len(man), 4),
         }
-        for ver, (man, mac) in sorted(by_version.items())
+        for mode, (man, mac) in sorted(by_mode.items())
     }
 
     logger.info("\n📐 COHEN'S KAPPA (nhãn tay vs judge_label)")
@@ -179,11 +186,11 @@ def cmd_compute_kappa(args, logger):
     logger.info(f"   Nhãn          : {result['labels']}")
     logger.info(f"   Confusion     : {result['confusion_matrix']}  (hàng=tay, cột=máy)")
     logger.info(f"   → {result['interpretation']}")
-    if len(result["by_gen_version"]) > 1:
-        logger.info("   Tách theo phiên bản prompt (n nhỏ — chỉ báo, không thay κ tổng):")
-        for ver, d in result["by_gen_version"].items():
+    if len(result["by_narrow_mode"]) > 1:
+        logger.info("   Tách theo narrow_mode (n nhỏ — chỉ báo, không thay κ tổng):")
+        for mode, d in result["by_narrow_mode"].items():
             logger.info(
-                f"      {ver}: n={d['n']:<4} κ={d['cohen_kappa']}  "
+                f"      {mode:<10}: n={d['n']:<4} κ={d['cohen_kappa']}  "
                 f"trùng khớp thô={d['raw_agreement']:.1%}"
             )
 
@@ -243,6 +250,61 @@ def cmd_estimate_cost(args, logger):
         "\n   ⚠️  Đơn giá là giá công bố tại thời điểm viết code, có thể đã đổi. "
         "Tra lại rồi override bằng QA_JUDGE_PRICE_INPUT_PER_M / _OUTPUT_PER_M."
     )
+
+
+def cmd_warm_judge_cache(args, logger):
+    """
+    Chấm judge cho TỐI ĐA N câu chưa có trong cache rồi thoát — không lọc đồng
+    thuận, không ghi verified/rejected/stats.
+
+    Vì sao cần: judge cả tập là một tiến trình chạy vài tiếng, mà llama-server
+    giữ ~12GB trên máy 31GB nên hệ điều hành kill tiến trình Python khi RAM
+    trống xuống thấp (đã xảy ra ở bước sinh, và ngày 2026-09-15 ở chính bước
+    này tại câu 5.386/5.895). Mỗi mẻ là một tiến trình riêng, thoát xong trả
+    hết RAM, và cache append-only giữ tiến độ nên không mất lượt gọi nào.
+
+    CỐ Ý không ghi file kết quả: chấm dở mà vẫn lọc đồng thuận thì những câu
+    chưa tới lượt judge bị tính là `judge_missing` và bị loại oan, ghi đè
+    pairs_verified.jsonl bằng một tập thiếu hụt mà không có dấu hiệu gì báo.
+    Chạy hết mẻ rồi gọi lại script không kèm --warm-judge-cache: lúc đó mọi câu
+    đều lấy từ cache, 0 lượt gọi, và kết quả mới được ghi ra.
+
+    Exit code 0 = còn câu chưa chấm, 3 = đã chấm hết (để vòng lặp shell dừng).
+    """
+    records = load_jsonl(args.input)
+    if not records:
+        logger.error(f"❌ Không đọc được item nào từ {args.input}. Chạy script 10 trước.")
+        sys.exit(1)
+
+    items = [QAItem.from_dict(r) for r in records]
+
+    # Cùng một cách đọc cache với `judge_batch`: bản ghi chấm bằng prompt đời
+    # trước, và bản ghi mất nhãn, đều tính là CHƯA chấm.
+    cache = {}
+    for record in load_jsonl(args.judge_cache):
+        if record.get("item_id") and record.get("judge_label") is not None:
+            cache[record["item_id"]] = record
+    con_lai = [
+        i for i in items
+        if cache.get(i.item_id, {}).get("prompt_version") != JUDGE_PROMPT_VERSION
+    ]
+
+    logger.info(f"Đọc {len(items)} câu | đã có nhãn hiện hành: {len(items) - len(con_lai)}")
+    if not con_lai:
+        logger.info("✅ Không còn câu nào phải chấm. Chạy lại script không kèm "
+                    "--warm-judge-cache để lọc đồng thuận và ghi kết quả.")
+        sys.exit(3)
+
+    me = con_lai[:args.warm_judge_cache]
+    logger.info(f"\n[Tầng 3] Hâm cache theo mẻ — {len(me)}/{len(con_lai)} câu còn lại, "
+                f"model: {JUDGE_MODEL_NAME}")
+    judge = JudgeClient()
+    if not judge.health_check():
+        logger.error("❌ Judge model không phản hồi. Kiểm tra JUDGE_* trong config/qa.env")
+        sys.exit(1)
+    judge_batch(me, judge=judge, cache_path=args.judge_cache)
+
+    logger.info(f"Mẻ xong. Ước còn {len(con_lai) - len(me)} câu chưa chấm.")
 
 
 def cmd_verify(args, logger):
@@ -355,6 +417,10 @@ def main():
                         help="Coi heuristic 'ambiguous' là bất đồng thay vì abstain")
     parser.add_argument("--allow-incomplete-pairs", action="store_true",
                         help="Giữ cả câu mà cặp của nó đã mất vế kia")
+    parser.add_argument("--warm-judge-cache", type=int, metavar="N",
+                        help="Chỉ chấm N câu chưa có trong cache rồi thoát, không ghi "
+                             "kết quả. Dùng để chia bước judge thành nhiều tiến trình "
+                             "ngắn, tránh bị OOM-kill (xem run_verify_batched.sh)")
 
     parser.add_argument("--export-manual-sample", type=int, metavar="N",
                         help="Xuất N câu đã ẩn nhãn cho vòng gán tay (Bước 3)")
@@ -380,6 +446,8 @@ def main():
         cmd_export_manual_sample(args, logger)
     elif args.compute_kappa:
         cmd_compute_kappa(args, logger)
+    elif args.warm_judge_cache:
+        cmd_warm_judge_cache(args, logger)
     else:
         cmd_verify(args, logger)
 
