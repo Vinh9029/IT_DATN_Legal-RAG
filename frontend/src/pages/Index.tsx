@@ -4,41 +4,41 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/Button';
 import { Hero_chat_demo } from '@/components/Hero_chat_demo';
 import { Floating_chatbot } from '@/components/Floating_chatbot';
-import { 
-  ArrowDown, 
-  ArrowRight, 
-  BriefcaseBusiness, 
-  FileCheck2, 
-  Landmark, 
-  Scale, 
-  Bot, 
+import {
+  ArrowDown,
+  ArrowRight,
+  BriefcaseBusiness,
+  FileCheck2,
+  Landmark,
+  Scale,
+  Bot,
   ShieldCheck
 } from 'lucide-react';
 
 const areas = [
-  { 
-    number: "01", 
-    title: "Hợp đồng & dân sự", 
-    text: "Đặt cọc, mua bán, vay mượn, bồi thường và giải quyết nghĩa vụ dân sự phát sinh.", 
-    icon: FileCheck2 
+  {
+    number: "01",
+    title: "Hợp đồng & dân sự",
+    text: "Đặt cọc, mua bán, vay mượn, bồi thường và giải quyết nghĩa vụ dân sự phát sinh.",
+    icon: FileCheck2
   },
-  { 
-    number: "02", 
-    title: "Lao động", 
-    text: "Hợp đồng lao động, tiền lương, bảo hiểm xã hội, kỷ luật và chấm dứt việc làm đúng quy định.", 
-    icon: BriefcaseBusiness 
+  {
+    number: "02",
+    title: "Lao động",
+    text: "Hợp đồng lao động, tiền lương, bảo hiểm xã hội, kỷ luật và chấm dứt việc làm đúng quy định.",
+    icon: BriefcaseBusiness
   },
-  { 
-    number: "03", 
-    title: "Đất đai & nhà ở", 
-    text: "Chuyển nhượng, thừa kế, cấp giấy chứng nhận (Sổ đỏ) và giải quyết tranh chấp quyền sử dụng đất.", 
-    icon: Landmark 
+  {
+    number: "03",
+    title: "Đất đai & nhà ở",
+    text: "Chuyển nhượng, thừa kế, cấp giấy chứng nhận (Sổ đỏ) và giải quyết tranh chấp quyền sử dụng đất.",
+    icon: Landmark
   },
-  { 
-    number: "04", 
-    title: "Doanh nghiệp", 
-    text: "Thành lập, quản trị, đầu tư, tư vấn thay đổi nội dung ĐKKD và nghĩa vụ tuân thủ pháp luật.", 
-    icon: Scale 
+  {
+    number: "04",
+    title: "Doanh nghiệp",
+    text: "Thành lập, quản trị, đầu tư, tư vấn thay đổi nội dung ĐKKD và nghĩa vụ tuân thủ pháp luật.",
+    icon: Scale
   },
 ];
 
@@ -51,7 +51,7 @@ export const Index: React.FC = () => {
 
       <main>
         {/* HERO SECTION STRETCHED FULL WIDTH (w-full) WITH main_hero.png BACKGROUND */}
-        <section 
+        <section
           className="relative w-full min-h-[calc(100vh-5rem)] px-5 md:px-12 lg:px-16 pb-20 pt-12 md:pt-16 bg-cover bg-center bg-no-repeat rounded-b-3xl"
           style={{
             backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.3), rgba(248, 250, 252, 0.05)), url('/main_hero.png')`
@@ -60,40 +60,44 @@ export const Index: React.FC = () => {
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-10 lg:grid-cols-[1fr_1fr] items-start">
               <div className="editorial-rise">
-                <div className="inline-flex items-center gap-2 rounded-full border border-[#2563EB]/30 bg-white/90 backdrop-blur-xs px-3.5 py-1 text-xs font-mono font-medium text-[#2563EB] shadow-xs">
-                  <img src="/sparkles.png" alt="Sparkles" className="size-4 object-contain" />
+                <div className="inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white/95 backdrop-blur-sm px-4 py-1.5 text-xs font-mono font-medium text-slate-700 shadow-sm">
+                  <span className="relative flex size-2">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#2563EB] opacity-60"></span>
+                    <span className="relative inline-flex size-2 rounded-full bg-[#2563EB]"></span>
+                  </span>
                   <span>Trợ lý AI & Tra cứu Pháp luật Việt Nam</span>
                 </div>
 
                 {/* HEADING TEXT WITH PROPER SPACING */}
-                <h1 className="mt-6 font-display text-[clamp(3.8rem,8.5vw,7.5rem)] uppercase leading-[1.05] text-[#0F172A] tracking-tight">
+                <h1 className="mt-6 font-display text-[clamp(3.8rem,8.5vw,7.5rem)] uppercase leading-[1.15] text-[#0F172A] tracking-tight">
                   Pháp luật,<br />
                   <span className="text-[#2563EB]">đọc được</span><br />
                   rõ ràng.
                 </h1>
 
-                <div className="mt-8 flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
-                  <Button 
-                    variant="accent" 
-                    size="lg" 
+                <div className="mt-8 flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-center sm:justify-start">
+                  <Button
+                    variant="accent"
+                    size="lg"
                     onClick={() => navigate('/tro-ly')}
                     className="justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-md group px-8"
                   >
                     <span className="font-mono text-sm uppercase tracking-wider">Mở trợ lý pháp lý</span>
                     <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
                   </Button>
-
-                  <span className="font-mono text-xs text-slate-700 flex items-center gap-1.5 justify-center sm:justify-start font-medium bg-white/80 backdrop-blur-xs px-3 py-2 rounded-lg border border-slate-200/60 shadow-xs">
-                    ⚡ Không cần đăng ký account
-                  </span>
                 </div>
               </div>
 
-              {/* HERO RIGHT COLUMN: CLEAN UNCARDED INTRO TEXT DIRECTLY ABOVE ANIMATED CHATBOT DEMO */}
+              {/* HERO RIGHT COLUMN: EDITORIAL INTRO TEXT DIRECTLY ABOVE ANIMATED CHATBOT DEMO */}
               <div className="lg:pl-4">
-                <p className="mb-5 text-base md:text-lg leading-relaxed text-[#0F172A] font-semibold tracking-tight">
-                  Tìm hướng đi đầu tiên cho vấn đề pháp lý của bạn — bằng ngôn ngữ gần gũi, chính xác và có giới hạn rõ ràng.
-                </p>
+                <div className="mb-6">
+                  <p className="font-display text-xl md:text-2xl uppercase leading-snug tracking-tight text-[#0F172A]">
+                    Tìm hướng đi đầu tiên cho vấn đề pháp lý của bạn —
+                  </p>
+                  <p className="mt-2 text-sm md:text-base leading-relaxed text-slate-600 font-medium italic">
+                    bằng ngôn ngữ gần gũi, chính xác và có giới hạn rõ ràng.
+                  </p>
+                </div>
 
                 <Hero_chat_demo />
               </div>
@@ -111,16 +115,16 @@ export const Index: React.FC = () => {
         </section>
 
         {/* SECTION 2: LĨNH VỰC THƯỜNG GẶP */}
-        <section 
-          id="linh-vuc" 
+        <section
+          id="linh-vuc"
           className="border-y border-slate-200 bg-white relative bg-cover bg-center bg-no-repeat"
           style={{
-            backgroundImage: `linear-gradient(to right, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.92)), url('/hero_2.png')`
+            backgroundImage: `linear-gradient(to right, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.6)), url('/hero_2.png')`
           }}
         >
           <div className="mx-auto max-w-7xl px-5 py-20 md:px-10 md:py-28">
             <div className="grid gap-8 border-b border-slate-200 pb-12 md:grid-cols-2 items-end">
-              <div>
+              <div className="border-l-[3px] border-[#2563EB] pl-5">
                 <p className="font-mono text-xs uppercase tracking-widest text-[#2563EB]">
                   Lĩnh vực thường gặp
                 </p>
@@ -138,8 +142,8 @@ export const Index: React.FC = () => {
             {/* CARDS GRID */}
             <div className="mt-12 grid gap-6 md:grid-cols-2">
               {areas.map((area) => (
-                <article 
-                  key={area.number} 
+                <article
+                  key={area.number}
                   onClick={() => navigate('/tro-ly')}
                   className="group cursor-pointer rounded-2xl border border-slate-200 bg-white/90 p-8 shadow-xs backdrop-blur-md transition-all duration-300 hover:border-[#2563EB] hover:bg-white hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between"
                 >
@@ -170,28 +174,29 @@ export const Index: React.FC = () => {
           </div>
         </section>
 
-        {/* SECTION 3: CÁCH TIẾP CẬN */}
+        {/* SECTION 3: CÁCH TIẾP CẬN — IRAC FRAMEWORK */}
         <section id="quy-trinh" className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:px-10 md:py-28 lg:grid-cols-[0.8fr_1.2fr]">
-          <div>
+          <div className="border-l-[3px] border-[#2563EB] pl-5">
             <p className="font-mono text-xs uppercase tracking-widest text-[#2563EB]">
-              Cách tiếp cận
+              Cách tiếp cận — Khung IRAC
             </p>
-            <h2 className="mt-4 font-display text-5xl uppercase leading-tight text-[#0F172A] md:text-6xl">
+            <h2 className="mt-4 font-display text-5xl uppercase leading-tight text-[#0F172A] md:text-6xl tracking-tight">
               Từ tình huống đến hướng xử lý.
             </h2>
             <p className="mt-6 text-sm leading-relaxed text-slate-600">
-              Quy trình 3 bước giúp định hình vụ việc pháp lý một cách rõ ràng và khoa học.
+              Áp dụng khung lập luận pháp lý chuẩn quốc tế <strong className="text-[#0F172A]">IRAC</strong> — Issue, Rule, Application, Conclusion — giúp phân tích vụ việc có hệ thống và đưa ra kết luận rõ ràng.
             </p>
           </div>
 
           <ol className="border-t-2 border-[#0F172A]">
             {[
-              ["01", "Mô tả sự việc", "Nêu rõ chủ thể (cá nhân/công ty), các mốc thời gian diễn ra sự việc, văn bản ký kết và mong muốn cần giải quyết."],
-              ["02", "Làm rõ căn cứ pháp lý", "Xác định các quy định pháp luật liên quan (Điều, Khoản, Luật hiện hành) và chỉ ra dữ kiện hay tài liệu còn thiếu."],
-              ["03", "Chọn bước tiếp theo", "Chuẩn bị hồ sơ pháp lý, xây dựng phương án trao đổi hòa giải hoặc tìm Luật sư đại diện khi tình huống phức tạp."],
-            ].map(([number, title, text]) => (
-              <li key={number} className="grid grid-cols-[3.5rem_1fr] gap-4 border-b border-slate-200 py-8 transition-colors hover:bg-slate-50/50">
-                <span className="font-mono text-sm font-bold text-[#2563EB]">{number}</span>
+              ["I", "Issue — Xác định vấn đề", "Nhận diện tranh chấp hoặc vấn đề pháp lý cốt lõi từ tình huống thực tế: chủ thể, mốc thời gian, sự kiện và mong muốn cần giải quyết."],
+              ["R", "Rule — Trích dẫn quy phạm", "Xác định Điều, Khoản, Luật hiện hành trực tiếp liên quan, kèm trạng thái hiệu lực. Không suy diễn — chỉ trích dẫn từ nguồn chính thống."],
+              ["A", "Application — Phân tích áp dụng", "Lập luận chi tiết: áp dụng quy phạm vào tình tiết cụ thể, chỉ ra điểm phù hợp và các dữ kiện, tài liệu còn thiếu cần bổ sung."],
+              ["C", "Conclusion — Kết luận & hướng xử lý", "Đưa ra kết luận pháp lý, phương án giải quyết khả thi: hòa giải, chuẩn bị hồ sơ khởi kiện hoặc tìm Luật sư khi tình huống phức tạp."],
+            ].map(([letter, title, text]) => (
+              <li key={letter} className="grid grid-cols-[3.5rem_1fr] gap-4 border-b border-slate-200 py-8 transition-colors hover:bg-slate-50/50">
+                <span className="font-display text-3xl font-bold text-[#2563EB]">{letter}</span>
                 <div>
                   <h3 className="text-xl font-bold text-[#0F172A]">{title}</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
@@ -219,9 +224,9 @@ export const Index: React.FC = () => {
               </p>
               <div className="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
                 <span className="font-mono text-xs text-slate-400">LƯU HÀNH Legal Tech System</span>
-                <Button 
-                  variant="accent" 
-                  size="sm" 
+                <Button
+                  variant="accent"
+                  size="sm"
                   onClick={() => navigate('/tro-ly')}
                 >
                   Trải nghiệm Trợ lý ngay
