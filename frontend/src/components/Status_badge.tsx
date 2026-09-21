@@ -9,7 +9,7 @@ interface StatusBadgeProps {
   className?: string;
 }
 
-export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, label, className = '' }) => {
+export const Status_badge: React.FC<StatusBadgeProps> = ({ status, label, className = '' }) => {
   const statusLower = typeof status === 'string' ? status.toLowerCase() : status;
 
   if (statusLower.includes('chồng') || statusLower.includes('còn hiệu lực') || statusLower === 'valid') {

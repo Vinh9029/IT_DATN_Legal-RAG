@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldAlert } from 'lucide-react';
 
-export const LegalDisclaimer: React.FC<{ className?: string; compact?: boolean }> = ({ 
+export const Legal_disclaimer: React.FC<{ className?: string; compact?: boolean }> = ({ 
   className = '',
   compact = false 
 }) => {

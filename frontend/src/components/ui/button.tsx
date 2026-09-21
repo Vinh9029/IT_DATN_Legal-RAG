@@ -9,12 +9,11 @@ export function cn(...inputs: ClassValue[]) {
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'accent' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
-  asChild?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', children, ...props }, ref) => {
-    const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 disabled:opacity-50 disabled:pointer-events-none cursor-pointer';
+    const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#2563EB]/40 disabled:opacity-50 disabled:pointer-events-none cursor-pointer rounded-lg';
     
     const variants = {
       primary: 'bg-[#0F172A] text-white hover:bg-[#1E3A8A] active:bg-[#0F172A] shadow-xs',

@@ -1,14 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { IndexPage } from '@/pages/index-page';
-import { AssistantPage } from '@/pages/assistant-page';
+import { Index } from '@/pages/Index';
+import { Assistant } from '@/pages/Assistant';
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<IndexPage />} />
-        <Route path="/tro-ly" element={<AssistantPage />} />
-        <Route path="/tro-ly/:threadId" element={<AssistantPage />} />
+        <Route path="/" element={<Index />} />
+        <Route path="/tro-ly" element={<Assistant />} />
+        <Route path="/tro-ly/:threadId" element={<Assistant />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

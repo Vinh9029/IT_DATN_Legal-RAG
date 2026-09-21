@@ -1,25 +1,52 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { BrandMark } from './brand-mark';
-import { Button } from './ui/button';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Brand_mark } from './Brand_mark';
+import { Button } from './ui/Button';
 import { ArrowRight, BotMessageSquare } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    if (location.pathname !== '/') {
+      navigate('/', { replace: false });
+      setTimeout(() => {
+        const el = document.getElementById(targetId);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else {
+      const el = document.getElementById(targetId);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#F8FAFC]/95 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#F8FAFC]/95 backdrop-blur-md shadow-xs">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-10">
-        <BrandMark />
+        <Brand_mark />
 
         <nav className="hidden items-center gap-8 font-mono text-xs uppercase tracking-wider text-slate-600 md:flex">
-          <a href="#linh-vuc" className="transition-colors hover:text-[#2563EB]">
+          <a 
+            href="#linh-vuc" 
+            onClick={(e) => handleNavClick(e, 'linh-vuc')}
+            className="transition-colors hover:text-[#2563EB]"
+          >
             Lĩnh vực
           </a>
-          <a href="#quy-trinh" className="transition-colors hover:text-[#2563EB]">
+          <a 
+            href="#quy-trinh" 
+            onClick={(e) => handleNavClick(e, 'quy-trinh')}
+            className="transition-colors hover:text-[#2563EB]"
+          >
             Cách tiếp cận
           </a>
-          <a href="#luu-y" className="transition-colors hover:text-[#2563EB]">
+          <a 
+            href="#luu-y" 
+            onClick={(e) => handleNavClick(e, 'luu-y')}
+            className="transition-colors hover:text-[#2563EB]"
+          >
             Lưu ý pháp lý
           </a>
         </nav>

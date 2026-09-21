@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { BrandMark } from '@/components/brand-mark';
-import { Button } from '@/components/ui/button';
-import { LegalDisclaimer } from '@/components/legal-disclaimer';
-import { StatusBadge } from '@/components/status-badge';
+import { Brand_mark } from '@/components/Brand_mark';
+import { Button } from '@/components/ui/Button';
+import { Legal_disclaimer } from '@/components/Legal_disclaimer';
+import { Status_badge } from '@/components/Status_badge';
+import { Floating_chatbot } from '@/components/Floating_chatbot';
 import { 
   SUGGESTED_QUESTIONS, 
   streamLegalAnswer 
@@ -23,14 +24,12 @@ import {
   Send, 
   Square, 
   MessageSquare, 
-  Bot, 
   User, 
   ArrowLeft, 
-  Sparkles,
   RotateCcw
 } from 'lucide-react';
 
-export const AssistantPage: React.FC = () => {
+export const Assistant: React.FC = () => {
   const { threadId } = useParams<{ threadId?: string }>();
   const navigate = useNavigate();
 
@@ -62,7 +61,6 @@ export const AssistantPage: React.FC = () => {
       if (existing) {
         setCurrentThread(existing);
       } else {
-        // If URL threadId doesn't exist in session, create it fresh
         const newT: ChatThread = {
           id: threadId,
           title: 'Cuộc trò chuyện mới',
@@ -74,7 +72,6 @@ export const AssistantPage: React.FC = () => {
         setCurrentThread(newT);
       }
     } else {
-      // If /tro-ly without threadId, create a new thread and navigate
       const newT = createThread();
       navigate(`/tro-ly/${newT.id}`, { replace: true });
     }
@@ -105,14 +102,12 @@ export const AssistantPage: React.FC = () => {
       timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     };
 
-    // Add user message to current thread
     const updatedThread = addMessageToThread(currentThread.id, userMsg);
     if (updatedThread) {
       setCurrentThread({ ...updatedThread });
       setThreads(getThreads());
     }
 
-    // Prepare assistant response message holder
     const assistantMsgId = 'msg-ai-' + Date.now();
     const initialAssistantMsg: ChatMessage = {
       id: assistantMsgId,
@@ -170,9 +165,7 @@ export const AssistantPage: React.FC = () => {
     }
   };
 
-  // Helper custom renderer for Markdown content including StatusBadges
   const renderMarkdownContent = (content: string) => {
-    // Custom replacement for status badge tags like [Còn hiệu lực]
     return (
       <ReactMarkdown 
         remarkPlugins={[remarkGfm]}
@@ -193,7 +186,7 @@ export const AssistantPage: React.FC = () => {
           strong: ({ children }) => {
             const text = String(children);
             if (text.includes('Status Badge:') || text.includes('Còn hiệu lực') || text.includes('Hết hiệu lực') || text.includes('Sửa đổi')) {
-              return <StatusBadge status={text} />;
+              return <Status_badge status={text} />;
             }
             return <strong className="font-semibold text-[#0F172A]">{children}</strong>;
           },
@@ -215,7 +208,7 @@ export const AssistantPage: React.FC = () => {
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-300 md:static md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {/* Sidebar Header */}
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
-          <BrandMark />
+          <Brand_mark />
           <button 
             onClick={() => setSidebarOpen(false)} 
             className="md:hidden text-slate-400 hover:text-slate-600 p-1"
@@ -293,9 +286,10 @@ export const AssistantPage: React.FC = () => {
             >
               <MessageSquare className="size-5" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-[#0F172A] text-white font-bold text-sm">
-                L
+            <div className="flex items-center gap-3">
+              {/* CHATBOT LOGO IMAGE logo.png */}
+              <div className="flex size-9 items-center justify-center rounded-xl border border-slate-200 bg-white overflow-hidden p-0.5 shadow-xs">
+                <img src="/logo.png" alt="Logo" className="size-full object-contain" />
               </div>
               <div>
                 <h2 className="font-semibold text-sm text-[#0F172A]">Trợ lý Pháp lý AI</h2>
@@ -318,16 +312,16 @@ export const AssistantPage: React.FC = () => {
         </header>
 
         {/* Legal Warning Header Banner */}
-        <LegalDisclaimer compact />
+        <Legal_disclaimer compact />
 
         {/* MESSAGES / CHAT CONTAINER */}
         <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
-          {/* EMPTY STATE: SUGGESTED QUESTIONS (4 CÂU HỎI GỢI Ý) */}
+          {/* EMPTY STATE: SUGGESTED QUESTIONS WITH sparkles.png */}
           {(!currentThread || currentThread.messages.length === 0) && (
             <div className="mx-auto max-w-3xl pt-6 pb-12">
               <div className="text-center">
-                <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
-                  <Sparkles className="size-7" />
+                <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-[#2563EB]/10 border border-[#2563EB]/20 p-3">
+                  <img src="/sparkles.png" alt="Sparkles" className="size-full object-contain" />
                 </div>
                 <h2 className="mt-4 font-display text-3xl uppercase tracking-tight text-[#0F172A]">
                   Trợ lý Pháp luật Việt Nam
@@ -375,8 +369,8 @@ export const AssistantPage: React.FC = () => {
               }`}
             >
               {msg.sender === 'assistant' && (
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#0F172A] text-white font-bold text-sm shadow-xs">
-                  <Bot className="size-5 text-[#2563EB]" />
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white overflow-hidden p-0.5 shadow-xs">
+                  <img src="/logo.png" alt="Logo" className="size-full object-contain" />
                 </div>
               )}
 
@@ -483,6 +477,9 @@ export const AssistantPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* FLOATING CHATBOT WIDGET */}
+      <Floating_chatbot />
     </div>
   );
 };

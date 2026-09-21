@@ -1,7 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '@/components/header';
-import { Button } from '@/components/ui/button';
+import { Header } from '@/components/Header';
+import { Button } from '@/components/ui/Button';
+import { Hero_chat_demo } from '@/components/Hero_chat_demo';
+import { Floating_chatbot } from '@/components/Floating_chatbot';
 import { 
   ArrowDown, 
   ArrowRight, 
@@ -10,7 +12,6 @@ import {
   Landmark, 
   Scale, 
   Bot, 
-  Sparkles,
   ShieldCheck
 } from 'lucide-react';
 
@@ -41,55 +42,67 @@ const areas = [
   },
 ];
 
-export const IndexPage: React.FC = () => {
+export const Index: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] selection:bg-[#2563EB]/20 selection:text-[#2563EB]">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] selection:bg-[#2563EB]/20 selection:text-[#2563EB] relative">
       <Header />
 
       <main>
-        {/* HERO SECTION */}
-        <section className="relative mx-auto min-h-[calc(100vh-5rem)] max-w-7xl px-5 pb-20 pt-12 md:px-10 md:pt-20">
-          <div className="grid gap-12 lg:grid-cols-[1fr_20rem] items-start">
-            <div className="editorial-rise">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#2563EB]/30 bg-[#2563EB]/10 px-3.5 py-1 text-xs font-mono font-medium text-[#2563EB]">
-                <Sparkles className="size-3.5" />
-                <span>Trợ lý AI & Tra cứu Pháp luật Việt Nam</span>
+        {/* HERO SECTION STRETCHED FULL WIDTH (w-full) WITH main_hero.png BACKGROUND */}
+        <section 
+          className="relative w-full min-h-[calc(100vh-5rem)] px-5 md:px-12 lg:px-16 pb-20 pt-12 md:pt-16 bg-cover bg-center bg-no-repeat rounded-b-3xl"
+          style={{
+            backgroundImage: `linear-gradient(rgba(248, 250, 252, 0.3), rgba(248, 250, 252, 0.05)), url('/main_hero.png')`
+          }}
+        >
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-10 lg:grid-cols-[1fr_1fr] items-start">
+              <div className="editorial-rise">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#2563EB]/30 bg-white/90 backdrop-blur-xs px-3.5 py-1 text-xs font-mono font-medium text-[#2563EB] shadow-xs">
+                  <img src="/sparkles.png" alt="Sparkles" className="size-4 object-contain" />
+                  <span>Trợ lý AI & Tra cứu Pháp luật Việt Nam</span>
+                </div>
+
+                {/* HEADING TEXT WITH PROPER SPACING */}
+                <h1 className="mt-6 font-display text-[clamp(3.8rem,8.5vw,7.5rem)] uppercase leading-[1.05] text-[#0F172A] tracking-tight">
+                  Pháp luật,<br />
+                  <span className="text-[#2563EB]">đọc được</span><br />
+                  rõ ràng.
+                </h1>
+
+                <div className="mt-8 flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+                  <Button 
+                    variant="accent" 
+                    size="lg" 
+                    onClick={() => navigate('/tro-ly')}
+                    className="justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-md group px-8"
+                  >
+                    <span className="font-mono text-sm uppercase tracking-wider">Mở trợ lý pháp lý</span>
+                    <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
+                  </Button>
+
+                  <span className="font-mono text-xs text-slate-700 flex items-center gap-1.5 justify-center sm:justify-start font-medium bg-white/80 backdrop-blur-xs px-3 py-2 rounded-lg border border-slate-200/60 shadow-xs">
+                    ⚡ Không cần đăng ký account
+                  </span>
+                </div>
               </div>
 
-              <h1 className="mt-6 max-w-5xl font-display text-[clamp(4.2rem,11vw,9.5rem)] uppercase leading-[0.85] text-[#0F172A] tracking-tight">
-                Pháp luật,<br />
-                <span className="text-[#2563EB]">đọc được</span><br />
-                rõ ràng.
-              </h1>
-            </div>
-
-            <div className="flex flex-col justify-end border-l-2 border-slate-200 pl-6 lg:mt-24 lg:pb-4">
-              <p className="text-base leading-7 text-slate-600">
-                Tìm hướng đi đầu tiên cho vấn đề pháp lý của bạn — bằng ngôn ngữ gần gũi, chính xác và có giới hạn rõ ràng.
-              </p>
-
-              <div className="mt-8 space-y-3">
-                <Button 
-                  variant="primary" 
-                  size="lg" 
-                  onClick={() => navigate('/tro-ly')}
-                  className="w-full justify-between bg-[#0F172A] hover:bg-[#1E3A8A] text-white shadow-md group"
-                >
-                  <span className="font-mono text-sm uppercase tracking-wider">Mở trợ lý pháp lý</span>
-                  <ArrowRight className="size-5 transition-transform group-hover:translate-x-1 text-[#2563EB]" />
-                </Button>
-
-                <p className="font-mono text-[11px] text-slate-500">
-                  ⚡ Không cần đăng ký account · Phản hồi tiếng Việt chuẩn căn cứ
+              {/* HERO RIGHT COLUMN: CLEAN UNCARDED INTRO TEXT DIRECTLY ABOVE ANIMATED CHATBOT DEMO */}
+              <div className="lg:pl-4">
+                <p className="mb-5 text-base md:text-lg leading-relaxed text-[#0F172A] font-semibold tracking-tight">
+                  Tìm hướng đi đầu tiên cho vấn đề pháp lý của bạn — bằng ngôn ngữ gần gũi, chính xác và có giới hạn rõ ràng.
                 </p>
+
+                <Hero_chat_demo />
               </div>
             </div>
           </div>
 
-          <div className="editorial-grow absolute inset-x-5 bottom-8 flex items-center justify-between border-t border-slate-200 pt-4 font-mono text-[11px] uppercase text-slate-500 md:inset-x-10">
-            <span className="flex items-center gap-2">
+          {/* BOTTOM DISCLAIMER MOVED TO THE RIGHT NEXT TO THE ARROW */}
+          <div className="editorial-grow absolute inset-x-5 bottom-6 flex items-center justify-end gap-3 border-t border-slate-300/70 pt-4 font-mono text-[11px] uppercase text-slate-700 md:inset-x-12">
+            <span className="flex items-center gap-2 font-medium bg-white/80 backdrop-blur-xs px-3 py-1 rounded-md border border-slate-200/60">
               <ShieldCheck className="size-4 text-[#2563EB]" />
               Nội dung tham khảo căn cứ luật hiện hành
             </span>
@@ -98,46 +111,58 @@ export const IndexPage: React.FC = () => {
         </section>
 
         {/* SECTION 2: LĨNH VỰC THƯỜNG GẶP */}
-        <section id="linh-vuc" className="border-y border-slate-200 bg-white">
+        <section 
+          id="linh-vuc" 
+          className="border-y border-slate-200 bg-white relative bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: `linear-gradient(to right, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.92)), url('/hero_2.png')`
+          }}
+        >
           <div className="mx-auto max-w-7xl px-5 py-20 md:px-10 md:py-28">
-            <div className="grid gap-8 border-b border-slate-200 pb-10 md:grid-cols-2">
+            <div className="grid gap-8 border-b border-slate-200 pb-12 md:grid-cols-2 items-end">
               <div>
                 <p className="font-mono text-xs uppercase tracking-widest text-[#2563EB]">
                   Lĩnh vực thường gặp
                 </p>
-                <h2 className="mt-2 font-display text-5xl uppercase leading-none text-[#0F172A] md:text-6xl">
+                <h2 className="mt-3 font-display text-4xl uppercase leading-tight text-[#0F172A] md:text-6xl tracking-tight">
                   Bắt đầu từ đúng nhóm vấn đề.
                 </h2>
               </div>
-              <div className="flex items-end md:justify-end">
-                <p className="max-w-md text-sm leading-relaxed text-slate-600">
+              <div className="flex md:justify-end">
+                <p className="max-w-md text-sm md:text-base leading-relaxed text-slate-600 font-medium bg-white/70 backdrop-blur-xs p-4 rounded-xl border border-slate-200/60">
                   Phân loại rõ ràng các nhóm vụ việc phổ biến giúp bạn dễ dàng đưa ra câu hỏi và nhận hướng dẫn chi tiết từ Trợ lý AI.
                 </p>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2">
+            {/* CARDS GRID */}
+            <div className="mt-12 grid gap-6 md:grid-cols-2">
               {areas.map((area) => (
                 <article 
                   key={area.number} 
                   onClick={() => navigate('/tro-ly')}
-                  className="group cursor-pointer border-b border-slate-200 py-8 transition-colors hover:bg-slate-50 md:odd:border-r md:odd:pr-10 md:even:pl-10"
+                  className="group cursor-pointer rounded-2xl border border-slate-200 bg-white/90 p-8 shadow-xs backdrop-blur-md transition-all duration-300 hover:border-[#2563EB] hover:bg-white hover:shadow-xl hover:-translate-y-1 flex flex-col justify-between"
                 >
-                  <div className="flex items-start justify-between">
-                    <span className="font-mono text-xs text-slate-400 group-hover:text-[#2563EB]">{area.number}</span>
-                    <div className="rounded-lg bg-slate-100 p-2.5 transition-colors group-hover:bg-[#2563EB]/10">
-                      <area.icon className="size-6 text-[#2563EB]" strokeWidth={1.5} />
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-bold text-[#2563EB] bg-[#2563EB]/10 px-2.5 py-1 rounded-md">
+                        MỤC {area.number}
+                      </span>
+                      <div className="rounded-xl bg-slate-100 p-3 transition-colors group-hover:bg-[#2563EB] group-hover:text-white">
+                        <area.icon className="size-6 text-[#2563EB] group-hover:text-white transition-colors" strokeWidth={1.5} />
+                      </div>
                     </div>
+                    <h3 className="mt-6 font-display text-2xl md:text-3xl uppercase text-[#0F172A] transition-colors group-hover:text-[#2563EB]">
+                      {area.title}
+                    </h3>
+                    <p className="mt-3 text-sm leading-6 text-slate-600 font-normal">
+                      {area.text}
+                    </p>
                   </div>
-                  <h3 className="mt-8 font-display text-3xl uppercase text-[#0F172A] transition-colors group-hover:text-[#2563EB]">
-                    {area.title}
-                  </h3>
-                  <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
-                    {area.text}
-                  </p>
-                  <div className="mt-5 inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-[#2563EB] opacity-0 transition-opacity group-hover:opacity-100">
-                    <span>Hỏi trợ lý về chủ đề này</span>
-                    <ArrowRight className="size-3.5" />
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between font-mono text-xs font-semibold text-[#2563EB]">
+                    <span>Hỏi trợ lý AI chủ đề này</span>
+                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </div>
                 </article>
               ))}
@@ -151,7 +176,7 @@ export const IndexPage: React.FC = () => {
             <p className="font-mono text-xs uppercase tracking-widest text-[#2563EB]">
               Cách tiếp cận
             </p>
-            <h2 className="mt-4 font-display text-5xl uppercase leading-none text-[#0F172A] md:text-6xl">
+            <h2 className="mt-4 font-display text-5xl uppercase leading-tight text-[#0F172A] md:text-6xl">
               Từ tình huống đến hướng xử lý.
             </h2>
             <p className="mt-6 text-sm leading-relaxed text-slate-600">
@@ -220,6 +245,9 @@ export const IndexPage: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* FLOATING CHATBOT WIDGET */}
+      <Floating_chatbot />
     </div>
   );
 };
