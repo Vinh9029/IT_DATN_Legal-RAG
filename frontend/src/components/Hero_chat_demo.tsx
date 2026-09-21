@@ -59,35 +59,50 @@ export const Hero_chat_demo: React.FC = () => {
   }, [stage, typedQuestion, typedAnswer, scenarioIdx]);
 
   return (
-    <div className="w-full rounded-2xl border-2 border-slate-200 bg-white shadow-2xl overflow-hidden text-left font-sans">
-      {/* Search Browser Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-100 px-4 py-3">
+    <div className="w-full rounded-2xl border-2 border-slate-200/80 bg-white shadow-2xl overflow-hidden text-left font-sans ring-1 ring-black/5">
+      {/* Browser-Style Header with Gradient Bottom */}
+      <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-b from-slate-100 to-slate-50 px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="size-3 rounded-full bg-red-400" />
-          <div className="size-3 rounded-full bg-amber-400" />
-          <div className="size-3 rounded-full bg-emerald-400" />
+          <div className="size-3 rounded-full bg-red-400 shadow-inner" />
+          <div className="size-3 rounded-full bg-amber-400 shadow-inner" />
+          <div className="size-3 rounded-full bg-emerald-400 shadow-inner" />
           <span className="ml-2 font-mono text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
             <Search className="size-3 text-[#2563EB]" />
             luuhanh.vn/rag-assistant
           </span>
         </div>
-        <div className="flex items-center gap-1.5 rounded-full bg-[#2563EB]/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-[#2563EB]">
-          <span className="size-1.5 rounded-full bg-[#2563EB] animate-pulse" />
-          AI Engine Online
+        <div className="flex items-center gap-3">
+          {/* Scenario Indicator Dots */}
+          <div className="flex items-center gap-1">
+            {DEMO_SCENARIOS.map((_, idx) => (
+              <div 
+                key={idx} 
+                className={`size-1.5 rounded-full transition-all duration-500 ${
+                  idx === scenarioIdx 
+                    ? 'bg-[#2563EB] scale-125' 
+                    : 'bg-slate-300'
+                }`} 
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full bg-[#2563EB]/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-[#2563EB]">
+            <span className="size-1.5 rounded-full bg-[#2563EB] animate-pulse" />
+            AI Engine Online
+          </div>
         </div>
       </div>
 
       {/* Demo Chat Content Container */}
       <div className="p-5 space-y-4 min-h-[320px] max-h-[380px] overflow-y-auto bg-[#F8FAFC]/50">
-        {/* User Question */}
+        {/* User Question Bubble */}
         <div className="flex items-start gap-3 justify-end">
-          <div className="max-w-[88%] rounded-2xl bg-[#0F172A] px-4 py-3 text-xs text-white shadow-sm font-medium">
+          <div className="max-w-[88%] rounded-2xl rounded-tr-sm bg-[#0F172A] px-4 py-3 text-xs text-white shadow-md font-medium">
             <p className="inline">{typedQuestion}</p>
             {stage === 'typing_question' && (
-              <span className="inline-block w-1.5 h-3.5 bg-[#2563EB] ml-1 animate-pulse" />
+              <span className="inline-block w-1.5 h-3.5 bg-[#2563EB] ml-1 animate-pulse rounded-sm" />
             )}
           </div>
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-700 text-xs font-bold">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-slate-700 text-xs font-bold shadow-inner">
             <User className="size-4" />
           </div>
         </div>
@@ -95,11 +110,17 @@ export const Hero_chat_demo: React.FC = () => {
         {/* AI Response Block */}
         {(stage === 'thinking' || stage === 'streaming_answer' || stage === 'completed') && (
           <div className="flex items-start gap-3">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0F172A] text-white overflow-hidden p-1 shadow-xs border border-slate-700">
-              <img src="/logo.png" alt="Logo" className="size-full object-contain" />
+            {/* AI Avatar with Pulse Ring during streaming */}
+            <div className="relative">
+              {(stage === 'thinking' || stage === 'streaming_answer') && (
+                <div className="absolute -inset-1 rounded-xl bg-[#2563EB]/20 animate-ping" style={{ animationDuration: '2s' }} />
+              )}
+              <div className="relative flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#0F172A] text-white overflow-hidden p-1 shadow-xs border border-slate-700">
+                <img src="/logo.png" alt="Logo" className="size-full object-contain" />
+              </div>
             </div>
 
-            <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-4 text-xs leading-relaxed text-[#0F172A] shadow-xs">
+            <div className="flex-1 rounded-2xl rounded-tl-sm border border-slate-200 bg-white p-4 text-xs leading-relaxed text-[#0F172A] shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 font-mono text-[10px] text-slate-400">
                 <span className="flex items-center gap-1 font-semibold text-[#2563EB]">
                   <Sparkles className="size-3" />
@@ -131,7 +152,7 @@ export const Hero_chat_demo: React.FC = () => {
                     </div>
                   )}
                   {stage === 'streaming_answer' && (
-                    <span className="inline-block w-1.5 h-3.5 bg-[#2563EB] ml-0.5 animate-pulse" />
+                    <span className="inline-block w-1.5 h-3.5 bg-[#2563EB] ml-0.5 animate-pulse rounded-sm" />
                   )}
                 </div>
               )}
@@ -140,10 +161,28 @@ export const Hero_chat_demo: React.FC = () => {
         )}
       </div>
 
-      {/* Demo Footer */}
-      <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 flex items-center justify-between font-mono text-[10px] text-slate-400">
-        <span>* Minh họa hội thoại Trợ lý Legal AI</span>
-        <span className="text-[#2563EB]">Live Interactive Demo</span>
+      {/* Demo Footer with Micro Progress Bar */}
+      <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 space-y-1.5">
+        <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
+          <span>* Minh họa hội thoại Trợ lý Legal AI</span>
+          <span className="text-[#2563EB] font-semibold">Live Interactive Demo</span>
+        </div>
+        {/* Progress Bar showing typing/streaming state */}
+        <div className="h-0.5 w-full rounded-full bg-slate-200 overflow-hidden">
+          <div 
+            className="h-full rounded-full bg-[#2563EB] transition-all duration-300 ease-linear"
+            style={{ 
+              width: stage === 'typing_question' 
+                ? `${(typedQuestion.length / currentScenario.question.length) * 100}%`
+                : stage === 'thinking' 
+                ? '100%'
+                : stage === 'streaming_answer'
+                ? `${(typedAnswer.length / currentScenario.answer.length) * 100}%`
+                : '100%',
+              opacity: stage === 'completed' ? 0.4 : 1
+            }}
+          />
+        </div>
       </div>
     </div>
   );
