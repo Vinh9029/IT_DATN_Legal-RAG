@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: #F8FAFC;
+    --foreground: #0F172A;
+    
+    --navy-dark: #0F172A;
+    --navy-slate: #1E3A8A;
+    --navy-card: #FFFFFF;
+    --secondary-gray: #F1F5F9;
+
+    --accent-cyan: #2563EB;
+    --accent-cyan-hover: #1D4ED8;
+    --accent-indigo: #0284C7;
+
+    --status-emerald: #16A34A;
+    --status-emerald-bg: #DCFCE7;
+    --status-amber: #D97706;
+    --status-amber-bg: #FEF3C7;
+    --status-crimson: #DC2626;
+    --status-crimson-bg: #FEE2E2;
+
+    --font-display: 'Anton', 'Playfair Display', Georgia, serif;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Typing indicator cursor */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-cursor::after {
+  content: '▋';
+  display: inline-block;
+  margin-left: 2px;
+  color: #2563EB;
+  animation: cursor-blink 0.8s infinite;
+}
+
+/* Editorial rise animation */
+.editorial-rise {
+  animation: editorialRise 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes editorialRise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.editorial-grow {
+  animation: editorialGrow 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes editorialGrow {
+  from {
+    opacity: 0;
+    transform: scaleX(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}

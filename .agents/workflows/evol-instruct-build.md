@@ -1,182 +1,182 @@
 ---
-description: Xây dựng Quy trình Evol-Instruct cho Dữ liệu Pháp luật Việt Nam trên Llama 3.1 8B GGUF
+description: "Roadmap kết nối Evol-Instruct + QA Specificity → RAG Pipeline hoàn chỉnh"
 ---
 
-Trong kỷ nguyên của các mô hình ngôn ngữ lớn (LLM), chất lượng dữ liệu huấn luyện (fine-tuning) đóng vai trò quyết định hơn là số lượng đơn thuần. Tài liệu này hướng dẫn cách triển khai thuật toán Evol-Instruct—kế thừa từ nghiên cứu WizardLM—để tự động hóa việc tạo dữ liệu tổng hợp (Synthetic Data Generation) dựa trên kho tàng văn bản pháp quy Việt Nam. Mục tiêu là chuyển hóa các chỉ thị đơn giản thành các bài toán lập luận phức tạp theo cấu trúc pháp lý chuyên nghiệp IRAC (Issue, Rule, Application, Conclusion).
+# Evol-Instruct → RAG — Roadmap Tiếp Theo
 
-1. Thiết lập Môi trường Hệ thống và Cấu hình Local API
+> **Dataset QA Evol-Instruct: ✅ XONG**
+> 🤗 https://huggingface.co/datasets/ThanhVu101/Vietnamese-Legal-QA
+> **Không cần chạy lại** bất kỳ script nào từ `01` đến `12`.
 
-Việc sử dụng mô hình Llama 3.1 8B Instruct GGUF là một lựa chọn chiến lược cho các hệ thống nghiên cứu tại chỗ. Với kiến trúc Llama 3.1, mô hình 8B đạt được khả năng tuân thủ chỉ thị tương đương với các dòng 70B đời cũ nhưng yêu cầu tài nguyên phần cứng thấp hơn đáng kể.
+---
 
-Cấu hình Phần cứng & Phần mềm
+## Kiến trúc đã chốt
 
-* Mô hình: Meta-Llama-3.1-8B-Instruct-GGUF-Q4_K_M (Bản định lượng 4-bit Medium).
-* Yêu cầu VRAM: Khoảng ~5.5GB cho trọng số mô hình và KV Cache. Khuyến nghị card đồ họa 8GB VRAM trở lên để đảm bảo tốc độ suy luận ổn định.
-* Nền tảng: LM Studio (sử dụng backend llama.cpp).
-* API Server: Kích hoạt Local Server tại Port 1234 để tương thích hoàn toàn với thư viện OpenAI Python SDK.
+| Thành phần | Quyết định |
+|---|---|
+| **Corpus RAG** | Toàn bộ 171k văn bản — `th1nhng0/vietnamese-legal-documents` (HF) |
+| **Vector DB** | Pinecone (primary) + Qdrant local Docker (fallback/dev) |
+| **Sparse** | BM25 local `.pkl` |
+| **Graph DB** | Neo4j local Docker |
+| **Routing Classifier** | Fine-tune PhoBERT trên `train.json` (QA Specificity) bằng QLoRA local (Llama 8B) |
 
-Tham số API tối ưu cho quy trình Evolution
+---
 
-Tham số	Giá trị	Vai trò
-temperature	0.7 - 1.0	Khuyến nghị cho bước Evolution để tăng tính đa dạng sáng tạo.
-max_tokens	2048	Đảm bảo đủ không gian cho các phân tích Application dài trong IRAC.
-top_p	0.9	Lọc các phân phối xác suất đuôi dài, giữ tính mạch lạc.
-stop	`<	eot_id
+## File từ Evol-Instruct cần giữ để kết nối RAG
 
-2. Xây dựng Bộ hạt giống (Seed Prompts) từ Kho tri thức Pháp luật
+Những file này **không chạy lại** nhưng là **input trực tiếp** cho các bước tiếp theo:
 
-Dữ liệu nguồn được trích xuất từ tập th1nhng0/vietnamese-legal-documents. Tại đây, tính chính xác của metadata là chìa khóa để xây dựng ngữ cảnh hệ thống (System Prompt).
-Code cài đặt dataset của Thịnh Ngô (from datasets import load_dataset
-ds = load_dataset("th1nhng0/vietnamese-legal-documents", "content")from datasets import load_dataset
-ds = load_dataset("th1nhng0/vietnamese-legal-documents", "content")
+| File | Vai trò | Dùng ở đâu |
+|---|---|---|
+| `backend/data/qa_pairs/final/train.json` | Train routing classifier broad/narrow | Phase 2 |
+| `backend/data/qa_pairs/final/val.json` | Validate classifier | Phase 2 |
+| `backend/data/qa_pairs/final/test.json` | **Gold set** đánh giá Recall@K, MRR, ablation | Phase 3 |
+| `docs/doc-id-contract.md` | Giao ước `doc_id` — đọc trước khi chạy Phase 1 | Bước 1b |
 
-1. Tiền xử lý: Làm sạch trường content_html bằng thư viện BeautifulSoup, trích xuất văn bản thô (plain text).
-2. Metadata Injection: Sử dụng các trường nganh (ngành) và linh_vuc (lĩnh vực) để làm tham số đầu vào cho System Prompt, giúp mô hình định vị đúng phạm vi điều chỉnh của luật.
-3. Trích xuất thực thể (NER): Áp dụng mô hình PhoBERT để xác định các thực thể pháp lý trọng yếu:
-  * Số hiệu luật/văn bản (vd: Luật Dân sự 2015).
-  * Cơ quan ban hành (vd: Quốc hội, Chính phủ).
-  * Nội dung điều luật cụ thể.
+> ⚠️ **`doc_id` contract:** Chunker (`02_chunk_documents.py`) phải gán `doc_id` là **id gốc từ HF dataset, không có tiền tố `doc_`**. Hiện tại `chunker.py` lấy `doc.get("doc_id", "unknown")` — cần xác nhận `preprocessed_cache.jsonl` có trường `doc_id` đúng format trước khi chạy.
 
-Logic tạo Seed Prompt: Từ các thực thể trích xuất, chúng ta tạo ra các chỉ thị đơn giản nhất. Ví dụ: "Dựa trên [Số hiệu luật], hãy cho biết thẩm quyền của [Cơ quan ban hành] trong việc [Nội dung điều luật]."
+---
 
-Các câu hỏi này đóng vai trò là "Seed" (hạt giống) ban đầu, nhưng chúng thiếu tính thực tiễn và chiều sâu lập luận cần thiết cho một trợ lý pháp lý cao cấp.
+## Phase 1 — Build RAG Databases (Offline)
 
-3. Thiết kế Prompt Tiến hóa (Evol-Instruct) chuyên biệt Pháp lý
+### Bước 1a — Preprocess & Cache toàn bộ 171k văn bản
 
-Chúng ta sẽ sử dụng Llama 3.1 8B làm "Rewriter" để nâng cấp Seed Prompts. Điểm khác biệt ở đây là việc ép buộc cấu trúc IRAC theo đúng phương pháp luận của Giáo sư Ng (CSUN):
+```bash
+cd backend
+python scripts/offline_rag/01_fix_preprocess.py
+# Output: data/rag/raw/preprocessed_cache.jsonl (154k–171k dòng)
+# Lần đầu tải HF dataset ~6 GB → setx HF_HOME "G:\hf_cache" nếu ổ C: gần đầy
+```
 
-* Rule (Quy tắc): Phải là nguyên tắc chung, không chứa tên riêng hay tình tiết vụ việc.
-* Application (Áp dụng): Phải phân tích tình tiết cụ thể dựa trên Rule.
+### Bước 1b — Chunk theo Điều/Khoản + đảm bảo doc_id khớp
 
-In-Depth Evolving (5 Kỹ thuật nâng cao)
+> ⚠️ Đọc `docs/doc-id-contract.md` trước. Chunker tạo `chunk_id = {doc_id}_dieu_{n}` và giữ `doc_id` của văn bản mẹ — format này phải khớp với `source_doc_id` trong QA dataset.
 
-### 1. Constraint Addition (Thêm ràng buộc IRAC)
-Mục tiêu của bạn là viết lại câu hỏi gốc sao cho phản hồi bắt buộc phải tuân thủ cấu trúc IRAC:
-- Issue: Vấn đề pháp lý cụ thể dưới dạng câu hỏi.
-- Rule: Trích dẫn nguyên tắc luật định chung (không dùng tên riêng).
-- Application: Phân tích cách luật áp dụng vào tình huống thực tế.
-- Conclusion: Kết luận ngắn gọn.
+```bash
+python scripts/offline_rag/02_chunk_documents.py
+# Output: data/rag/processed/chunks/chunks.jsonl
+# Mỗi chunk có: chunk_id, doc_id, dieu, content, metadata
+```
 
-### 2. Deepening (Đi sâu vào ngoại lệ)
-Hãy viết lại câu hỏi để yêu cầu người trả lời không chỉ nêu luật mà còn phải phân tích các trường hợp ngoại lệ (exceptions) hoặc các điều kiện loại trừ trách nhiệm dựa trên các tiền lệ tương tự Lewis v. State.
+### Bước 1c — Build Vector DB (Pinecone primary)
 
-### 3. Concretizing (Cụ thể hóa tình huống - Case Study)
-Hãy chuyển đổi chỉ thị lý thuyết thành một tình huống cụ thể. Sử dụng các thực thể như "Matthew (nhà thầu độc lập)" hoặc "Michelle và Jose (tranh chấp thuê nhà tại Tarrytown)" để mô phỏng các xung đột pháp lý thực tế.
+```bash
+# Điền PINECONE_API_KEY vào .env trước
+python scripts/offline_rag/03_build_pinecone.py
+# Embedding model: bkai-foundation-models/vietnamese-bi-encoder (dim=768)
+# Upsert theo batch 100, có progress bar
+```
 
-### 4. Increased Reasoning Steps (Tăng bước lập luận)
-Hãy yêu cầu mô hình giải thích logic từng bước, bắt đầu từ việc xác định sự kiện pháp lý, sau đó là sự tương tác giữa nhiều điều luật chồng chéo trước khi đưa ra phán quyết cuối cùng.
+**Qdrant local (fallback/dev) — chạy song song:**
+```bash
+docker run -d -p 6333:6333 -v qdrant_storage:/qdrant/storage qdrant/qdrant
+# → Cần viết thêm 03b_build_qdrant.py (tương tự pinecone_builder.py)
+# Qdrant không cần API key, phù hợp test local không tốn tiền
+```
 
-### 5. Complicating Input (Phức tạp hóa bằng dữ liệu cấu trúc)
-Hãy viết lại câu hỏi bằng cách tích hợp thêm dữ liệu thực tế vào thẻ XML như sau:
-<facts>
-[Mô tả vụ việc mâu thuẫn giữa Hagan và Coca-Cola về dị vật trong đồ uống]
-</facts>
-Yêu cầu phân tích xem các tình tiết trên có cấu thành vi phạm hay không.
+### Bước 1d — Build BM25 Index
 
+```bash
+python scripts/offline_rag/04_build_bm25.py
+# Output: data/rag/indexes/bm25/bm25_index.pkl
+```
 
-In-Breadth Evolving (1 Kỹ thuật mở rộng)
+### Bước 1e — Build Neo4j Graph (1.03M relationships)
 
-### 6. Mutation (Đột biến chủ đề ngách)
-Dựa trên chủ đề pháp luật hiện tại, hãy tạo ra một câu hỏi hoàn toàn mới về một khía cạnh pháp lý ít phổ biến (long-tail topics) nhưng có cùng logic hệ thống, nhằm mở rộng phạm vi tri thức của bộ dữ liệu.
+```bash
+# Khởi động Neo4j trước (Docker Compose đã có sẵn)
+docker compose up neo4j -d
+# Chờ Neo4j sẵn sàng (~30s), kiểm tra: http://localhost:7474
 
+python scripts/offline_rag/05_build_neo4j.py
+# → Nạp Nodes (văn bản) từ chunks.jsonl
+# → Nạp Edges từ HF config 'relationships' (tải online ~lần đầu)
+# → Group by relationship type, MERGE bằng string interpolation (không cần APOC)
+```
 
-4. Xây dựng Bộ lọc Loại bỏ Lỗi (Instruction Eliminator)
+> Thứ tự quan hệ dùng để expand context: ưu tiên `HUONG_DAN_THI_HANH`, `SUA_DOI_BO_SUNG`, `THAY_THE_CHO`. **Không dùng `CAN_CU`** (668k dòng — kéo cả kho về).
 
-Dữ liệu do LLM tự tạo thường chứa "nhiễu". Là một kiến trúc sư NLP, chúng ta không thể chỉ dựa vào độ dài văn bản mà phải sử dụng các độ đo ngữ nghĩa.
+---
 
-import re
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
+## Phase 2 — Train Routing Classifier (Broad/Narrow)
 
-def instruction_eliminator(original_p, evolved_p, response, threshold=0.95):
-    # 1. Lọc rò rỉ thẻ kỹ thuật (Prompt Leakage)
-    if any(tag in evolved_p for tag in ["#Rewritten Prompt#", "#Given Prompt#"]):
-        return False
+### Mục tiêu
+Train model phân loại câu hỏi `broad` / `narrow` để `QueryEvolver` chọn đúng `IRetrievalStrategy`:
+- **Narrow** → Top-K nhỏ hơn, precision-focused retrieval
+- **Broad** → Top-K lớn hơn, recall-focused + graph expansion mạnh hơn
 
-    # 2. Lọc từ chối (Refusal Filter) kèm RegEx
-    refusal_patterns = [r"xin lỗi", r"không thể thực hiện", r"là một AI"]
-    if any(re.search(p, response.lower()) for p in refusal_patterns) and len(response) < 100:
-        return False
+### Dữ liệu
+```
+backend/data/qa_pairs/final/train.json   # ~70% của QA Specificity dataset
+backend/data/qa_pairs/final/val.json     # ~15%
+```
 
-    # 3. Lọc trùng lặp ngữ nghĩa (Information Gain via Cosine Similarity)
-    # Nếu Prompt mới quá giống Prompt cũ (>95%), nghĩa là không có sự tiến hóa
-    vectorizer = TfidfVectorizer().fit_transform([original_p, evolved_p])
-    similarity = cosine_similarity(vectorizer[0:1], vectorizer[1:2])[0][0]
-    if similarity > threshold:
-        return False
+Mỗi item có: `question` (text) + `final_label` (`broad`/`narrow`) + `source_doc_id` + `pair_id`.
 
-    # 4. Kiểm tra cấu trúc IRAC tối thiểu
-    irac_tags = ["Vấn đề", "Quy tắc", "Áp dụng", "Kết luận"]
-    if not all(tag in response for tag in irac_tags):
-        return False
+### Approach: Fine-tune PhoBERT + QLoRA
 
-    return True
+```python
+# Base model: vinai/phobert-base-v2 (sequence classification)
+# QLoRA để giảm VRAM — chạy được trên card 8GB
+# Training: binary classification (broad=0, narrow=1)
+# Metric: F1 macro (vì dataset cân bằng broad/narrow theo thiết kế contrastive pair)
+```
 
+**Cần tạo mới:**
+- `backend/evol_instruct/src/qa_specificity/routing_classifier.py` — wrap PhoBERT inference
+- `backend/evol_instruct/scripts/13_train_routing_classifier.py` — train script
+- Tích hợp vào `backend/src/retrieval/query_evolver.py`
 
-5. Mã Python Quy trình Tự động hóa Hoàn chỉnh (End-to-End Pipeline)
+### Tích hợp vào QueryEvolver
 
-Sử dụng thư viện tenacity để xử lý cơ chế thử lại (Retry) khi API Local bị quá tải hoặc lỗi kết nối.
+Hiện tại [`query_evolver.py`](file:///d:/IT_DATN_Legal-RAG/backend/src/retrieval/query_evolver.py) chỉ làm query rewriting.
+Sau Phase 2, `evolve()` sẽ trả thêm `specificity: str` để pipeline chọn strategy:
 
-import openai
-import json
-import random
-from tenacity import retry, stop_after_attempt, wait_exponential
+```python
+def evolve(self, query: str) -> dict:
+    evolved_query = self._rewrite(query)
+    specificity = self.classifier.predict(evolved_query)   # "broad" | "narrow"
+    return {"evolved_query": evolved_query, "specificity": specificity}
+```
 
-client = openai.OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
+---
 
-class EvolPipeline:
-    def __init__(self):
-        self.techniques = [
-            "Add Constraints", "Deepening", "Concretizing", 
-            "Increased Reasoning", "Complicating Input", "Mutation"
-        ]
+## Phase 3 — Đánh giá & Ablation Study
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def call_llm(self, messages, temp=0.7):
-        response = client.chat.completions.create(
-            model="meta-llama-3.1-8b-instruct",
-            messages=messages,
-            temperature=temp,
-            stop=["<|eot_id|>"]
-        )
-        return response.choices[0].message.content
+Dùng `backend/data/qa_pairs/final/test.json` để đo hiệu quả:
 
-    def run_evolution(self, seed_dataset):
-        for item in seed_dataset:
-            tech = random.choice(self.techniques)
-            # Bước 1: Tiến hóa Instruction
-            evo_msg = [
-                {"role": "system", "content": "Bạn là chuyên gia NLP Architect. Hãy viết lại chỉ thị sau."},
-                {"role": "user", "content": f"Kỹ thuật: {tech}. Seed: {item['instruction']}"}
-            ]
-            evolved_p = self.call_llm(evo_msg, temp=0.8)
+| Metric | Cách tính |
+|---|---|
+| **Recall@K** | Với mỗi câu hỏi test, retriever có trả về `doc_id` = `source_doc_id` của câu hỏi đó trong top-K không? |
+| **MRR** | Mean Reciprocal Rank của `source_doc_id` trong danh sách kết quả |
+| **Ablation routing** | So sánh Recall@K/MRR: pipeline với routing classifier vs không có (dùng strategy mặc định) |
 
-            # Bước 2: Sinh phản hồi chuẩn IRAC (Temperature thấp để tránh ảo tưởng)
-            resp_msg = [
-                {"role": "system", "content": "Bạn là Thẩm phán. Trả lời nghiêm ngặt theo IRAC (Issue, Rule, Application, Conclusion)."},
-                {"role": "user", "content": evolved_p}
-            ]
-            final_resp = self.call_llm(resp_msg, temp=0.1)
+**Cần viết:**
+- `backend/evol_instruct/scripts/14_eval_retrieval.py` — load `test.json`, gọi retriever, tính Recall@K và MRR
 
-            # Bước 3: Lọc và Lưu (Format Alpaca JSONL)
-            if instruction_eliminator(item['instruction'], evolved_p, final_resp):
-                self.save_data(evolved_p, final_resp)
+---
 
-    def save_data(self, instruction, output):
-        record = {"instruction": instruction, "input": "", "output": output}
-        with open("legal_evolved.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+## Thứ tự tổng
 
+```
+[Đã xong] QA Dataset (HF) + QA Specificity (train/val/test.json)
+     │
+     ▼
+Phase 1: Build RAG Databases
+  01 → 02 → 03 (Pinecone) + 03b (Qdrant) → 04 (BM25) → 05 (Neo4j)
+     │
+     ▼
+Phase 2: Train Routing Classifier
+  script 13 (train PhoBERT QLoRA) → tích hợp vào query_evolver.py
+     │
+     ▼
+Phase 3: Ablation Study
+  script 14 (eval Recall@K, MRR) → báo cáo Research Gap #2
+     │
+     ▼
+[Hoàn chỉnh] RAG 5-stage online: FastAPI /api/query
+```
 
-6. Kinh nghiệm Tối ưu hóa và Xử lý Lỗi thực tế
-
-Khi vận hành Evol-Instruct trên mô hình 8B, cần đặc biệt lưu ý các điểm sau để duy trì chất lượng:
-
-* Instruction Drift (Trôi lệnh): Mô hình 8B có xu hướng "quên" định dạng XML hoặc IRAC nếu System Prompt quá dài. Giải pháp: Sử dụng Few-shot Prompting. Hãy cung cấp ví dụ về vụ án Lewis v. State (về định nghĩa "vận hành" xe khi say rượu) hoặc Hagan v. Coca-Cola (về "impact rule" trong tiêu thụ thực phẩm bẩn) ngay trong prompt để mô hình học theo mẫu lập luận.
-* Temperature Strategy:
-  * Evolution Phase: Dùng Temp cao (~0.9) để tạo ra các tình huống pháp lý lắt léo, mới lạ.
-  * Answer Phase: Dùng Temp cực thấp (0.1) để đảm bảo mô hình không bịa đặt số hiệu điều luật hoặc nội dung pháp lý.
-* Hallucination Pháp lý: Mô hình 8B có thể trích dẫn sai số hiệu văn bản luật Việt Nam. Quy trình kiểm tra chéo (Cross-check) bắt buộc phải được thực hiện bằng cách đối chiếu các số hiệu luật xuất hiện trong output với kho dữ liệu gốc vietnamese-legal-documents. Nếu không khớp, mẫu dữ liệu đó phải bị loại bỏ ngay lập tức.
-* VRAM Management: Nếu gặp lỗi Out-of-Memory, hãy giới hạn context_length xuống 4096 hoặc 8192 thay vì sử dụng toàn bộ 128k context của Llama 3.1, vì các bài toán IRAC hiếm khi vượt quá ngưỡng này.
-
-Việc áp dụng chặt chẽ quy trình này sẽ giúp xây dựng một bộ dữ liệu tinh hoa, sẵn sàng cho việc Fine-tuning mô hình ngôn ngữ chuyên biệt cho ngành luật tại Việt Nam.
+> **Chi tiết RAG 5-stage:** xem workflow `/rag-enhancement`.
+> **Giao ước doc_id:** xem `docs/doc-id-contract.md` — đọc TRƯỚC Phase 1.
+> **Tiêu chí broad/narrow:** xem `docs/specificity-guideline.md`.
