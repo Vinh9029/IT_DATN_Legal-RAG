@@ -1,16 +1,53 @@
+# ============================================================
+# LEGAL RAG PIPELINE — HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG
+# ============================================================
+
+# ------------------------------------------------------------
+# BƯỚC 1: Cấu hình biến môi trường HF_HOME (Cache HuggingFace)
+# - Mặc định trong backend/.env đã để: HF_HOME=data/hf_cache
+# - Hệ thống tự động chuyển thành đường dẫn tuyệt đối (relative -> absolute)
+#   nằm ngay trong thư mục backend/data/hf_cache trên bất kỳ máy nào!
+# - (Tùy chọn) Nếu máy có ổ đĩa khác còn trống (VD: E:/hf_cache), 
+#   bạn chỉ cần sửa dòng HF_HOME=E:/hf_cache trong file backend/.env
+# ------------------------------------------------------------
+
+
+# ------------------------------------------------------------
+# BƯỚC 2: Khởi động Database Services (Neo4j + Qdrant) via Docker
+# (Chỉ bật container DB nhẹ RAM, không dùng Docker build Python)
+# ------------------------------------------------------------
+# Đứng tại root thư mục dự án (d:\IT_DATN_Legal-RAG):
+docker compose up neo4j qdrant -d
+
+# Kiểm tra trạng thái DB container:
+docker compose ps
+
+# ------------------------------------------------------------
+# BƯỚC 3: Chạy Offline RAG Indexing Pipeline (Python trên Host)
+# ------------------------------------------------------------
 cd backend
+python -m venv .venv
+source .venv/Scripts/activate
+pip install -r requirements.txt
 
-# 1. Tải và tiền xử lý data (Sửa lỗi metadata)
-python3 scripts/offline_rag/01_fix_preprocess.py
+# 1. Tải và tiền xử lý data từ HuggingFace (Sửa lỗi metadata & doc_id)
+python scripts/offline_rag/01_fix_preprocess.py
 
-# 2. Cắt Chunk dữ liệu theo Điều/Khoản
-python3 scripts/offline_rag/02_chunk_documents.py
+# 2. Cắt Chunk dữ liệu pháp lý theo Điều/Khoản
+python scripts/offline_rag/02_chunk_documents.py
 
-# 3. Build & Upsert Pinecone (Vector DB)
-python3 scripts/offline_rag/03_build_pinecone.py
+# 3. Build Vector Index & Upsert lên Pinecone (Dense Vector DB)
+python scripts/offline_rag/03_build_pinecone.py
 
-# 4. Build BM25 Index (Sparse DB Local)
-python3 scripts/offline_rag/04_build_bm25.py
+# 4. Build BM25 Index (Sparse DB Local - pickle file)
+python scripts/offline_rag/04_build_bm25.py
 
-# 5. Nạp cấu trúc đồ thị vào Neo4j (Graph DB)
-python3 scripts/offline_rag/05_build_neo4j.py
+# 5. Nạp cấu trúc đồ thị văn bản pháp luật vào Neo4j (Graph DB)
+python scripts/offline_rag/05_build_neo4j.py
+
+# ------------------------------------------------------------
+# BƯỚC 4: Khởi chạy FastAPI Backend Server
+# ------------------------------------------------------------
+# (Vẫn đứng tại thư mục backend)
+uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
+

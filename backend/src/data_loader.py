@@ -67,6 +67,33 @@ def extract_metadata(item: dict) -> dict:
     }
 
 
+def _get_parquet_paths():
+    """Tìm đường dẫn file metadata.parquet và content.parquet trong cache HF hoặc tải về."""
+    import glob
+    from config.settings import BASE_DIR
+    
+    # 1. Kiểm tra trong local cache folder data/hf_cache
+    repo_slug = HF_DATASET_NAME.replace("/", "--")
+    pattern = str(BASE_DIR / "data" / "hf_cache" / "hub" / f"datasets--{repo_slug}" / "snapshots" / "*" / "data")
+    snapshot_dirs = glob.glob(pattern)
+    if snapshot_dirs:
+        d = Path(snapshot_dirs[0])
+        m = d / "metadata.parquet"
+        c = d / "content.parquet"
+        if m.exists() and c.exists():
+            return m, c
+
+    # 2. Thử tải qua hf_hub_download nếu chưa có
+    try:
+        from huggingface_hub import hf_hub_download
+        m = hf_hub_download(repo_id=HF_DATASET_NAME, filename="data/metadata.parquet", repo_type="dataset")
+        c = hf_hub_download(repo_id=HF_DATASET_NAME, filename="data/content.parquet", repo_type="dataset")
+        return Path(m), Path(c)
+    except Exception as e:
+        logger.warning(f"Không thể tải trực tiếp parquet qua hf_hub_download: {e}")
+        return None, None
+
+
 def load_and_preprocess(
     max_items: int = 0,
     min_content_length: int = 200,
@@ -92,50 +119,107 @@ def load_and_preprocess(
         logger.info(f"Loaded {len(documents)} documents từ cache")
         return documents
 
-    # Load từ HuggingFace
-    logger.info(f"Loading dataset {HF_DATASET_NAME} - config: metadata")
-    ds_meta = load_dataset(HF_DATASET_NAME, "metadata", split="data")
-    
-    logger.info(f"Loading dataset {HF_DATASET_NAME} - config: content")
-    ds_content = load_dataset(HF_DATASET_NAME, "content", split="data")
+    meta_path, content_path = _get_parquet_paths()
 
-    # Build metadata dict for O(1) lookup
-    logger.info("Building metadata index by ID...")
-    meta_dict = {}
-    for item in tqdm(ds_meta, desc="Indexing metadata"):
-        meta_dict[item["id"]] = item
+    # Phương án tối ưu và tránh file lock Windows: Đọc trực tiếp parquet bằng pyarrow
+    if meta_path and content_path:
+        logger.info(f"Đọc trực tiếp từ parquet: {meta_path.name}, {content_path.name}")
+        import pyarrow.parquet as pq
+        import pyarrow.dataset as ds
 
-    # Tiền xử lý
-    documents = []
-    skipped = 0
+        logger.info("Đang đọc metadata vào bộ nhớ...")
+        meta_table = pq.read_table(meta_path)
+        meta_dict = {}
+        for batch in meta_table.to_batches():
+            d = batch.to_pydict()
+            for i in range(len(d["id"])):
+                meta_dict[d["id"][i]] = {k: d[k][i] for k in d}
+        logger.info(f"Đã load {len(meta_dict)} records metadata.")
 
-    items = ds_content
-    if max_items > 0:
-        items = ds_content.select(range(min(max_items, len(ds_content))))
+        logger.info("Đang xử lý content theo từng batch...")
+        documents = []
+        skipped = 0
+        dataset = ds.dataset(content_path, format="parquet")
+        scanner = dataset.scanner(columns=["id", "content_html"], batch_size=2000)
 
-    for item in tqdm(items, desc="Tiền xử lý documents"):
-        doc_id = item.get("id")
+        # Tính tổng số records để hiển thị progress bar
+        total_rows = pq.read_metadata(content_path).num_rows
+        target_rows = min(max_items, total_rows) if max_items > 0 else total_rows
+        pbar = tqdm(total=target_rows, desc="Tiền xử lý documents")
+
+        stop_processing = False
+        for batch in scanner.to_batches():
+            d = batch.to_pydict()
+            ids = d["id"]
+            contents = d["content_html"]
+
+            for doc_id, content_raw in zip(ids, contents):
+                content_clean = clean_html(content_raw or "")
+
+                if len(content_clean) < min_content_length:
+                    skipped += 1
+                else:
+                    meta_item = meta_dict.get(doc_id, {})
+                    metadata = extract_metadata(meta_item)
+
+                    doc = {
+                        "doc_id": doc_id,
+                        "content": content_clean,
+                        "metadata": metadata,
+                        "content_length": len(content_clean),
+                    }
+                    documents.append(doc)
+
+                pbar.update(1)
+                if max_items > 0 and (len(documents) + skipped) >= max_items:
+                    stop_processing = True
+                    break
+
+            if stop_processing:
+                break
+
+        pbar.close()
+
+    else:
+        # Fallback cách cũ qua thư viện datasets nếu không tìm thấy parquet
+        logger.info(f"Loading dataset {HF_DATASET_NAME} - config: metadata")
+        ds_meta = load_dataset(HF_DATASET_NAME, "metadata", split="data")
         
-        # Làm sạch HTML
-        content_raw = item.get("content_html") or item.get("content") or ""
-        content_clean = clean_html(content_raw)
+        logger.info(f"Loading dataset {HF_DATASET_NAME} - config: content")
+        ds_content = load_dataset(HF_DATASET_NAME, "content", split="data")
 
-        # Lọc content quá ngắn
-        if len(content_clean) < min_content_length:
-            skipped += 1
-            continue
+        # Build metadata dict for O(1) lookup
+        logger.info("Building metadata index by ID...")
+        meta_dict = {}
+        for item in tqdm(ds_meta, desc="Indexing metadata"):
+            meta_dict[item["id"]] = item
 
-        # Join với metadata
-        meta_item = meta_dict.get(doc_id, {})
-        metadata = extract_metadata(meta_item)
+        documents = []
+        skipped = 0
 
-        doc = {
-            "doc_id": doc_id,
-            "content": content_clean,
-            "metadata": metadata,
-            "content_length": len(content_clean),
-        }
-        documents.append(doc)
+        items = ds_content
+        if max_items > 0:
+            items = ds_content.select(range(min(max_items, len(ds_content))))
+
+        for item in tqdm(items, desc="Tiền xử lý documents"):
+            doc_id = item.get("id")
+            content_raw = item.get("content_html") or item.get("content") or ""
+            content_clean = clean_html(content_raw)
+
+            if len(content_clean) < min_content_length:
+                skipped += 1
+                continue
+
+            meta_item = meta_dict.get(doc_id, {})
+            metadata = extract_metadata(meta_item)
+
+            doc = {
+                "doc_id": doc_id,
+                "content": content_clean,
+                "metadata": metadata,
+                "content_length": len(content_clean),
+            }
+            documents.append(doc)
 
     logger.info(
         f"Tiền xử lý hoàn tất: {len(documents)} documents giữ lại, "
