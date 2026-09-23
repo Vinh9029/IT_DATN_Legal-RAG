@@ -14,7 +14,8 @@ pydantic>=2.4.0              # Request/Response schema validation
 pydantic-settings>=2.0.0     # Pydantic v2 settings từ .env
 
 # Vector DB — Dense Retrieval
-pinecone>=3.0.0              # Pinecone Vector DB (package mới, thay pinecone-client)
+qdrant-client>=1.7.0         # Qdrant Vector DB (Docker Local - khuyên dùng)
+pinecone>=3.0.0              # Pinecone Vector DB (Cloud Fallback)
 sentence-transformers>=2.7.0 # Bi-encoder embedding (bkai vietnamese-bi-encoder)
 torch>=2.1.0                 # PyTorch backend cho sentence-transformers
 

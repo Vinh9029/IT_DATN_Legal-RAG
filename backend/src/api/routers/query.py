@@ -12,6 +12,7 @@ from src.retrieval.rrf_fusion import reciprocal_rank_fusion
 from src.retrieval.reranker import CrossEncoderReranker
 from src.retrieval.query_evolver import QueryEvolver
 from config.settings import (
+    VECTOR_DB_TYPE, QDRANT_HOST, QDRANT_PORT, QDRANT_COLLECTION_NAME,
     PINECONE_API_KEY, PINECONE_ENVIRONMENT, PINECONE_INDEX_NAME, EMBEDDING_MODEL,
     INDEXES_DIR, PROCESSED_DATA_DIR,
     NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD,
@@ -38,9 +39,13 @@ def _get_retrievers():
         chunks_path = PROCESSED_DATA_DIR / "chunks" / "chunks.jsonl"
 
         _dense_retriever = DenseRetriever(
-            api_key=PINECONE_API_KEY,
-            env=PINECONE_ENVIRONMENT,
-            index_name=PINECONE_INDEX_NAME,
+            db_type=VECTOR_DB_TYPE,
+            qdrant_host=QDRANT_HOST,
+            qdrant_port=QDRANT_PORT,
+            qdrant_collection=QDRANT_COLLECTION_NAME,
+            pinecone_api_key=PINECONE_API_KEY,
+            pinecone_env=PINECONE_ENVIRONMENT,
+            pinecone_index=PINECONE_INDEX_NAME,
             model_name=EMBEDDING_MODEL
         )
         _sparse_retriever = SparseRetriever(

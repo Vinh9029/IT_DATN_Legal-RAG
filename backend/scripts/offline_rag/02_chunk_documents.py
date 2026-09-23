@@ -31,15 +31,34 @@ def main():
         # Đếm số dòng (optional, để làm tqdm)
         # Vì file lớn, tạm thời dùng chunk
         
+        skipped_status = 0
+        total_docs = 0
+
+        # Các trạng thái văn bản không còn giá trị áp dụng cần loại bỏ
+        EXCLUDED_STATUSES = {
+            "hết hiệu lực toàn bộ",
+            "không còn phù hợp",
+            "ngưng hiệu lực"
+        }
+
         for line in tqdm(f_in, desc="Đang chunking"):
+            total_docs += 1
             doc = json.loads(line)
-            chunks = chunk_document(doc)
             
+            # Lọc theo tình trạng hiệu lực
+            status = doc.get("metadata", {}).get("tinh_trang", "").strip().lower()
+            if status in EXCLUDED_STATUSES:
+                skipped_status += 1
+                continue
+
+            chunks = chunk_document(doc)
             for chunk in chunks:
                 f_out.write(json.dumps(chunk, ensure_ascii=False) + "\n")
                 total_chunks += 1
 
-    logger.info(f"Hoàn thành! Tạo ra {total_chunks} chunks.")
+    logger.info(f"Tổng số văn bản đọc: {total_docs}")
+    logger.info(f"Đã loại bỏ: {skipped_status} văn bản hết hiệu lực/không còn phù hợp.")
+    logger.info(f"Hoàn thành! Tạo ra {total_chunks} chunks hợp lệ.")
     logger.info(f"Lưu tại: {chunk_path}")
 
 if __name__ == "__main__":

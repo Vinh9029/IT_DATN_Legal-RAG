@@ -27,17 +27,24 @@ docker compose ps
 # ------------------------------------------------------------
 cd backend
 python -m venv .venv
-source .venv/Scripts/activate
+# Kích hoạt môi trường (Windows CMD dùng .venv\Scripts\activate.bat, PowerShell dùng .venv\Scripts\Activate.ps1)
+.venv\Scripts\activate
 pip install -r requirements.txt
 
-# 1. Tải và tiền xử lý data từ HuggingFace (Sửa lỗi metadata & doc_id)
+# 1. Tải và tiền xử lý data từ HuggingFace (Chạy trực tiếp từ Parquet, sửa lỗi metadata & doc_id)
+# (Đã chạy xong 1 lần thì KHÔNG cần xóa chạy lại)
 python scripts/offline_rag/01_fix_preprocess.py
 
-# 2. Cắt Chunk dữ liệu pháp lý theo Điều/Khoản
+# 2. Cắt Chunk dữ liệu pháp lý theo Điều/Khoản & TỰ ĐỘNG LỌC VĂN BẢN CÒN HIỆU LỰC
+# (Tự động loại bỏ >667k chunk 'Hết hiệu lực toàn bộ' / 'Không còn phù hợp')
 python scripts/offline_rag/02_chunk_documents.py
 
-# 3. Build Vector Index & Upsert lên Pinecone (Dense Vector DB)
-python scripts/offline_rag/03_build_pinecone.py
+# 3. Build Vector Index & Upsert vào Qdrant (Local Vector DB qua Docker - KHUYÊN DÙNG CHO ĐỒ ÁN)
+# (Không giới hạn data, lưu trữ vĩnh viễn trên máy, xem dashboard tại http://localhost:6333/dashboard)
+python scripts/offline_rag/03_build_qdrant.py
+
+# (Tùy chọn phụ): Nếu muốn đẩy lên Pinecone Cloud (có giới hạn quota Free):
+# python scripts/offline_rag/03_build_pinecone.py
 
 # 4. Build BM25 Index (Sparse DB Local - pickle file)
 python scripts/offline_rag/04_build_bm25.py

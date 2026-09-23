@@ -62,6 +62,12 @@ OUTPUT_DIR = BASE_DIR / os.getenv("OUTPUT_DIR", "data/evol_instruct/output")
 
 LOG_DIR = BASE_DIR / "logs"
 
+# ── Vector DB Config (Qdrant Local hoặc Pinecone Cloud) ───────────
+VECTOR_DB_TYPE = os.getenv("VECTOR_DB_TYPE", "qdrant").lower()  # "qdrant" hoặc "pinecone"
+QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "legal-rag-vi")
+
 # ── Pinecone Config ───────────────────────────────────────────────
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
 PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "us-east-1-aws")
