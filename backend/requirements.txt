@@ -17,7 +17,21 @@ pydantic-settings>=2.0.0     # Pydantic v2 settings từ .env
 qdrant-client>=1.7.0         # Qdrant Vector DB (Docker Local - khuyên dùng)
 pinecone>=3.0.0              # Pinecone Vector DB (Cloud Fallback)
 sentence-transformers>=2.7.0 # Bi-encoder embedding (bkai vietnamese-bi-encoder)
-torch>=2.1.0                 # PyTorch backend cho sentence-transformers
+
+# torch>=2.1.0  ← KHÔNG cài qua PyPI (sẽ cài bản CPU-only!)
+# Cài thủ công với CUDA support (RTX 3050, CUDA 12.8):
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# Hoặc xem: https://pytorch.org/get-started/locally/
+
+# # Bước 1: Gỡ CPU-only torch
+# pip uninstall torch torchvision torchaudio -y
+# # Bước 2: Cài CUDA 12.8 build
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+# # Bước 3: Kiểm tra CUDA
+# python -c "import torch; print('CUDA Available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0))"
+# # Bước 4: Chạy lại script build Qdrant
+# python scripts/offline_rag/03_build_qdrant.py
+
 
 # Sparse Retrieval — BM25
 rank_bm25>=0.2.2             # BM25Okapi local index

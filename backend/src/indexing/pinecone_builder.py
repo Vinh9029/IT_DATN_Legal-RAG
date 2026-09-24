@@ -29,7 +29,9 @@ def build_pinecone_index(chunks_path: Path, api_key: str, env: str, index_name: 
     index = pc.Index(index_name)
 
     logger.info(f"Load embedding model: {model_name}")
-    model = SentenceTransformer(model_name)
+    from src.utils.device import get_torch_device
+    device = get_torch_device()
+    model = SentenceTransformer(model_name, device=device)
 
     # Đọc chunks
     chunks = []

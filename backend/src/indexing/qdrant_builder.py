@@ -38,9 +38,8 @@ def build_qdrant_index(
 
     # 2. Load Embedding Model
     logger.info(f"Load embedding model: {model_name}")
-    import torch
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"Sử dụng thiết bị embedding: {device.upper()}")
+    from src.utils.device import get_torch_device
+    device = get_torch_device()
     model = SentenceTransformer(model_name, device=device)
 
     # 3. Đọc dữ liệu chunks
