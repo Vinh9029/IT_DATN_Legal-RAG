@@ -15,22 +15,35 @@ pydantic-settings>=2.0.0     # Pydantic v2 settings từ .env
 
 # Vector DB — Dense Retrieval
 qdrant-client>=1.7.0         # Qdrant Vector DB (Docker Local - khuyên dùng)
-pinecone>=3.0.0              # Pinecone Vector DB (Cloud Fallback)
-sentence-transformers>=2.7.0 # Bi-encoder embedding (bkai vietnamese-bi-encoder)
+sentence-transformers>=2.7.0,<4.0.0 # Bi-encoder embedding (bkai vietnamese-bi-encoder)
+transformers<4.49.0,>=4.38.0   # Tương thích với PyTorch 2.4.x (CPU / DirectML)
 
-# torch>=2.1.0  ← KHÔNG cài qua PyPI (sẽ cài bản CPU-only!)
-# Cài thủ công với CUDA support (RTX 3050, CUDA 12.8):
+# ── PYTORCH — Cài thủ công theo loại GPU/Chip ─────────────────────────────
+# torch>=2.1.0  ← KHÔNG cài qua PyPI mặc định (sẽ ra bản CPU-only!)
+# Kiểm tra GPU trước: python scripts/check_gpu.py
+#
+# [NVIDIA GPU — Windows/Linux, CUDA 12.8]  ← mặc định dự án (RTX 3050...)
+#   pip uninstall torch torchvision torchaudio -y
 #   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-# Hoặc xem: https://pytorch.org/get-started/locally/
-
-# # Bước 1: Gỡ CPU-only torch
-# pip uninstall torch torchvision torchaudio -y
-# # Bước 2: Cài CUDA 12.8 build
-# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-# # Bước 3: Kiểm tra CUDA
-# python -c "import torch; print('CUDA Available:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0))"
-# # Bước 4: Chạy lại script build Qdrant
-# python scripts/offline_rag/03_build_qdrant.py
+#
+# [AMD GPU — Windows (DirectML)] ← dùng device.py → torch_directml
+#   pip uninstall torch torchvision torchaudio -y
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#   pip install torch-directml
+#
+# [AMD GPU — Linux (ROCm 6.1)]
+#   pip uninstall torch torchvision torchaudio -y
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.1
+#
+# [Apple Silicon — M1/M2/M3/M4 (MPS)] ← macOS, bản mặc định đã có MPS
+#   pip uninstall torch torchvision torchaudio -y
+#   pip install torch torchvision torchaudio
+#
+# [CPU-only — môi trường không có GPU]
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+#
+# Sau khi cài xong kiểm tra: python scripts/check_gpu.py
+# Tham khảo: https://pytorch.org/get-started/locally/
 
 
 # Sparse Retrieval — BM25

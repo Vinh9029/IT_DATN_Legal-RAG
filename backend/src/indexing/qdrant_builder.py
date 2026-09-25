@@ -1,3 +1,4 @@
+import gc
 import json
 import math
 import uuid
@@ -15,7 +16,8 @@ def build_qdrant_index(
     collection_name: str,
     model_name: str,
     dim: int = 768,
-    batch_size: int = 128
+    batch_size: int = 64,
+    device: str = None
 ):
     """
     Đọc chunks.jsonl, encode text và nạp vào Qdrant (Docker Local).
@@ -26,6 +28,7 @@ def build_qdrant_index(
 
     # 1. Kiểm tra / Tạo collection
     existing_collections = [c.name for c in client.get_collections().collections]
+    existing_points = 0
     if collection_name not in existing_collections:
         logger.info(f"Tạo collection mới: {collection_name} (dim={dim}, cosine)")
         client.create_collection(
@@ -34,12 +37,20 @@ def build_qdrant_index(
         )
     else:
         info = client.get_collection(collection_name=collection_name)
-        logger.info(f"Collection '{collection_name}' đã tồn tại (hiện có {info.points_count} points).")
+        existing_points = info.points_count
+        logger.info(f"Collection '{collection_name}' đã tồn tại (hiện có {existing_points} points).")
 
     # 2. Load Embedding Model
     logger.info(f"Load embedding model: {model_name}")
-    from src.utils.device import get_torch_device
-    device = get_torch_device()
+    if not device:
+        from src.utils.device import get_torch_device
+        device = get_torch_device()
+
+    if str(device).lower() == "cpu":
+        import torch
+        torch.set_num_threads(min(8, torch.get_num_threads()))
+
+    logger.info(f"Đang sử dụng device: {device}")
     model = SentenceTransformer(model_name, device=device)
 
     # 3. Đọc dữ liệu chunks
@@ -49,26 +60,38 @@ def build_qdrant_index(
         for line in f:
             line = line.strip()
             if line:
-                chunks.append(json.loads(line))
+                chunks.append(json.loads(line, strict=False))
 
     total_chunks = len(chunks)
-    logger.info(f"Tổng số chunks cần upsert: {total_chunks}")
+    logger.info(f"Tổng số chunks: {total_chunks}")
 
-    total_batches = math.ceil(total_chunks / batch_size)
+    # Resume từ vị trí đã nạp thành công (làm tròn theo batch)
+    start_index = (existing_points // batch_size) * batch_size
+    if start_index > 0:
+        logger.info(f"Tiếp tục upsert từ index {start_index} / {total_chunks} (bỏ qua {start_index} chunks đã có trong DB)...")
 
-    for i in tqdm(range(0, total_chunks, batch_size), total=total_batches, desc="Upserting to Qdrant"):
+    total_batches = math.ceil((total_chunks - start_index) / batch_size)
+
+    for i in tqdm(range(start_index, total_chunks, batch_size), total=total_batches, desc="Upserting to Qdrant"):
         batch = chunks[i : i + batch_size]
         texts = [item.get("content", "") for item in batch]
 
-        # Generate embeddings
-        embeddings = model.encode(texts, batch_size=batch_size, show_progress_bar=False)
+        # Generate embeddings với fallback an toàn nếu bị VRAM OOM
+        try:
+            embeddings = model.encode(texts, batch_size=batch_size, show_progress_bar=False)
+        except RuntimeError as e:
+            if "memory" in str(e).lower() or "allocate" in str(e).lower():
+                logger.warning(f"VRAM OOM ở batch index {i}, đang fallback sang encode từng phần nhỏ trên CPU...")
+                model.to("cpu")
+                embeddings = model.encode(texts, batch_size=16, show_progress_bar=False)
+                model.to(device)
+            else:
+                raise e
 
         # Chuẩn bị points cho Qdrant
         points = []
         for j, item in enumerate(batch):
             chunk_id = item.get("chunk_id") or str(uuid.uuid4())
-            # Qdrant hỗ trợ ID là số nguyên (int) hoặc UUID string
-            # Tạo deterministic UUID từ chunk_id để idempotent khi chạy lại
             point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, str(chunk_id)))
             
             payload = {
@@ -88,6 +111,10 @@ def build_qdrant_index(
             )
 
         client.upsert(collection_name=collection_name, points=points)
+
+        # Giải phóng bộ nhớ tạm sau mỗi batch
+        del embeddings, points
+        gc.collect()
 
     final_info = client.get_collection(collection_name=collection_name)
     logger.info(f"Hoàn thành! Tổng số points trong Qdrant '{collection_name}': {final_info.points_count}")

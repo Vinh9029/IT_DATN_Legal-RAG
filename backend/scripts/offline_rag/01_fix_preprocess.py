@@ -13,8 +13,8 @@ def main():
     
     logger.info("=== BẮT ĐẦU FIX PREPROCESS & CACHE ===")
     
-    # max_items=0 -> load tất cả
-    documents = load_and_preprocess(max_items=0, cache=True)
+    # max_items=0 -> load tất cả, force_reload=True -> tái tạo cache sạch
+    documents = load_and_preprocess(max_items=0, cache=True, force_reload=True)
     
     logger.info(f"Đã tiền xử lý xong {len(documents)} văn bản.")
     

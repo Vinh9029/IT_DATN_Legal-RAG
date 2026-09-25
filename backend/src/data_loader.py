@@ -98,6 +98,7 @@ def load_and_preprocess(
     max_items: int = 0,
     min_content_length: int = 200,
     cache: bool = True,
+    force_reload: bool = False,
 ) -> list[dict]:
     """
     Load dataset từ HuggingFace, tiền xử lý và trả về danh sách documents.
@@ -106,14 +107,22 @@ def load_and_preprocess(
     cache_path = RAW_DATA_DIR / "preprocessed_cache.jsonl"
 
     # Kiểm tra cache
-    if cache and cache_path.exists():
+    if cache and not force_reload and cache_path.exists():
         logger.info(f"Đọc từ cache: {cache_path}")
         documents = []
+        corrupted_lines = 0
         with open(cache_path, "r", encoding="utf-8") as f:
-            for line in f:
+            for line_idx, line in enumerate(f, 1):
                 line = line.strip()
-                if line:
-                    documents.append(json.loads(line))
+                if not line:
+                    continue
+                try:
+                    documents.append(json.loads(line, strict=False))
+                except json.JSONDecodeError as e:
+                    corrupted_lines += 1
+                    logger.warning(f"Bỏ qua dòng {line_idx} trong cache do lỗi JSON decode: {e}")
+        if corrupted_lines > 0:
+            logger.warning(f"Đã bỏ qua {corrupted_lines} dòng hỏng trong cache.")
         if max_items > 0:
             documents = documents[:max_items]
         logger.info(f"Loaded {len(documents)} documents từ cache")
@@ -229,9 +238,11 @@ def load_and_preprocess(
     # Cache kết quả
     if cache:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(cache_path, "w", encoding="utf-8") as f:
+        temp_cache_path = cache_path.with_suffix(".jsonl.tmp")
+        with open(temp_cache_path, "w", encoding="utf-8") as f:
             for doc in documents:
                 f.write(json.dumps(doc, ensure_ascii=False) + "\n")
+        temp_cache_path.replace(cache_path)
         logger.info(f"Cached {len(documents)} documents → {cache_path}")
 
     return documents

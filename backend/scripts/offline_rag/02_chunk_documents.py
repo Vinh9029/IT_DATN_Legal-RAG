@@ -21,15 +21,14 @@ def main():
     chunk_dir.mkdir(parents=True, exist_ok=True)
     
     chunk_path = chunk_dir / "chunks.jsonl"
+    temp_chunk_path = chunk_dir / "chunks.jsonl.tmp"
     
     logger.info(f"Đọc dữ liệu từ: {cache_path}")
     total_chunks = 0
+    corrupted_lines = 0
     
     with open(cache_path, "r", encoding="utf-8") as f_in, \
-         open(chunk_path, "w", encoding="utf-8") as f_out:
-        
-        # Đếm số dòng (optional, để làm tqdm)
-        # Vì file lớn, tạm thời dùng chunk
+         open(temp_chunk_path, "w", encoding="utf-8") as f_out:
         
         skipped_status = 0
         total_docs = 0
@@ -41,9 +40,17 @@ def main():
             "ngưng hiệu lực"
         }
 
-        for line in tqdm(f_in, desc="Đang chunking"):
+        for line_idx, line in enumerate(tqdm(f_in, desc="Đang chunking"), 1):
+            line = line.strip()
+            if not line:
+                continue
             total_docs += 1
-            doc = json.loads(line)
+            try:
+                doc = json.loads(line, strict=False)
+            except json.JSONDecodeError as e:
+                corrupted_lines += 1
+                logger.warning(f"Bỏ qua dòng {line_idx} do lỗi JSON decode: {e}")
+                continue
             
             # Lọc theo tình trạng hiệu lực
             status = doc.get("metadata", {}).get("tinh_trang", "").strip().lower()
@@ -55,6 +62,10 @@ def main():
             for chunk in chunks:
                 f_out.write(json.dumps(chunk, ensure_ascii=False) + "\n")
                 total_chunks += 1
+
+    temp_chunk_path.replace(chunk_path)
+    if corrupted_lines > 0:
+        logger.warning(f"Đã bỏ qua {corrupted_lines} dòng hỏng.")
 
     logger.info(f"Tổng số văn bản đọc: {total_docs}")
     logger.info(f"Đã loại bỏ: {skipped_status} văn bản hết hiệu lực/không còn phù hợp.")

@@ -7,7 +7,7 @@
 # - Mặc định trong backend/.env đã để: HF_HOME=data/hf_cache
 # - Hệ thống tự động chuyển thành đường dẫn tuyệt đối (relative -> absolute)
 #   nằm ngay trong thư mục backend/data/hf_cache trên bất kỳ máy nào!
-# - (Tùy chọn) Nếu máy có ổ đĩa khác còn trống (VD: E:/hf_cache), 
+# - (Tùy chọn) Nếu máy có ổ đĩa khác còn trống (VD: E:/hf_cache),
 #   bạn chỉ cần sửa dòng HF_HOME=E:/hf_cache trong file backend/.env
 # ------------------------------------------------------------
 
@@ -16,20 +16,55 @@
 # BƯỚC 2: Khởi động Database Services (Neo4j + Qdrant) via Docker
 # (Chỉ bật container DB nhẹ RAM, không dùng Docker build Python)
 # ------------------------------------------------------------
-# Đứng tại root thư mục dự án (d:\IT_DATN_Legal-RAG):
+# Đứng tại root thư mục dự án:
 docker compose up neo4j qdrant -d
 
 # Kiểm tra trạng thái DB container:
 docker compose ps
+
 
 # ------------------------------------------------------------
 # BƯỚC 3: Chạy Offline RAG Indexing Pipeline (Python trên Host)
 # ------------------------------------------------------------
 cd backend
 python -m venv .venv
-# Kích hoạt môi trường (Windows CMD dùng .venv\Scripts\activate.bat, PowerShell dùng .venv\Scripts\Activate.ps1)
-.venv\Scripts\activate
+
+# Kích hoạt môi trường:
+#   Windows CMD         : .venv\Scripts\activate.bat
+#   Windows PowerShell  : .venv\Scripts\Activate.ps1
+#   macOS / Linux       : source .venv/bin/activate
+.venv\Scripts\Activate.ps1
+
+# Cài dependencies thông thường (KHÔNG bao gồm PyTorch):
 pip install -r requirements.txt
+
+# ----------------------------------------------------------
+# ⚠️  CÀI PyTorch RIÊNG — Chọn đúng lệnh theo Chip/GPU máy
+# ----------------------------------------------------------
+# [KIỂM TRA GPU TRƯỚC] — chạy script này để biết chip nào đang dùng:
+python scripts/check_gpu.py
+
+# Sau khi xác định GPU, chạy đúng 1 trong các lệnh bên dưới:
+
+# → NVIDIA GPU (RTX/GTX, CUDA 12.8) — Windows / Linux:
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# → AMD GPU — Windows (CPU-only, vì DirectML không còn hỗ trợ pip):
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# → AMD GPU — Linux (ROCm 6.1):
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.1
+
+# → Apple Silicon M1/M2/M3/M4 (MPS tích hợp sẵn):
+pip install torch torchvision torchaudio
+
+# → Không có GPU / môi trường CI:
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# [XÁC NHẬN] — chạy lại để kiểm tra device được chọn tự động:
+python scripts/check_gpu.py
+# ----------------------------------------------------------
+
 
 # 1. Tải và tiền xử lý data từ HuggingFace (Chạy trực tiếp từ Parquet, sửa lỗi metadata & doc_id)
 # (Đã chạy xong 1 lần thì KHÔNG cần xóa chạy lại)
@@ -41,6 +76,7 @@ python scripts/offline_rag/02_chunk_documents.py
 
 # 3. Build Vector Index & Upsert vào Qdrant (Local Vector DB qua Docker - KHUYÊN DÙNG CHO ĐỒ ÁN)
 # (Không giới hạn data, lưu trữ vĩnh viễn trên máy, xem dashboard tại http://localhost:6333/dashboard)
+# Script tự động chọn device phù hợp (CUDA / MPS / CPU) dựa trên máy đang chạy
 python scripts/offline_rag/03_build_qdrant.py
 
 # (Tùy chọn phụ): Nếu muốn đẩy lên Pinecone Cloud (có giới hạn quota Free):
@@ -52,9 +88,9 @@ python scripts/offline_rag/04_build_bm25.py
 # 5. Nạp cấu trúc đồ thị văn bản pháp luật vào Neo4j (Graph DB)
 python scripts/offline_rag/05_build_neo4j.py
 
+
 # ------------------------------------------------------------
 # BƯỚC 4: Khởi chạy FastAPI Backend Server
 # ------------------------------------------------------------
 # (Vẫn đứng tại thư mục backend)
 uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
-
