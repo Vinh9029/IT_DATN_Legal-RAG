@@ -29,15 +29,25 @@ def main():
         logger.error(f"File {chunks_path} không tồn tại. Vui lòng chạy 02_chunk_documents.py trước.")
         sys.exit(1)
 
-    # Kiểm tra tham số CLI (--cpu, --gpu, --directml)
+    # Kiểm tra tham số CLI (--cpu, --gpu, --directml, --batch N)
     device = None
     batch_size = 64
+
+    # Parse --batch N
+    custom_batch = None
+    if "--batch" in sys.argv:
+        try:
+            idx = sys.argv.index("--batch")
+            custom_batch = int(sys.argv[idx + 1])
+        except (ValueError, IndexError):
+            logger.warning("Không đọc được giá trị --batch, dùng mặc định.")
 
     if "--gpu" in sys.argv or "--directml" in sys.argv:
         from src.utils.device import get_torch_device
         device = get_torch_device()
-        batch_size = 16
-        logger.info(f"Ép buộc chạy GPU qua CLI → Device: {device} (batch_size=16).")
+        # RX 580 8GB VRAM: batch 64 tối ưu (giảm overhead DirectML/batch)
+        batch_size = custom_batch if custom_batch else 64
+        logger.info(f"Ép buộc chạy GPU qua CLI → Device: {device} (batch_size={batch_size}).")
     elif "--cpu" in sys.argv or "cpu" in sys.argv:
         device = "cpu"
         batch_size = 128
