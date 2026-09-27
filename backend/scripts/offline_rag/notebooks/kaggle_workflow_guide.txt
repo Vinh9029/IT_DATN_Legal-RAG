@@ -1,0 +1,81 @@
+# ============================================================
+# KAGGLE WORKFLOW — Legal RAG Database Building (All-in-One)
+# ============================================================
+# Quy trình xây dựng toàn bộ RAG offline database trên Kaggle GPU T4
+# và download output về máy local để nạp vào Docker.
+# ============================================================
+
+# ── TỔNG QUAN WORKFLOW ─────────────────────────────────────
+#
+#                    [Kaggle All-in-One Notebook]
+#                kaggle_offline_rag_builder.ipynb
+#                       (GPU T4 x2 + CPU)
+#                          ~1.5-2.5 hrs
+#                                │
+#       ┌────────────────────────┼────────────────────────┐
+#       ▼                        ▼                        ▼
+#  chunks.jsonl        qdrant_vectors.jsonl       bm25_index.pkl
+#  (Processed text)    (Dense Embeddings)         bm25_corpus_ids.json
+#       │                        │                        │
+#       └────────────────────────┼────────────────────────┘
+#                                ▼
+#                    [Download về máy Local]
+#                                │
+#       ┌────────────────────────┴────────────────────────┐
+#       ▼                                                 ▼
+#  [Docker Qdrant (Local)]                     [FastAPI / BM25 (Local)]
+#  python import_qdrant_from_jsonl.py          Load tự động từ
+#  → Nạp 551,020 vectors                       data/rag/indexes/bm25/
+#
+# Neo4j (Script 05): Chạy trực tiếp trên máy local (cần Docker Neo4j local)
+# ────────────────────────────────────────────────────────────────────────────────
+
+# ── BƯỚC 1: Chạy All-in-One Notebook trên Kaggle ──────────
+# File notebook: backend/scripts/offline_rag/notebooks/kaggle_offline_rag_builder.ipynb
+#
+# Cài đặt trên Kaggle:
+#   - Settings → Internet → ON (Bắt buộc để tải HuggingFace dataset)
+#   - Settings → Accelerator → GPU T4 x2 (hoặc GPU T4 x1)
+#
+# Tiến trình xử lý tự động trong Notebook:
+#   1. Preprocess & Chunking: Tải dataset, lọc văn bản hết hiệu lực (~551k chunks).
+#   2. Vector Embedding: Encode dense vectors dim=768 bằng bkai-foundation-models (GPU T4).
+#   3. BM25 Indexing: Tokenize tiếng Việt (Underthesea) và build BM25Okapi index.
+#
+# Output sinh ra tại tab "Output" (hoặc /kaggle/working):
+#   - processed/chunks/chunks.jsonl         (~1.5 GB)
+#   - qdrant_vectors.jsonl                  (~3.5 GB)
+#   - bm25/bm25_index.pkl                   (~80 MB)
+#   - bm25/bm25_corpus_ids.json             (~15 MB)
+
+# ── BƯỚC 2: Download Output & Nạp vào Local System ────────
+
+# 2.1. Đặt các file vào cấu trúc thư mục project bên dưới:
+#
+# backend/data/rag/
+# ├── raw/
+# │   └── preprocessed_cache.jsonl          ← (Tùy chọn)
+# ├── processed/
+# │   ├── chunks/
+# │   │   └── chunks.jsonl                  ← Từ Output Kaggle
+# │   └── qdrant_vectors.jsonl              ← Từ Output Kaggle
+# └── indexes/
+#     └── bm25/
+#         ├── bm25_index.pkl                ← Từ Output Kaggle
+#         └── bm25_corpus_ids.json          ← Từ Output Kaggle
+
+# 2.2. Import Vector Embeddings vào Docker Qdrant (Local)
+# (Đảm bảo Docker Qdrant container đang chạy ở port 6333)
+docker compose up qdrant -d
+cd backend
+.venv\Scripts\Activate.ps1
+python scripts/offline_rag/import_qdrant_from_jsonl.py
+
+# 2.3. Xây dựng Neo4j Knowledge Graph (Local)
+# (Neo4j cần kết nối bolt:// local nên chạy trực tiếp trên máy)
+docker compose up neo4j -d
+python scripts/offline_rag/05_build_neo4j.py
+
+# ── KIỂM TRA HỆ THỐNG SAU KHI NẠP DỮ LIỆU ─────────────────
+# Docker Qdrant Dashboard : http://localhost:6333/dashboard (551,020 vectors)
+# Docker Neo4j Browser    : http://localhost:7474           (Graph relationships)

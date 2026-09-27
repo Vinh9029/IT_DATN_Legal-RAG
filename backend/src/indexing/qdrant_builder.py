@@ -1,6 +1,7 @@
 import gc
 import json
 import math
+import time
 import uuid
 from pathlib import Path
 from qdrant_client import QdrantClient
@@ -24,7 +25,8 @@ def build_qdrant_index(
     Hỗ trợ resume nếu bị gián đoạn bằng cách kiểm tra số points đã có.
     """
     logger.info(f"Kết nối tới Qdrant tại {host}:{port}...")
-    client = QdrantClient(host=host, port=port)
+    # timeout=300s: tránh ReadTimeout khi upsert batch lớn qua GPU chậm
+    client = QdrantClient(host=host, port=port, timeout=300)
 
     # 1. Kiểm tra / Tạo collection
     existing_collections = [c.name for c in client.get_collections().collections]
@@ -110,7 +112,19 @@ def build_qdrant_index(
                 )
             )
 
-        client.upsert(collection_name=collection_name, points=points)
+        # Retry upsert tối đa 3 lần với exponential backoff nếu timeout
+        for attempt in range(3):
+            try:
+                client.upsert(collection_name=collection_name, points=points)
+                break
+            except Exception as e:
+                if attempt < 2:
+                    wait = 5 * (attempt + 1)
+                    logger.warning(f"Upsert thất bại (lần {attempt+1}/3): {e}. Thử lại sau {wait}s...")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"Upsert thất bại sau 3 lần thử. Bỏ qua batch index {i}.")
+                    raise
 
         # Giải phóng bộ nhớ tạm sau mỗi batch
         del embeddings, points

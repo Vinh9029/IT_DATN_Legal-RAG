@@ -1,9 +1,39 @@
+export interface LegalChunk {
+  chunk_id: string;
+  doc_id: string;
+  dieu?: string;
+  content: string;
+  score: number;
+  metadata?: {
+    so_hieu?: string;
+    loai_van_ban?: string;
+    co_quan_ban_hanh?: string;
+    tinh_trang?: string;
+    ngay_ban_hanh?: string;
+    ngay_hieu_luc?: string;
+    linh_vuc?: string;
+    [key: string]: any;
+  };
+}
+
+export interface VerboseRAGInfo {
+  evolvedQuery?: string;
+  topKDocs?: LegalChunk[];
+  timeTaken?: number;
+  stageTimings?: {
+    queryEvolution?: number;
+    retrieval?: number;
+    rerank?: number;
+  };
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'assistant';
   content: string;
   timestamp: string;
   isStreaming?: boolean;
+  verboseInfo?: VerboseRAGInfo;
 }
 
 export interface ChatThread {

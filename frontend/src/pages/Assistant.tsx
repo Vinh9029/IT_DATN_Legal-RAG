@@ -23,7 +23,7 @@ import {
   updateThreadTheme,
   deleteThread
 } from '@/lib/session-store';
-import type { ChatMessage, ChatThread } from '@/lib/session-store';
+import type { ChatMessage, ChatThread, VerboseRAGInfo } from '@/lib/session-store';
 import { 
   Plus, 
   Send, 
@@ -40,7 +40,15 @@ import {
   Edit2,
   Trash2,
   Palette,
-  LogOut
+  LogOut,
+  Terminal,
+  ChevronDown,
+  ChevronRight,
+  Database,
+  Cpu,
+  Clock,
+  Sparkles,
+  FileText
 } from 'lucide-react';
 
 export const Assistant: React.FC = () => {
@@ -57,19 +65,31 @@ export const Assistant: React.FC = () => {
   const [sidebarRenameId, setSidebarRenameId] = useState<string | null>(null);
   const [sidebarRenameValue, setSidebarRenameValue] = useState('');
 
-  // Settings & Theme states
+  // Settings & Theme & Verbose Mode states
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [isNightMode, setIsNightMode] = useState(false);
   const [activeTheme, setActiveTheme] = useState<'default' | 'dark' | 'ivory' | 'grid'>('default');
   const [isRenaming, setIsRenaming] = useState(false);
   const [newTitleInput, setNewTitleInput] = useState('');
+  
+  // Verbose Developer Mode state
+  const [verboseMode, setVerboseMode] = useState<boolean>(() => {
+    return localStorage.getItem('rag_verbose_mode') === 'true';
+  });
+  const [expandedVerboseMsgId, setExpandedVerboseMsgId] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const creatingThreadRef = useRef(false);
 
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
+
+  const toggleVerboseMode = () => {
+    const nextVal = !verboseMode;
+    setVerboseMode(nextVal);
+    localStorage.setItem('rag_verbose_mode', String(nextVal));
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -102,7 +122,6 @@ export const Assistant: React.FC = () => {
         setCurrentThread(newT);
       }
     } else {
-      // Prevent double creation: only create once per navigation to /tro-ly
       if (!creatingThreadRef.current) {
         creatingThreadRef.current = true;
         const newT = createThread();
@@ -203,15 +222,21 @@ export const Assistant: React.FC = () => {
     await streamLegalAnswer(
       query,
       {
+        onVerboseInfo: (info: VerboseRAGInfo) => {
+          currentMessages = currentMessages.map(m => 
+            m.id === assistantMsgId ? { ...m, verboseInfo: info } : m
+          );
+          setCurrentThread(prev => prev ? { ...prev, messages: [...currentMessages] } : null);
+        },
         onChunk: (chunkText) => {
           currentMessages = currentMessages.map(m => 
             m.id === assistantMsgId ? { ...m, content: chunkText, isStreaming: true } : m
           );
           setCurrentThread(prev => prev ? { ...prev, messages: [...currentMessages] } : null);
         },
-        onComplete: (fullText) => {
+        onComplete: (fullText, verboseInfo) => {
           currentMessages = currentMessages.map(m => 
-            m.id === assistantMsgId ? { ...m, content: fullText, isStreaming: false } : m
+            m.id === assistantMsgId ? { ...m, content: fullText, isStreaming: false, verboseInfo: verboseInfo || m.verboseInfo } : m
           );
           if (currentThread) {
             updateThreadMessages(currentThread.id, currentMessages);
@@ -572,6 +597,29 @@ export const Assistant: React.FC = () => {
                       <span>{currentThread?.isPinned ? 'Bỏ ghim trò chuyện' : 'Ghim lên đầu danh sách'}</span>
                     </button>
 
+                    {/* Verbose / Developer Mode Toggle */}
+                    <div className="flex items-center justify-between px-2.5 py-2 hover:bg-slate-50 rounded-lg border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Terminal className="size-4 text-[#2563EB]" />
+                        <div>
+                          <p className="font-semibold text-slate-800 text-xs">Verbose Mode</p>
+                          <p className="text-[10px] text-slate-400 font-mono">Hiển thị RAG Top-K docs</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={toggleVerboseMode}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          verboseMode ? 'bg-[#2563EB]' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                            verboseMode ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
                     {/* Change Theme Background */}
                     <div className="px-2.5 py-2">
                       <div className="flex items-center gap-1.5 font-semibold text-slate-600 mb-2">
@@ -736,6 +784,148 @@ export const Assistant: React.FC = () => {
                             <div className="size-2 rounded-full bg-[#2563EB] animate-bounce" style={{ animationDelay: '300ms' }} />
                           </div>
                           <span>Đang tra cứu căn cứ pháp lý & suy nghĩ...</span>
+                        </div>
+                      )}
+
+                      {/* VERBOSE DEVELOPER MODE ACCORDION */}
+                      {verboseMode && msg.verboseInfo && (
+                        <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800">
+                          <button
+                            onClick={() => {
+                              setExpandedVerboseMsgId(expandedVerboseMsgId === msg.id ? null : msg.id);
+                            }}
+                            className="flex w-full items-center justify-between rounded-lg bg-slate-100/80 dark:bg-slate-800/80 px-3 py-2 font-mono text-xs font-semibold text-[#2563EB] hover:bg-slate-200/80 dark:hover:bg-slate-700/80 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Terminal className="size-3.5" />
+                              <span>Developer Verbose Mode · RAG Pipeline Insights</span>
+                              {msg.verboseInfo.topKDocs && (
+                                <span className="rounded bg-[#2563EB]/10 px-1.5 py-0.5 text-[10px]">
+                                  {msg.verboseInfo.topKDocs.length} Docs Retrieved
+                                </span>
+                              )}
+                              {msg.verboseInfo.timeTaken && (
+                                <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                  <Clock className="size-3" />
+                                  {msg.verboseInfo.timeTaken.toFixed(3)}s
+                                </span>
+                              )}
+                            </div>
+                            {expandedVerboseMsgId === msg.id ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+
+                          {expandedVerboseMsgId === msg.id && (
+                            <div className="mt-2 space-y-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-3.5 text-xs font-sans">
+                              {/* Query Evolution */}
+                              {msg.verboseInfo.evolvedQuery && (
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                                    <Sparkles className="size-3.5" />
+                                    <span>Stage 1: Query Evolution (WizardLM Rewriter)</span>
+                                  </div>
+                                  <div className="rounded-md border border-amber-200/60 bg-amber-50/50 dark:bg-amber-950/30 p-2.5 font-mono text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed">
+                                    {msg.verboseInfo.evolvedQuery}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Stage Timings */}
+                              {msg.verboseInfo.stageTimings && (
+                                <div className="grid grid-cols-3 gap-2 font-mono text-[10px]">
+                                  <div className="rounded border border-slate-200 dark:border-slate-800 p-2 bg-white dark:bg-slate-900 text-center">
+                                    <p className="text-slate-400">1. Query Evolver</p>
+                                    <p className="font-bold text-[#2563EB] mt-0.5">{msg.verboseInfo.stageTimings.queryEvolution?.toFixed(3)}s</p>
+                                  </div>
+                                  <div className="rounded border border-slate-200 dark:border-slate-800 p-2 bg-white dark:bg-slate-900 text-center">
+                                    <p className="text-slate-400">2. Hybrid RRF</p>
+                                    <p className="font-bold text-[#2563EB] mt-0.5">{msg.verboseInfo.stageTimings.retrieval?.toFixed(3)}s</p>
+                                  </div>
+                                  <div className="rounded border border-slate-200 dark:border-slate-800 p-2 bg-white dark:bg-slate-900 text-center">
+                                    <p className="text-slate-400">3. Cross-Rerank</p>
+                                    <p className="font-bold text-[#2563EB] mt-0.5">{msg.verboseInfo.stageTimings.rerank?.toFixed(3)}s</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Top-K Documents List */}
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  <div className="flex items-center gap-1.5">
+                                    <Database className="size-3.5 text-[#2563EB]" />
+                                    <span>Stage 2 & 4: Top-K Related Documents</span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-normal">Re-ranked by bge-reranker-large</span>
+                                </div>
+
+                                {msg.verboseInfo.topKDocs && msg.verboseInfo.topKDocs.length > 0 ? (
+                                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                                    {msg.verboseInfo.topKDocs.map((doc, docIdx) => (
+                                      <div
+                                        key={doc.chunk_id || docIdx}
+                                        className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-xs transition-colors hover:border-[#2563EB]/50"
+                                      >
+                                        <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-1.5 mb-1.5">
+                                          <div className="flex items-center gap-2 font-mono text-[11px]">
+                                            <span className="flex size-5 items-center justify-center rounded bg-[#2563EB] text-white font-bold text-[10px]">
+                                              #{docIdx + 1}
+                                            </span>
+                                            <span className="font-bold text-slate-800 dark:text-slate-200">
+                                              {doc.metadata?.so_hieu || doc.doc_id}
+                                            </span>
+                                            {doc.dieu && (
+                                              <span className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-slate-600 dark:text-slate-300">
+                                                Điều {doc.dieu}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                                            <span className="text-slate-400">Rerank Score:</span>
+                                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                              {doc.score.toFixed(4)}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans line-clamp-3">
+                                          {doc.content}
+                                        </p>
+
+                                        {doc.metadata && (
+                                          <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[9px] text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-1.5">
+                                            {doc.metadata.loai_van_ban && (
+                                              <span className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5">
+                                                {doc.metadata.loai_van_ban}
+                                              </span>
+                                            )}
+                                            {doc.metadata.co_quan_ban_hanh && (
+                                              <span className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5">
+                                                {doc.metadata.co_quan_ban_hanh}
+                                              </span>
+                                            )}
+                                            {doc.metadata.tinh_trang && (
+                                              <span className={`rounded px-1 py-0.5 ${
+                                                doc.metadata.tinh_trang.toLowerCase().includes('còn hiệu lực')
+                                                  ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                  : 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
+                                              }`}>
+                                                {doc.metadata.tinh_trang}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-slate-400 font-mono italic">Không có tài liệu nào được trả về.</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

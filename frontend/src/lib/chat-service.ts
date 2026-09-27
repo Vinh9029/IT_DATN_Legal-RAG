@@ -1,10 +1,14 @@
 import { supabase } from './supabase';
+import type { VerboseRAGInfo, LegalChunk } from './session-store';
 
 export interface StreamCallbacks {
   onChunk: (chunk: string) => void;
-  onComplete: (fullText: string) => void;
+  onVerboseInfo?: (info: VerboseRAGInfo) => void;
+  onComplete: (fullText: string, verboseInfo?: VerboseRAGInfo) => void;
   onError: (error: Error) => void;
 }
+
+const RAG_BACKEND_URL = import.meta.env.VITE_RAG_BACKEND_URL || 'http://localhost:8000';
 
 // 4 câu hỏi gợi ý chuẩn theo yêu cầu người dùng & thiết kế
 export const SUGGESTED_QUESTIONS = [
@@ -33,6 +37,69 @@ export const SUGGESTED_QUESTIONS = [
     icon: "Scale"
   }
 ];
+
+// Giả lập Verbose RAG Info khi backend chưa mở hoặc dùng Mock mode
+function getMockVerboseInfo(prompt: string): VerboseRAGInfo {
+  return {
+    evolvedQuery: `Bổ sung thuật ngữ pháp lý chuẩn & ràng buộc IRAC cho câu hỏi: "${prompt}". Yêu cầu trích dẫn Bộ luật Dân sự/Bộ luật Lao động tương ứng.`,
+    timeTaken: 0.842,
+    stageTimings: {
+      queryEvolution: 0.210,
+      retrieval: 0.412,
+      rerank: 0.220
+    },
+    topKDocs: [
+      {
+        chunk_id: "doc_91_2015_dieu_328",
+        doc_id: "91/2015/QH13",
+        dieu: "328",
+        score: 0.945,
+        content: "Điều 328. Đặt cọc\n1. Đặt cọc là việc một bên (bên đặt cọc) giao cho bên kia (bên nhận cọc) một khoản tiền hoặc kim khí quý, đá quý hoặc vật có giá trị khác trong một thời hạn để bảo đảm giao kết hoặc thực hiện hợp đồng.\n2. Trường hợp hợp đồng được giao kết, thực hiện thì tài sản đặt cọc được trả lại cho bên đặt cọc hoặc được trừ để thực hiện nghĩa vụ trả tiền; nếu bên đặt cọc từ chối việc giao kết, thực hiện hợp đồng thì tài sản đặt cọc thuộc về bên nhận cọc; nếu bên nhận cọc từ chối việc giao kết, thực hiện hợp đồng thì phải trả cho bên đặt cọc tài sản đặt cọc và một khoản tiền tương đương giá trị tài sản đặt cọc, trừ trường hợp có thỏa thuận khác.",
+        metadata: {
+          so_hieu: "91/2015/QH13",
+          loai_van_ban: "Bộ luật",
+          co_quan_ban_hanh: "Quốc hội",
+          tinh_trang: "Còn hiệu lực",
+          ngay_ban_hanh: "24/11/2015",
+          ngay_hieu_luc: "01/01/2017",
+          linh_vuc: "Dân sự"
+        }
+      },
+      {
+        chunk_id: "doc_45_2019_dieu_35",
+        doc_id: "45/2019/QH14",
+        dieu: "35",
+        score: 0.912,
+        content: "Điều 35. Quyền đơn phương chấm dứt hợp đồng lao động của người lao động\n1. Người lao động có quyền đơn phương chấm dứt hợp đồng lao động nhưng phải báo cho người sử dụng lao động biết trước như sau:\na) Ít nhất 45 ngày nếu làm việc theo hợp đồng lao động không xác định thời hạn;\nb) Ít nhất 30 ngày nếu làm việc theo hợp đồng lao động xác định thời hạn từ 12 tháng đến 36 tháng;\nc) Ít nhất 03 ngày làm việc nếu làm việc theo hợp đồng lao động xác định thời hạn dưới 12 tháng.",
+        metadata: {
+          so_hieu: "45/2019/QH14",
+          loai_van_ban: "Bộ luật",
+          co_quan_ban_hanh: "Quốc hội",
+          tinh_trang: "Còn hiệu lực",
+          ngay_ban_hanh: "20/11/2019",
+          ngay_hieu_luc: "01/01/2021",
+          linh_vuc: "Lao động"
+        }
+      },
+      {
+        chunk_id: "doc_38_2013_dieu_49",
+        doc_id: "38/2013/QH13",
+        dieu: "49",
+        score: 0.878,
+        content: "Điều 49. Điều kiện hưởng trợ cấp thất nghiệp\nNgười lao động quy định tại khoản 1 Điều 43 của Luật này đang đóng bảo hiểm thất nghiệp được hưởng trợ cấp thất nghiệp khi có đủ các điều kiện sau đây:\n1. Chấm dứt hợp đồng lao động hoặc hợp đồng làm việc đúng quy định pháp luật;\n2. Đã đóng bảo hiểm thất nghiệp từ đủ 12 tháng trở lên trong thời gian 24 tháng trước khi chấm dứt hợp đồng lao động.",
+        metadata: {
+          so_hieu: "38/2013/QH13",
+          loai_van_ban: "Luật",
+          co_quan_ban_hanh: "Quốc hội",
+          tinh_trang: "Còn hiệu lực",
+          ngay_ban_hanh: "16/11/2013",
+          ngay_hieu_luc: "01/01/2015",
+          linh_vuc: "Việc làm"
+        }
+      }
+    ]
+  };
+}
 
 // Trả lời mẫu giàu định dạng Markdown (Status Badges, Highlights, Quotes, Bullet Points)
 function getMockLegalResponse(prompt: string): string {
@@ -131,6 +198,88 @@ Dựa trên thông tin bạn cung cấp, vấn đề này được điều chỉ
 
 /**
  * Gửi yêu cầu câu hỏi và streaming câu trả lời từng từ/chunk
+ */
+export async function streamLegalAnswer(
+  prompt: string,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal
+): Promise<void> {
+  try {
+    // 1. Thử kết nối trực tiếp đến FastAPI RAG Backend (/api/query)
+    let ragResponse: any = null;
+    try {
+      const res = await fetch(`${RAG_BACKEND_URL}/api/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: prompt, top_k: 5, enable_graph: true }),
+        signal
+      });
+      if (res.ok) {
+        ragResponse = await res.json();
+      }
+    } catch (e) {
+      // Backend offline hoặc không phản hồi -> dùng fallback
+    }
+
+    let verboseInfo: VerboseRAGInfo;
+
+    if (ragResponse && ragResponse.results) {
+      verboseInfo = {
+        timeTaken: ragResponse.time_taken,
+        topKDocs: ragResponse.results.map((r: any) => ({
+          chunk_id: r.chunk_id,
+          doc_id: r.doc_id,
+          dieu: r.dieu,
+          content: r.content,
+          score: r.score,
+          metadata: r.metadata
+        }))
+      };
+    } else {
+      verboseInfo = getMockVerboseInfo(prompt);
+    }
+
+    // Gửi thông tin Verbose Info sớm về UI
+    if (callbacks.onVerboseInfo) {
+      callbacks.onVerboseInfo(verboseInfo);
+    }
+
+    // 2. Thử gọi Supabase Edge Function nếu khả thi
+    const { data, error } = await supabase.functions.invoke('rag-chat', {
+      body: { prompt }
+    }).catch(() => ({ data: null, error: true }));
+
+    if (!error && data && data.text) {
+      callbacks.onComplete(data.text, verboseInfo);
+      return;
+    }
+
+    // 3. Fallback Streaming Simulation (hiệu ứng typing tự nhiên như AI thực thụ)
+    const fullText = ragResponse?.llm_answer || getMockLegalResponse(prompt);
+    const words = fullText.split(' ');
+    let currentText = '';
+
+    for (let i = 0; i < words.length; i++) {
+      if (signal?.aborted) {
+        throw new Error('Yêu cầu đã bị hủy bởi người dùng.');
+      }
+      currentText += (i === 0 ? '' : ' ') + words[i];
+      callbacks.onChunk(currentText);
+
+      // Delay biến thiên nhẹ cho cảm giác gõ máy thực tế
+      const delay = Math.floor(Math.random() * 25) + 15;
+      await new Promise((res) => setTimeout(res, delay));
+    }
+
+    callbacks.onComplete(currentText, verboseInfo);
+  } catch (err: any) {
+    if (err.name === 'AbortError' || err.message?.includes('hủy')) {
+      console.log('Stream aborted');
+    } else {
+      callbacks.onError(err instanceof Error ? err : new Error('Có lỗi xảy ra khi kết nối máy chủ.'));
+    }
+  }
+}��i và streaming câu trả lời từng từ/chunk
  */
 export async function streamLegalAnswer(
   prompt: string,
