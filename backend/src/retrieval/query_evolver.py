@@ -36,7 +36,7 @@ class QueryEvolver:
         self.temperature = temperature
 
     def evolve(self, query: str) -> str:
-        """Rewrite câu hỏi, fallback về query gốc nếu lỗi."""
+        """Rewrite câu hỏi, fallback về query gốc nếu lỗi hoặc response rỗng."""
         try:
             prompt = QUERY_REWRITE_PROMPT.format(query=query)
             response = self.client.chat.completions.create(
@@ -45,7 +45,18 @@ class QueryEvolver:
                 temperature=self.temperature,
                 max_tokens=256,
             )
-            evolved = response.choices[0].message.content.strip()
+            # Kiểm tra response hợp lệ (LM Studio đôi khi trả về content=None hoặc rỗng)
+            choice = response.choices[0] if response.choices else None
+            if choice is None:
+                logger.warning("LM Studio returned no choices, using original query.")
+                return query
+
+            content = choice.message.content
+            if not content or not content.strip():
+                logger.warning("LM Studio returned empty content ('model output error'), using original query.")
+                return query
+
+            evolved = content.strip()
             logger.debug(f"Query evolved: '{query}' → '{evolved}'")
             return evolved
         except Exception as e:

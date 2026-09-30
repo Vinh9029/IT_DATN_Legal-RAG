@@ -4,7 +4,8 @@ import { Brand_mark } from './Brand_mark';
 import { Button } from './ui/Button';
 import { Auth_modal } from './Auth_modal';
 import { useAuth } from '@/lib/auth-context';
-import { ArrowRight, BotMessageSquare, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { ArrowRight, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();

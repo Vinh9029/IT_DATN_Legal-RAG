@@ -21,9 +21,13 @@ import {
   renameThread,
   togglePinThread,
   updateThreadTheme,
-  deleteThread
+  deleteThread,
+  deleteMessageFromThread,
+  createOrGetBranch,
+  addMessageToBranch,
+  updateBranchMessages
 } from '@/lib/session-store';
-import type { ChatMessage, ChatThread, VerboseRAGInfo } from '@/lib/session-store';
+import type { ChatMessage, ChatThread, VerboseRAGInfo, SubThreadItem } from '@/lib/session-store';
 import { 
   Plus, 
   Send, 
@@ -31,30 +35,34 @@ import {
   MessageSquare, 
   User as UserIcon, 
   ArrowLeft, 
-  PanelLeftClose,
-  PanelLeftOpen,
-  Settings,
-  Moon,
-  Sun,
-  Pin,
-  Edit2,
-  Trash2,
-  Palette,
-  LogOut,
-  Terminal,
-  ChevronDown,
-  ChevronRight,
-  Database,
-  Cpu,
-  Clock,
-  Sparkles,
-  FileText
+  PanelLeftClose, 
+  PanelLeftOpen, 
+  Settings, 
+  Moon, 
+  Sun, 
+  Pin, 
+  Edit2, 
+  Trash2, 
+  Palette, 
+  Terminal, 
+  ChevronDown, 
+  ChevronRight, 
+  Database, 
+  Clock, 
+  Sparkles, 
+  GitBranch, 
+  Maximize2, 
+  Minimize2, 
+  X, 
+  CornerDownRight 
 } from 'lucide-react';
+
 
 export const Assistant: React.FC = () => {
   const { threadId } = useParams<{ threadId?: string }>();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+
 
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [currentThread, setCurrentThread] = useState<ChatThread | null>(null);
@@ -79,6 +87,16 @@ export const Assistant: React.FC = () => {
   });
   const [expandedVerboseMsgId, setExpandedVerboseMsgId] = useState<string | null>(null);
 
+  // Right Panel / Branch states (Sub-thread for AI response)
+  const [activeBranchMsgId, setActiveBranchMsgId] = useState<string | null>(null);
+  const [branchInput, setBranchInput] = useState('');
+  const [isBranchGenerating, setIsBranchGenerating] = useState(false);
+  const [rightPanelWidth, setRightPanelWidth] = useState<number>(400); // 1/3 màn hình
+  const [isPanelExpanded, setIsPanelExpanded] = useState<boolean>(false);
+  const isResizingRef = useRef(false);
+  const branchAbortControllerRef = useRef<AbortController | null>(null);
+  const branchMessagesEndRef = useRef<HTMLDivElement>(null);
+
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const creatingThreadRef = useRef(false);
@@ -98,6 +116,37 @@ export const Assistant: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [currentThread?.messages, isGenerating]);
+
+  // Listener kéo rê thay đổi độ rộng Right Panel (Drag-to-resize)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizingRef.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth >= 320 && newWidth <= window.innerWidth * 0.75) {
+        setRightPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingRef.current) {
+        isResizingRef.current = false;
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = 'auto';
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  useEffect(() => {
+    branchMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeBranchMsgId, currentThread?.messages, isBranchGenerating]);
+
 
   useEffect(() => {
     const loadedThreads = getThreads();
@@ -174,6 +223,109 @@ export const Assistant: React.FC = () => {
     }
     setSettingsOpen(false);
   };
+
+  const handleDeleteMessage = (msgId: string) => {
+    if (!currentThread) return;
+    const updated = deleteMessageFromThread(currentThread.id, msgId);
+    if (updated) {
+      setCurrentThread({ ...updated });
+      setThreads(getThreads());
+      if (activeBranchMsgId === msgId) {
+        setActiveBranchMsgId(null);
+      }
+    }
+  };
+
+  const handleOpenBranch = (msg: ChatMessage) => {
+    if (!currentThread) return;
+    createOrGetBranch(currentThread.id, msg.id, msg.content);
+    setActiveBranchMsgId(msg.id);
+    setCurrentThread({ ...currentThread });
+    setThreads(getThreads());
+  };
+
+  const handleSendBranchPrompt = async () => {
+    if (!branchInput.trim() || !activeBranchMsgId || !currentThread || isBranchGenerating) return;
+    const query = branchInput.trim();
+    setBranchInput('');
+
+    const userSubMsg: SubThreadItem = {
+      id: 'submsg-user-' + Date.now(),
+      sender: 'user',
+      content: query,
+      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    addMessageToBranch(currentThread.id, activeBranchMsgId, userSubMsg);
+    setCurrentThread({ ...currentThread });
+    setThreads(getThreads());
+
+    const aiSubMsgId = 'submsg-ai-' + Date.now();
+    const initialAiSubMsg: SubThreadItem = {
+      id: aiSubMsgId,
+      sender: 'assistant',
+      content: '',
+      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      isStreaming: true
+    };
+
+    addMessageToBranch(currentThread.id, activeBranchMsgId, initialAiSubMsg);
+    setCurrentThread({ ...currentThread });
+    setIsBranchGenerating(true);
+
+    branchAbortControllerRef.current = new AbortController();
+
+    const parentMsg = currentThread.messages.find(m => m.id === activeBranchMsgId);
+    const contextPrompt = `[Ngữ cảnh phản hồi pháp lý: "${parentMsg?.content.substring(0, 300)}..."]\n\nCâu hỏi tiếp nối: ${query}`;
+
+    await streamLegalAnswer(
+      contextPrompt,
+      {
+        onChunk: (chunkText) => {
+          const currentMsg = currentThread.messages.find(m => m.id === activeBranchMsgId);
+          if (currentMsg?.branch) {
+            const updated = currentMsg.branch.messages.map(m => 
+              m.id === aiSubMsgId ? { ...m, content: chunkText, isStreaming: true } : m
+            );
+            updateBranchMessages(currentThread.id, activeBranchMsgId, updated);
+            setCurrentThread({ ...currentThread });
+          }
+        },
+        onComplete: (fullText) => {
+          const currentMsg = currentThread.messages.find(m => m.id === activeBranchMsgId);
+          if (currentMsg?.branch) {
+            const updated = currentMsg.branch.messages.map(m => 
+              m.id === aiSubMsgId ? { ...m, content: fullText, isStreaming: false } : m
+            );
+            updateBranchMessages(currentThread.id, activeBranchMsgId, updated);
+            setCurrentThread({ ...currentThread });
+            setThreads(getThreads());
+          }
+          setIsBranchGenerating(false);
+        },
+        onError: (err) => {
+          const currentMsg = currentThread.messages.find(m => m.id === activeBranchMsgId);
+          if (currentMsg?.branch) {
+            const updated = currentMsg.branch.messages.map(m => 
+              m.id === aiSubMsgId ? { ...m, content: `⚠️ Lỗi: ${err.message}`, isStreaming: false } : m
+            );
+            updateBranchMessages(currentThread.id, activeBranchMsgId, updated);
+            setCurrentThread({ ...currentThread });
+          }
+          setIsBranchGenerating(false);
+        }
+      },
+      branchAbortControllerRef.current.signal
+    );
+  };
+
+  const handleStopBranchGeneration = () => {
+    if (branchAbortControllerRef.current) {
+      branchAbortControllerRef.current.abort();
+      setIsBranchGenerating(false);
+    }
+  };
+
 
   const handleChangeTheme = (theme: 'default' | 'dark' | 'ivory' | 'grid') => {
     setActiveTheme(theme);
@@ -320,9 +472,11 @@ export const Assistant: React.FC = () => {
   };
 
   const isDark = isNightMode || activeTheme === 'dark';
+  const activeBranchMsg = currentThread?.messages.find(m => m.id === activeBranchMsgId);
 
   return (
     <div className={`flex h-screen overflow-hidden ${isDark ? 'dark' : ''}`}>
+
       {/* SIDEBAR - LEFT PANEL WITH CLOSE/EXPAND FEATURE */}
       <aside 
         className={`fixed inset-y-0 left-0 z-50 flex flex-col border-r border-slate-200 bg-white transition-all duration-300 md:static ${
@@ -433,9 +587,17 @@ export const Assistant: React.FC = () => {
                         <Pin className="size-3 text-amber-400 shrink-0 fill-amber-400" />
                       )}
                     </div>
-                    <span className={`font-mono text-[9px] ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
-                      {t.createdAt}
-                    </span>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span className={`font-mono text-[9px] ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
+                        {t.createdAt}
+                      </span>
+                      {t.messages.some(m => m.branch && m.branch.messages.length > 0) && (
+                        <span className={`flex items-center gap-0.5 font-mono text-[9px] ${isActive ? 'text-blue-200' : 'text-[#2563EB]'}`} title="Cuộc trò chuyện có nhánh thảo luận con">
+                          <GitBranch className="size-2.5" />
+                          <span>{t.messages.filter(m => m.branch && m.branch.messages.length > 0).length}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </button>
               );
@@ -662,19 +824,6 @@ export const Assistant: React.FC = () => {
                       <Trash2 className="size-4" />
                       <span>Xóa cuộc trò chuyện này</span>
                     </button>
-
-                    {/* Sign Out Button in Settings */}
-                    <button
-                      onClick={() => {
-                        setSettingsOpen(false);
-                        signOut();
-                        navigate('/');
-                      }}
-                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-100 cursor-pointer font-medium border-t border-slate-100 mt-1"
-                    >
-                      <LogOut className="size-4 text-slate-500" />
-                      <span>Đăng xuất tài khoản</span>
-                    </button>
                   </div>
                 </div>
               )}
@@ -743,7 +892,7 @@ export const Assistant: React.FC = () => {
           {currentThread?.messages.map((msg) => (
             <div
               key={msg.id}
-              className={`flex gap-4 max-w-4xl mx-auto ${
+              className={`group relative flex gap-4 max-w-4xl mx-auto ${
                 msg.sender === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
@@ -754,11 +903,21 @@ export const Assistant: React.FC = () => {
               )}
 
               <div className={`flex flex-col max-w-[85%] ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center justify-between w-full gap-2 mb-1 px-1">
                   <span className={`font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     {msg.sender === 'user' ? (user?.user_metadata?.full_name || user?.user_metadata?.name || 'Bạn') : 'Trợ lý LƯU HÀNH'} · {msg.timestamp}
                   </span>
+
+                  {/* Nút Delete ở tận cùng bên phải từng card */}
+                  <button
+                    onClick={() => handleDeleteMessage(msg.id)}
+                    title="Xóa tin nhắn này"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-red-500 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
                 </div>
+
 
                 <div
                   className={`rounded-2xl px-5 py-4 text-sm leading-relaxed shadow-xs ${
@@ -928,6 +1087,44 @@ export const Assistant: React.FC = () => {
                           )}
                         </div>
                       )}
+
+                      {/* NÚT MỞ NHÁNH THẢO LUẬN RIÊNG BIỆT (SUB-THREAD BRANCH) */}
+
+                      {!msg.isStreaming && msg.content && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => handleOpenBranch(msg)}
+                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-xs font-semibold transition-all cursor-pointer ${
+                              activeBranchMsgId === msg.id
+                                ? 'bg-[#2563EB] text-white shadow-xs'
+                                : msg.branch && msg.branch.messages.length > 0
+                                ? 'bg-[#2563EB]/10 text-[#2563EB] hover:bg-[#2563EB]/20 border border-[#2563EB]/30'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                            title="Mở nhánh thảo luận đào sâu sang tab bên phải"
+                          >
+                            <GitBranch className="size-3.5" />
+                            <span>
+                              {msg.branch && msg.branch.messages.length > 0
+                                ? `Nhánh thảo luận (${msg.branch.messages.length})`
+                                : 'Mở nhánh thảo luận'}
+                            </span>
+                            {activeBranchMsgId === msg.id && (
+                              <span className="size-1.5 rounded-full bg-emerald-300 animate-pulse ml-0.5" />
+                            )}
+                          </button>
+
+                          {msg.branch && (
+                            <span 
+                              onClick={() => handleOpenBranch(msg)}
+                              className="font-mono text-[10px] text-slate-400 hover:text-[#2563EB] cursor-pointer truncate max-w-[200px]"
+                              title={msg.branch.title}
+                            >
+                              ↳ {msg.branch.title}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1021,6 +1218,180 @@ export const Assistant: React.FC = () => {
         </div>
       </div>
 
+      {/* RIGHT PANEL - SUB-THREAD / BRANCH DISCUSSION */}
+      {activeBranchMsg && activeBranchMsg.branch && (
+        <aside
+          style={{ width: isPanelExpanded ? '60%' : `${rightPanelWidth}px` }}
+          className={`relative flex flex-col border-l transition-all duration-150 h-full z-20 shadow-xl ${
+            isDark ? 'border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-[#0F172A]'
+          }`}
+        >
+          {/* DRAG-TO-RESIZE HANDLE */}
+          {!isPanelExpanded && (
+            <div
+              onMouseDown={() => {
+                isResizingRef.current = true;
+                document.body.style.cursor = 'ew-resize';
+                document.body.style.userSelect = 'none';
+              }}
+              className="absolute left-0 top-0 bottom-0 w-2 -ml-1 cursor-ew-resize hover:bg-[#2563EB]/80 active:bg-[#2563EB] transition-colors z-30 flex items-center justify-center group"
+              title="Kéo sang trái/phải để thay đổi độ rộng tab"
+            >
+              <div className="w-0.5 h-8 bg-slate-300 dark:bg-slate-700 group-hover:bg-[#2563EB] rounded-full" />
+            </div>
+          )}
+
+          {/* RIGHT PANEL HEADER */}
+          <div className={`flex h-16 items-center justify-between border-b px-4 transition-colors ${
+            isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'
+          }`}>
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="flex size-7 items-center justify-center rounded-lg bg-[#2563EB]/10 text-[#2563EB] shrink-0">
+                <GitBranch className="size-4" />
+              </div>
+              <div className="overflow-hidden">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[10px] uppercase font-bold text-[#2563EB]">Nhánh thảo luận</span>
+                  <span className="text-[10px] text-slate-400">· {activeBranchMsg.branch.messages.length} phản hồi</span>
+                </div>
+                <h3 className="font-bold text-xs truncate max-w-[220px]" title={activeBranchMsg.branch.title}>
+                  {activeBranchMsg.branch.title}
+                </h3>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+                title={isPanelExpanded ? "Thu nhỏ về 1/3" : "Mở rộng màn hình"}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+              >
+                {isPanelExpanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+              </button>
+              <button
+                onClick={() => setActiveBranchMsgId(null)}
+                title="Đóng nhánh thảo luận"
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* TRÍCH ĐOẠN CÂU TRẢ LỜI GỐC (ORIGINAL CONTEXT SNIPPET) */}
+          <div className="border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-950/40 p-3 text-xs">
+            <div className="flex items-center gap-1 font-mono text-[10px] text-slate-400 mb-1">
+              <CornerDownRight className="size-3 text-[#2563EB]" />
+              <span>Nội dung phản hồi gốc:</span>
+            </div>
+            <p className="line-clamp-2 text-slate-600 dark:text-slate-300 italic font-serif leading-relaxed">
+              "{activeBranchMsg.branch.parentSnippet}"
+            </p>
+          </div>
+
+          {/* DANH SÁCH TIN NHẮN TRONG NHÁNH CON */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+            {activeBranchMsg.branch.messages.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 font-mono space-y-2">
+                <GitBranch className="size-8 mx-auto text-slate-300 dark:text-slate-700" />
+                <p className="text-xs font-semibold">Chưa có câu hỏi nào trong nhánh này.</p>
+                <p className="text-[11px] text-slate-500">Đặt câu hỏi để làm rõ hoặc đào sâu căn cứ pháp lý ở trên.</p>
+              </div>
+            ) : (
+              activeBranchMsg.branch.messages.map((subMsg) => (
+                <div
+                  key={subMsg.id}
+                  className={`flex flex-col ${subMsg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                >
+                  <span className="font-mono text-[9px] text-slate-400 mb-1 px-1">
+                    {subMsg.sender === 'user' ? (user?.user_metadata?.full_name || user?.user_metadata?.name || 'Bạn') : 'Trợ lý LƯU HÀNH'} · {subMsg.timestamp}
+                  </span>
+                  <div
+                    className={`rounded-xl px-3.5 py-2.5 leading-relaxed shadow-xs max-w-[90%] ${
+                      subMsg.sender === 'user'
+                        ? 'bg-[#0F172A] text-white rounded-tr-none'
+                        : isDark
+                        ? 'bg-slate-800 border border-slate-700 text-white rounded-tl-none'
+                        : 'bg-white border border-slate-200 text-[#0F172A] rounded-tl-none'
+                    }`}
+                  >
+                    {subMsg.sender === 'user' ? (
+                      <p className="whitespace-pre-wrap">{subMsg.content}</p>
+                    ) : (
+                      <div className={subMsg.isStreaming ? 'typing-cursor' : ''}>
+                        {subMsg.content ? (
+                          renderMarkdownContent(subMsg.content)
+                        ) : (
+                          <div className="flex items-center gap-2 py-1 text-slate-400 font-mono text-[11px]">
+                            <div className="size-1.5 rounded-full bg-[#2563EB] animate-ping" />
+                            <span>Đang phản hồi trong nhánh...</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={branchMessagesEndRef} />
+          </div>
+
+          {/* INPUT GỬI TRONG NHÁNH CON */}
+          <div className={`border-t p-3 transition-colors ${
+            isDark ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'
+          }`}>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendBranchPrompt();
+              }}
+              className={`flex items-center rounded-xl border p-1.5 transition-all shadow-xs ${
+                isDark 
+                  ? 'bg-slate-800 border-slate-700 text-white focus-within:border-[#2563EB]' 
+                  : 'bg-white border-slate-300 text-[#0F172A] focus-within:border-[#2563EB]'
+              }`}
+            >
+              <textarea
+                value={branchInput}
+                onChange={(e) => setBranchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendBranchPrompt();
+                  }
+                }}
+                placeholder="Hỏi sâu thêm về nội dung này... (Enter để gửi)"
+                rows={1}
+                className="flex-1 resize-none bg-transparent px-2.5 py-1.5 text-xs placeholder-slate-400 focus:outline-none max-h-24"
+              />
+
+              {isBranchGenerating ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStopBranchGeneration}
+                  className="text-red-600 border-red-200 hover:bg-red-50 font-mono text-[10px] h-7 px-2"
+                >
+                  <Square className="size-3 fill-red-600" />
+                  <span>Dừng</span>
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  variant="accent"
+                  size="sm"
+                  disabled={!branchInput.trim()}
+                  className="font-mono text-[10px] h-7 px-2.5 uppercase"
+                >
+                  <Send className="size-3" />
+                </Button>
+              )}
+            </form>
+          </div>
+        </aside>
+      )}
+
       {/* Profile Avatar Upload Modal */}
       <Profile_modal
         isOpen={profileModalOpen}
@@ -1029,3 +1400,4 @@ export const Assistant: React.FC = () => {
     </div>
   );
 };
+

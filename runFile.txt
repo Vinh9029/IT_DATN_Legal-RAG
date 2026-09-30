@@ -38,99 +38,38 @@ python -m venv .venv
 # Cài dependencies thông thường (KHÔNG bao gồm PyTorch):
 pip install -r requirements.txt
 
-# ----------------------------------------------------------
-# ⚠️  CÀI PyTorch RIÊNG — Chọn đúng lệnh theo Chip/GPU máy
-# ----------------------------------------------------------
-# [KIỂM TRA GPU TRƯỚC] — chạy script này để biết chip nào đang dùng:
-python scripts/check_gpu.py
-
-# Sau khi xác định GPU, chạy đúng 1 trong các lệnh bên dưới:
-
-# → NVIDIA GPU (RTX/GTX, CUDA 12.8) — Windows / Linux:
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-
-# → AMD GPU — Windows (CPU-only, vì DirectML không còn hỗ trợ pip):
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-
-# → AMD GPU — Linux (ROCm 6.1):
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.1
-
-# → Apple Silicon M1/M2/M3/M4 (MPS tích hợp sẵn):
-pip install torch torchvision torchaudio
-
-# → Không có GPU / môi trường CI:
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-
-# [XÁC NHẬN] — chạy lại để kiểm tra device được chọn tự động:
-python scripts/check_gpu.py
-# ----------------------------------------------------------
-
-
-# 1. Tải và tiền xử lý data từ HuggingFace (Chạy trực tiếp từ Parquet, sửa lỗi metadata & doc_id)
-# (Đã chạy xong 1 lần thì KHÔNG cần xóa chạy lại)
-python scripts/offline_rag/01_fix_preprocess.py
-
-# 2. Cắt Chunk dữ liệu pháp lý theo Điều/Khoản & TỰ ĐỘNG LỌC VĂN BẢN CÒN HIỆU LỰC
-# (Tự động loại bỏ >667k chunk 'Hết hiệu lực toàn bộ' / 'Không còn phù hợp')
-python scripts/offline_rag/02_chunk_documents.py
-
-# 3. Build Vector Index & Upsert vào Qdrant (Local Vector DB qua Docker - KHUYÊN DÙNG CHO ĐỒ ÁN)
-# (Không giới hạn data, lưu trữ vĩnh viễn trên máy, xem dashboard tại http://localhost:6333/dashboard)
-# Script tự động chọn device phù hợp (CUDA / MPS / DirectML CPU-safe) dựa trên máy đang chạy
-python scripts/offline_rag/03_build_qdrant.py
+# ── BƯỚC 2: Download Output & Nạp vào Local System ────────────────────────
+# (Các bước 01→05 đã được thực thi trên Kaggle — KHÔNG cần chạy thủ công)
 #
-# ── HƯỚNG DẪN BATCH SIZE THEO TỪNG CHIP / GPU ──────────────────────────────
-# Script hỗ trợ 2 cờ CLI: --gpu (ép dùng GPU) và --batch N (tùy chỉnh batch)
-# Nếu không truyền gì: CPU đa luồng (ổn định nhất, ~100 chunks/s)
+# 2.1. Đặt các file vào cấu trúc thư mục project bên dưới:
 #
-# ┌─────────────────────────────┬────────────┬──────────┬────────────────────────────────────────────┐
-# │ Chip / GPU                  │ Lệnh khởi  │  batch   │ Ghi chú                                    │
-# ├─────────────────────────────┼────────────┼──────────┼────────────────────────────────────────────┤
-# │ AMD RX 580 8GB (DirectML)   │ --gpu      │  64      │ Mặc định khi --gpu, VRAM ~4GB.             │
-# │                             │ --gpu      │  32      │ An toàn hơn nếu OOM: --batch 32            │
-# ├─────────────────────────────┼────────────┼──────────┼────────────────────────────────────────────┤
-# │ NVIDIA RTX 3050 4GB (CUDA)  │ (tự động)  │  64      │ CUDA auto, VRAM ~3.5GB. Nếu OOM: --batch 32│
-# │                             │            │  32      │ python 03_build_qdrant.py --batch 32       │
-# ├─────────────────────────────┼────────────┼──────────┼────────────────────────────────────────────┤
-# │ Apple Silicon M4 (MPS)      │ (tự động)  │  128     │ MPS dùng RAM hệ thống, chia sẻ với CPU.   │
-# │                             │            │         │ M4 Base 16GB RAM → --batch 128 an toàn.    │
-# │                             │            │         │ M4 Pro/Max 24–48GB → --batch 256 tối ưu.   │
-# ├─────────────────────────────┼────────────┼──────────┼────────────────────────────────────────────┤
-# │ CPU only / không có GPU     │ --cpu      │  128     │ Đa luồng (OpenMP), ổn định 100%.           │
-# └─────────────────────────────┴────────────┴──────────┴────────────────────────────────────────────┘
-#
-# Ví dụ cụ thể:
-#   AMD RX 580 (DirectML), batch 64:
-python scripts/offline_rag/03_build_qdrant.py --gpu
-#   AMD RX 580 (DirectML), batch tùy chỉnh 32 nếu bị OOM:
-# python scripts/offline_rag/03_build_qdrant.py --gpu --batch 32
-#
-#   NVIDIA RTX 3050 4GB (CUDA tự nhận), batch mặc định:
-# python scripts/offline_rag/03_build_qdrant.py
-#   NVIDIA RTX 3050 4GB, giảm batch nếu OOM:
-# python scripts/offline_rag/03_build_qdrant.py --batch 32
-#
-#   Apple Silicon M4 (MPS tự nhận), tăng batch:
-# python scripts/offline_rag/03_build_qdrant.py --batch 128
-#   Apple M4 Pro/Max RAM lớn:
-# python scripts/offline_rag/03_build_qdrant.py --batch 256
-#
-#   CPU thuần (chậm nhưng ổn định 100%, không cần GPU):
-# python scripts/offline_rag/03_build_qdrant.py --cpu
-#
-# ─────────────────────────────────────────────────────────────────────────────
-# Script có tính năng RESUME: Nếu bị ngắt giữa chừng, chạy lại cùng lệnh
-# → Tự động bỏ qua các chunks đã upsert, tiếp tục từ điểm dừng.
-# ─────────────────────────────────────────────────────────────────────────────
+# backend/data/rag/
+# ├── raw/
+# │   └── preprocessed_cache.jsonl          ← (Tùy chọn)
+# ├── processed/
+# │   ├── chunks/
+# │   │   └── chunks.jsonl                  ← Từ Output Kaggle
+# │   └── qdrant_vectors.jsonl              ← Từ Output Kaggle
+# └── indexes/
+#     └── bm25/
+#         ├── bm25_index.pkl                ← Từ Output Kaggle
+#         └── bm25_corpus_ids.json          ← Từ Output Kaggle
 
-# (Tùy chọn phụ): Nếu muốn đẩy lên Pinecone Cloud (có giới hạn quota Free):
-# python scripts/offline_rag/03_build_pinecone.py
+# 2.2. Import Vector Embeddings vào Docker Qdrant (Local)
+# (Đảm bảo Docker Qdrant container đang chạy ở port 6333)
+docker compose up qdrant -d
+cd backend
+.venv\Scripts\Activate.ps1
+python scripts/offline_rag/import_qdrant_from_jsonl.py
 
-# 4. Build BM25 Index (Sparse DB Local - pickle file)
-python scripts/offline_rag/04_build_bm25.py
-
-# 5. Nạp cấu trúc đồ thị văn bản pháp luật vào Neo4j (Graph DB)
+# 2.3. Xây dựng Neo4j Knowledge Graph (Local)
+# (Neo4j cần kết nối bolt:// local nên chạy trực tiếp trên máy)
+docker compose up neo4j -d
 python scripts/offline_rag/05_build_neo4j.py
+
+# ── KIỂM TRA HỆ THỐNG SAU KHI NẠP DỮ LIỆU ─────────────────────────────────
+# Docker Qdrant Dashboard : http://localhost:6333/dashboard (551,020 vectors)
+# Docker Neo4j Browser    : http://localhost:7474           (Graph relationships)
 
 
 # ------------------------------------------------------------
