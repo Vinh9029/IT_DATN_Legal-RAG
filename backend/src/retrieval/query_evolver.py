@@ -1,16 +1,21 @@
 """
-Stage 1: Query Evolution (Query Rewriting).
+Stage 1: Query Evolution (Query Rewriting + Specificity Classification).
 
 Mở rộng câu hỏi thô của user thành câu hỏi chuẩn pháp lý
-theo framework IRAC, bổ sung thuật ngữ pháp luật.
+theo framework IRAC, bổ sung thuật ngữ pháp luật, đồng thời
+phân loại độ đặc thù (broad / narrow) để điều phối chiến lược retrieval.
 
 Không dùng LangChain vì:
 - Pipeline này là linear flow, không cần stateful graph
 - Kiểm soát trực tiếp prompt và logging tốt hơn cho nghiên cứu
 """
 
+from pathlib import Path
+from typing import Dict, Any, Optional
 from openai import OpenAI
 from loguru import logger
+
+from evol_instruct.src.qa_specificity.routing_classifier import RoutingClassifier
 
 QUERY_REWRITE_PROMPT = """Bạn là chuyên gia pháp lý Việt Nam. Nhiệm vụ của bạn là cải thiện câu hỏi pháp lý.
 
@@ -26,17 +31,29 @@ Chỉ trả về câu hỏi đã được viết lại, không giải thích th�
 
 class QueryEvolver:
     """
-    Stage 1: Dùng LLM nhỏ để rewrite query trước khi retrieval.
-    Cải thiện semantic search accuracy cho câu hỏi pháp luật.
+    Stage 1: Dùng LLM nhỏ để rewrite query trước khi retrieval,
+    kết hợp PhoBERT RoutingClassifier để dự đoán specificity ('broad' | 'narrow').
     """
 
-    def __init__(self, base_url: str, api_key: str, model: str, temperature: float = 0.3):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        temperature: float = 0.3,
+        model_dir: Optional[str | Path] = None,
+    ):
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.model = model
         self.temperature = temperature
 
-    def evolve(self, query: str) -> str:
-        """Rewrite câu hỏi, fallback về query gốc nếu lỗi hoặc response rỗng."""
+        if model_dir is None:
+            # backend/models/routing_classifier
+            model_dir = Path(__file__).resolve().parents[2] / "models" / "routing_classifier"
+        self.classifier = RoutingClassifier(model_dir=model_dir)
+
+    def _rewrite(self, query: str) -> str:
+        """Rewrite câu hỏi theo framework IRAC, fallback về query gốc nếu lỗi hoặc response rỗng."""
         try:
             prompt = QUERY_REWRITE_PROMPT.format(query=query)
             response = self.client.chat.completions.create(
@@ -57,8 +74,23 @@ class QueryEvolver:
                 return query
 
             evolved = content.strip()
-            logger.debug(f"Query evolved: '{query}' → '{evolved}'")
+            logger.debug(f"Query rewritten: '{query}' → '{evolved}'")
             return evolved
         except Exception as e:
             logger.warning(f"Query evolution failed, using original: {e}")
             return query
+
+    def evolve(self, query: str) -> Dict[str, str]:
+        """
+        Thực hiện Stage 1:
+        1. Rewrite câu hỏi (IRAC & thuật ngữ pháp lý)
+        2. Phân loại độ đặc thù ('broad' / 'narrow') qua RoutingClassifier
+        """
+        evolved_query = self._rewrite(query)
+        specificity = self.classifier.predict(evolved_query)
+        logger.info(f"Query evolved: '{query}' → '{evolved_query}' | specificity='{specificity}' (mode={self.classifier.mode})")
+        return {
+            "evolved_query": evolved_query,
+            "specificity": specificity,
+        }
+

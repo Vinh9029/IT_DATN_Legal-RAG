@@ -80,8 +80,13 @@ striprtf>=0.0.26             # Đọc .rtf, và .doc thực chất là RTF đổ
 #   - hoặc đã có Microsoft Word: pip install pywin32
 # Thiếu cả hai thì chỉ những file .doc đó bị bỏ, phần còn lại vẫn chạy.
 
-# Filters
-scikit-learn>=1.3.0          # TF-IDF + Cosine Similarity (bộ lọc độ tương đồng)
+# Filters & Machine Learning
+scikit-learn>=1.3.0          # TF-IDF + Cosine Similarity & Classifier metrics
+
+# Routing Classifier Fine-tuning (QLoRA / LoRA)
+peft>=0.10.0                 # Parameter-Efficient Fine-Tuning (LoRA)
+accelerate>=0.28.0           # PyTorch model acceleration & device mapping
+bitsandbytes>=0.43.0         # 4-bit / 8-bit quantization cho QLoRA (Windows: pip install bitsandbytes --prefer-binary)
 
 
 # ── SHARED (RAG + Evol-Instruct) ────────────────────────────

@@ -77,3 +77,23 @@ python scripts/offline_rag/05_build_neo4j.py
 # ------------------------------------------------------------
 # (Vẫn đứng tại thư mục backend)
 uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
+
+
+
+# ------------------------------------------------------------
+# BƯỚC 5: EVOL-INSTRUCT PIPELINE — FINE-TUNING ROUTING CLASSIFIER (QLoRA)
+# ------------------------------------------------------------
+# Fine-tune mô hình PhoBERT (vinai/phobert-base-v2) để phân loại câu hỏi (broad / narrow)
+# dựa trên bộ dữ liệu QA Specificity tại backend/data/qa_pairs/final/
+
+# 5.1. Cài đặt các thư viện phục vụ Fine-tuning / QLoRA:
+pip install transformers peft accelerate scikit-learn
+# Đối với bitsandbytes trên Windows (nếu có NVIDIA GPU):
+pip install bitsandbytes --prefer-binary
+
+# 5.2. Chạy huấn luyện PhoBERT Routing Classifier (QLoRA 4-bit):
+# (Đứng tại thư mục backend)
+python evol_instruct/scripts/13_train_routing_classifier.py
+
+# Output adapter và tokenizer sẽ được lưu tại: backend/models/routing_classifier/
+# QueryEvolver trong RAG Pipeline sẽ tự động nạp adapter này để định tuyến câu hỏi lúc runtime.

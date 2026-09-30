@@ -79,13 +79,25 @@ async def query_legal_documents(request: QueryRequest):
 
     dense_r, sparse_r, graph_r, reranker, evolver, cache = _get_retrievers()
 
-    # ─── Stage 1: Query Evolution ─────────────────────────────
-    evolved_query = evolver.evolve(request.query)
-    logger.info(f"Stage 1 done | evolved: '{evolved_query[:80]}...'")
+    # ─── Stage 1: Query Evolution & Routing ───────────────────
+    evolved_result = evolver.evolve(request.query)
+    if isinstance(evolved_result, dict):
+        evolved_query = evolved_result.get("evolved_query", request.query)
+        specificity = evolved_result.get("specificity", "broad")
+    else:
+        evolved_query = evolved_result
+        specificity = "broad"
+
+    logger.info(f"Stage 1 done | evolved: '{evolved_query[:80]}...' | specificity: {specificity}")
+
+    # Chiến lược Retrieval thích ứng theo Specificity:
+    # - Broad  → Mở rộng phạm vi tìm kiếm (top_k * 4), mở rộng graph triệt để
+    # - Narrow → Tập trung độ chính xác (top_k * 2)
+    search_multiplier = 4 if specificity == "broad" else 2
 
     # ─── Stage 2A & 2B: Parallel Retrieval ───────────────────
-    sparse_results = sparse_r.search(evolved_query, top_k=request.top_k * 3)
-    dense_results = dense_r.search(evolved_query, top_k=request.top_k * 3)
+    sparse_results = sparse_r.search(evolved_query, top_k=request.top_k * search_multiplier)
+    dense_results = dense_r.search(evolved_query, top_k=request.top_k * search_multiplier)
 
     # Map content vào dense results (Pinecone chỉ trả metadata, không trả content)
     for res in dense_results:
@@ -100,15 +112,16 @@ async def query_legal_documents(request: QueryRequest):
     fused = reciprocal_rank_fusion(
         dense_results=dense_results,
         sparse_results=sparse_results,
-        top_k=request.top_k * 2  # Giữ nhiều để reranker chọn lại
+        top_k=request.top_k * search_multiplier
     )
     logger.info(f"Stage 2C (RRF) done | fused={len(fused)}")
 
     # ─── Stage 3: Legal Graph Expansion ──────────────────────
     if request.enable_graph and fused:
+        graph_depth = 2 if specificity == "broad" else 1
         top_doc_ids = list(set(r["doc_id"] for r in fused if r.get("doc_id")))
-        related = graph_r.get_related_documents(doc_ids=top_doc_ids, depth=1)
-        logger.info(f"Stage 3 (Graph) done | related_docs={len(related)}")
+        related = graph_r.get_related_documents(doc_ids=top_doc_ids, depth=graph_depth)
+        logger.info(f"Stage 3 (Graph depth={graph_depth}) done | related_docs={len(related)}")
 
     # ─── Stage 4: Cross-Encoder Re-ranking ───────────────────
     reranked = reranker.rerank(

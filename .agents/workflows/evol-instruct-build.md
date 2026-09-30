@@ -15,10 +15,11 @@ description: "Roadmap kết nối Evol-Instruct + QA Specificity → RAG Pipelin
 | Thành phần | Quyết định |
 |---|---|
 | **Corpus RAG** | Toàn bộ 171k văn bản — `th1nhng0/vietnamese-legal-documents` (HF) |
-| **Vector DB** | Pinecone (primary) + Qdrant local Docker (fallback/dev) |
+| **Vector DB** | Qdrant local Docker (primary/dev) + Pinecone (cloud, tùy chọn) |
 | **Sparse** | BM25 local `.pkl` |
 | **Graph DB** | Neo4j local Docker |
-| **Routing Classifier** | Fine-tune PhoBERT trên `train.json` (QA Specificity) bằng QLoRA local (Llama 8B) |
+| **Routing Classifier** | ✅ Fine-tune `vinai/phobert-base-v2` QLoRA — `backend/models/routing_classifier/` |
+| **Query Evolver** | ✅ Tích hợp IRAC rewriting + RoutingClassifier → `evolved_query` + `specificity` |
 
 ---
 
@@ -28,8 +29,8 @@ Những file này **không chạy lại** nhưng là **input trực tiếp** cho
 
 | File | Vai trò | Dùng ở đâu |
 |---|---|---|
-| `backend/data/qa_pairs/final/train.json` | Train routing classifier broad/narrow | Phase 2 |
-| `backend/data/qa_pairs/final/val.json` | Validate classifier | Phase 2 |
+| `backend/data/qa_pairs/final/train.json` | Train routing classifier broad/narrow | Phase 2 ✅ |
+| `backend/data/qa_pairs/final/val.json` | Validate classifier | Phase 2 ✅ |
 | `backend/data/qa_pairs/final/test.json` | **Gold set** đánh giá Recall@K, MRR, ablation | Phase 3 |
 | `docs/doc-id-contract.md` | Giao ước `doc_id` — đọc trước khi chạy Phase 1 | Bước 1b |
 
@@ -58,20 +59,16 @@ python scripts/offline_rag/02_chunk_documents.py
 # Mỗi chunk có: chunk_id, doc_id, dieu, content, metadata
 ```
 
-### Bước 1c — Build Vector DB (Pinecone primary)
+### Bước 1c — Build Vector DB (Qdrant primary / Pinecone optional)
 
 ```bash
-# Điền PINECONE_API_KEY vào .env trước
-python scripts/offline_rag/03_build_pinecone.py
-# Embedding model: bkai-foundation-models/vietnamese-bi-encoder (dim=768)
-# Upsert theo batch 100, có progress bar
-```
-
-**Qdrant local (fallback/dev) — chạy song song:**
-```bash
+# Qdrant local (dev, không cần API key):
 docker run -d -p 6333:6333 -v qdrant_storage:/qdrant/storage qdrant/qdrant
-# → Cần viết thêm 03b_build_qdrant.py (tương tự pinecone_builder.py)
-# Qdrant không cần API key, phù hợp test local không tốn tiền
+python scripts/offline_rag/import_qdrant_from_jsonl.py
+# Embedding model: bkai-foundation-models/vietnamese-bi-encoder (dim=768)
+
+# Pinecone cloud (optional — điền PINECONE_API_KEY vào .env trước):
+# python scripts/offline_rag/03_build_pinecone.py
 ```
 
 ### Bước 1d — Build BM25 Index
@@ -98,45 +95,55 @@ python scripts/offline_rag/05_build_neo4j.py
 
 ---
 
-## Phase 2 — Train Routing Classifier (Broad/Narrow)
+## Phase 2 — Train Routing Classifier (Broad/Narrow) ✅ HOÀN THÀNH
 
 ### Mục tiêu
-Train model phân loại câu hỏi `broad` / `narrow` để `QueryEvolver` chọn đúng `IRetrievalStrategy`:
-- **Narrow** → Top-K nhỏ hơn, precision-focused retrieval
-- **Broad** → Top-K lớn hơn, recall-focused + graph expansion mạnh hơn
+Phân loại câu hỏi `broad` / `narrow` để `QueryEvolver` chọn đúng chiến lược retrieval:
+- **Broad** → `search_multiplier = 4`, `graph_depth = 2` (recall-focused, diện rộng)
+- **Narrow** → `search_multiplier = 2`, `graph_depth = 1` (precision-focused, tập trung)
 
-### Dữ liệu
+### Dữ liệu ✅ Đã sẵn sàng
 ```
-backend/data/qa_pairs/final/train.json   # ~70% của QA Specificity dataset
+backend/data/qa_pairs/final/train.json   # ~70% của QA Specificity (203k dòng, 7MB)
 backend/data/qa_pairs/final/val.json     # ~15%
 ```
 
-Mỗi item có: `question` (text) + `final_label` (`broad`/`narrow`) + `source_doc_id` + `pair_id`.
+Mỗi item có: `question` + `final_label` (`broad`/`narrow`) + `source_doc_id` + `pair_id`.
+Label ưu tiên: `final_label` → `judge_label` → `specificity`.
 
-### Approach: Fine-tune PhoBERT + QLoRA
+### Files đã tạo ✅
 
-```python
-# Base model: vinai/phobert-base-v2 (sequence classification)
-# QLoRA để giảm VRAM — chạy được trên card 8GB
-# Training: binary classification (broad=0, narrow=1)
-# Metric: F1 macro (vì dataset cân bằng broad/narrow theo thiết kế contrastive pair)
+| File | Mô tả | Trạng thái |
+|---|---|---|
+| `backend/evol_instruct/src/qa_specificity/routing_classifier.py` | Inference wrapper PhoBERT + LoRA adapter | ✅ Tạo xong |
+| `backend/evol_instruct/scripts/13_train_routing_classifier.py` | QLoRA fine-tune script | ✅ Tạo xong |
+| `backend/src/retrieval/query_evolver.py` | Tích hợp RoutingClassifier + IRAC rewriting | ✅ Cập nhật xong |
+| `backend/src/api/routers/query.py` | Adaptive retrieval routing theo specificity | ✅ Cập nhật xong |
+
+### Chạy fine-tune
+
+```bash
+# Cài đặt dependencies
+pip install transformers peft accelerate scikit-learn
+pip install bitsandbytes --prefer-binary  # Windows NVIDIA GPU
+
+# Chạy từ thư mục backend/
+python evol_instruct/scripts/13_train_routing_classifier.py
+
+# Output: backend/models/routing_classifier/ (adapter + tokenizer + train_config.json)
 ```
 
-**Cần tạo mới:**
-- `backend/evol_instruct/src/qa_specificity/routing_classifier.py` — wrap PhoBERT inference
-- `backend/evol_instruct/scripts/13_train_routing_classifier.py` — train script
-- Tích hợp vào `backend/src/retrieval/query_evolver.py`
+> **Fallback thông minh:** Nếu chưa chạy fine-tune, `RoutingClassifier` tự động fallback về heuristic word-count. Pipeline **không bao giờ crash**.
 
-### Tích hợp vào QueryEvolver
-
-Hiện tại [`query_evolver.py`](file:///d:/IT_DATN_Legal-RAG/backend/src/retrieval/query_evolver.py) chỉ làm query rewriting.
-Sau Phase 2, `evolve()` sẽ trả thêm `specificity: str` để pipeline chọn strategy:
+### `evolve()` sau tích hợp
 
 ```python
-def evolve(self, query: str) -> dict:
-    evolved_query = self._rewrite(query)
-    specificity = self.classifier.predict(evolved_query)   # "broad" | "narrow"
-    return {"evolved_query": evolved_query, "specificity": specificity}
+# query_evolver.py — Trả về dict thay vì str
+result = evolver.evolve("Điều kiện bồi thường thiệt hại ngoài hợp đồng?")
+# {
+#   "evolved_query": "Theo Bộ luật Dân sự 2015, điều kiện phát sinh trách nhiệm ...",
+#   "specificity": "narrow"
+# }
 ```
 
 ---
@@ -147,9 +154,9 @@ Dùng `backend/data/qa_pairs/final/test.json` để đo hiệu quả:
 
 | Metric | Cách tính |
 |---|---|
-| **Recall@K** | Với mỗi câu hỏi test, retriever có trả về `doc_id` = `source_doc_id` của câu hỏi đó trong top-K không? |
+| **Recall@K** | Với mỗi câu hỏi test, retriever có trả về `doc_id` = `source_doc_id` trong top-K không? |
 | **MRR** | Mean Reciprocal Rank của `source_doc_id` trong danh sách kết quả |
-| **Ablation routing** | So sánh Recall@K/MRR: pipeline với routing classifier vs không có (dùng strategy mặc định) |
+| **Ablation routing** | So sánh Recall@K/MRR: pipeline với routing classifier vs không có |
 
 **Cần viết:**
 - `backend/evol_instruct/scripts/14_eval_retrieval.py` — load `test.json`, gọi retriever, tính Recall@K và MRR
@@ -159,19 +166,25 @@ Dùng `backend/data/qa_pairs/final/test.json` để đo hiệu quả:
 ## Thứ tự tổng
 
 ```
-[Đã xong] QA Dataset (HF) + QA Specificity (train/val/test.json)
+[✅ Xong] QA Dataset (HF) + QA Specificity (train/val/test.json)
      │
      ▼
-Phase 1: Build RAG Databases
-  01 → 02 → 03 (Pinecone) + 03b (Qdrant) → 04 (BM25) → 05 (Neo4j)
+[✅ Xong] Phase 1: Build RAG Databases
+  import_qdrant_from_jsonl.py → 04 (BM25) → 05 (Neo4j)
      │
      ▼
-Phase 2: Train Routing Classifier
-  script 13 (train PhoBERT QLoRA) → tích hợp vào query_evolver.py
+[✅ Xong] Phase 2: Train Routing Classifier
+  script 13 (train PhoBERT QLoRA)
+  RoutingClassifier tích hợp vào query_evolver.py
+  Adaptive retrieval routing trong query.py
      │
      ▼
-Phase 3: Ablation Study
+[ 🔜 Chưa làm] Phase 3: Ablation Study
   script 14 (eval Recall@K, MRR) → báo cáo Research Gap #2
+     │
+     ▼
+[ 🔜 Chưa làm] Phase 4: Stage 5 Generator
+  Fine-tune LLM sinh câu trả lời IRAC (sẽ làm sau khi có kết quả ablation)
      │
      ▼
 [Hoàn chỉnh] RAG 5-stage online: FastAPI /api/query
