@@ -24,13 +24,18 @@ Evol-Instruct Pipeline
 ════════════════════ LUỒNG TRỰC TUYẾN (ONLINE) ══════════════════════
 [User Query]
     │
-    ▼ Stage 1: Query Evolution (WizardLM Prompt Rewriter)
+    ▼ Stage 1: Query Evolution + Routing Classification
 [Evolved Query: thuật ngữ chuẩn + IRAC constraint]
+    │        + specificity: "broad" | "narrow"  ← PhoBERT QLoRA Routing Classifier
+    │
+    │  Chiến lược thích ứng:
+    │  ├─ broad  → search_multiplier=4, graph_depth=2 (recall-focused)
+    │  └─ narrow → search_multiplier=2, graph_depth=1 (precision-focused)
     │
     ├──────────────────────────────────────────┐
     ▼                                          ▼
 Stage 2A: Dense Search              Stage 2B: Sparse Search (BM25)
-(Vector DB — PhoBERT)               (Từ khóa / Số hiệu văn bản)
+(Qdrant / Pinecone — PhoBERT)       (Từ khóa / Số hiệu văn bản)
     └──────────────┬───────────────────────────┘
                    ▼
          Rank Fusion (RRF) → Top-K Documents
@@ -40,9 +45,9 @@ Stage 2A: Dense Search              Stage 2B: Sparse Search (BM25)
          Lọc: Metadata tinh_trang ≠ "Hết hiệu lực"
                    │
                    ▼ Stage 4: Cross-Encoder Re-ranking
-         mMARCO / bge-reranker-large → Top 5–10 điều khoản
+         BAAI/bge-reranker-large → Top 5–10 điều khoản
                    │
-                   ▼ Stage 5: Generator (Fine-tuned Legal LLM)
+                   ▼ Stage 5: Generator (Fine-tuned Legal LLM) 🔜 Chưa làm
          Input: [Evolved Query] + [Re-ranked Context]
          Output: Issue → Rule → Application → Conclusion
 ```
@@ -69,24 +74,47 @@ Nạp 1.03M quan hệ từ dataset. Cấu trúc:
 - **Nodes**: mỗi văn bản pháp luật (Luật, Nghị định, Thông tư, ...)
 - **Edges** (có hướng): `hướng_dẫn_thi_hành` · `sửa_đổi_bổ_sung` · `thay_thế_cho` · `dẫn_chiếu_đến`
 
-### 3. Evol-Instruct → Fine-tuning [6]
+### 3. Evol-Instruct → Routing Classifier [6] ✅
 
-6 kỹ thuật tiến hóa → dataset IRAC Alpaca JSONL → LoRA/QLoRA fine-tune trên Llama-3-8B / Qwen-2.5-7B.
+6 kỹ thuật tiến hóa → Dataset QA Specificity (203k cặp câu hỏi broad/narrow) → **PhoBERT QLoRA** fine-tune cho Routing Classifier.
 
-> **Chi tiết:** xem workflow `/evol-instruct-build` và `scripts/`.
+| File | Trạng thái |
+|---|---|
+| `backend/evol_instruct/scripts/13_train_routing_classifier.py` | ✅ Đã tạo |
+| `backend/evol_instruct/src/qa_specificity/routing_classifier.py` | ✅ Đã tạo |
+| `backend/src/retrieval/query_evolver.py` (tích hợp) | ✅ Đã cập nhật |
+| `backend/src/api/routers/query.py` (adaptive routing) | ✅ Đã cập nhật |
+
+> **Chi tiết:** xem workflow `/evol-instruct-build`.
 
 ---
 
 ## PHẦN II — LUỒNG TRỰC TUYẾN (5 GIAI ĐOẠN)
 
-### Stage 1 — Query Evolution [6]
+### Stage 1 — Query Evolution + Routing Classification [6] ✅
 
-**Vấn đề:** Câu hỏi thô ngắn, thiếu thuật ngữ → Semantic Search lệch hướng.
+**Vấn đề:** Câu hỏi thô ngắn, thiếu thuật ngữ → Semantic Search lệch hướng. Câu hỏi broad/narrow cần chiến lược retrieval khác nhau.
 
-**Xử lý:** LLM nhỏ đóng vai **Prompt Rewriter** (WizardLM *Adding Constraints* — Example 3.1 [6]):
-- Bổ sung thuật ngữ pháp lý chuẩn hóa
-- Làm rõ giả định tình huống
-- Ràng buộc cứng: output phải theo **IRAC** [2, 3]
+**Xử lý:** [`query_evolver.py`](file:///d:/IT_DATN_Legal-RAG/backend/src/retrieval/query_evolver.py) kết hợp 2 bước:
+1. **IRAC Rewriting** — LLM nhỏ (LM Studio) rewrite theo WizardLM *Adding Constraints*:
+   - Bổ sung thuật ngữ pháp lý chuẩn hóa
+   - Làm rõ giả định tình huống
+   - Ràng buộc cứng: output phải theo **IRAC** [2, 3]
+2. **Routing Classification** — [`RoutingClassifier`](file:///d:/IT_DATN_Legal-RAG/backend/evol_instruct/src/qa_specificity/routing_classifier.py) (PhoBERT QLoRA) phân loại `broad` / `narrow`
+
+`evolve()` trả về dict:
+```python
+{ "evolved_query": "...", "specificity": "broad" | "narrow" }
+```
+
+**Adaptive Retrieval Routing** trong [`query.py`](file:///d:/IT_DATN_Legal-RAG/backend/src/api/routers/query.py):
+
+| Specificity | `search_multiplier` | `graph_depth` | Chiến lược |
+|---|---|---|---|
+| `broad` | 4 | 2 | Recall-focused, diện rộng |
+| `narrow` | 2 | 1 | Precision-focused, tập trung |
+
+> **Fallback:** Nếu chưa chạy fine-tune script 13, RoutingClassifier tự dùng heuristic word-count. Pipeline không crash.
 
 ### Stage 2 — Hybrid Retrieval (Dense + Sparse)
 
@@ -106,9 +134,9 @@ Lọc bỏ văn bản `tinh_trang = "Hết hiệu lực"` qua Metadata.
 
 Toàn bộ pool tài liệu → **Cross-Encoder** tính độ liên quan sâu với Evolved Query → giữ **5–10 điều khoản** chất lượng nhất, tránh *"lost in the middle"*.
 
-Mô hình gợi ý: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` hoặc `BAAI/bge-reranker-large`.
+Mô hình đang dùng: `BAAI/bge-reranker-large` (qua `FlagEmbedding`).
 
-### Stage 5 — Generator IRAC [2, 3, 4, 5]
+### Stage 5 — Generator IRAC [2, 3, 4, 5] 🔜 Chưa làm
 
 Fine-tuned LLM nhận `[Evolved Query] + [Re-ranked Context]` → sinh câu trả lời:
 
@@ -118,6 +146,9 @@ Fine-tuned LLM nhận `[Evolved Query] + [Re-ranked Context]` → sinh câu tr�
 | **Rule** | Trích dẫn Điều, Khoản từ Context (không hallucination) |
 | **Application** | Lập luận áp dụng quy phạm vào tình tiết cụ thể |
 | **Conclusion** | Phán quyết, hướng giải quyết, lời khuyên pháp lý |
+
+> Hiện tại `llm_answer` trong `QueryResponse` trả về `null` — sẽ tích hợp sau Phase 3 Ablation Study.
+> LLM runtime đang dùng LM Studio (`LLM_MODEL_NAME` trong `backend/.env`).
 
 ---
 

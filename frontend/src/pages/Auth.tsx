@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/header';
+
 import { Auth_modal } from '@/components/Auth_modal';
 
 export const Auth: React.FC = () => {

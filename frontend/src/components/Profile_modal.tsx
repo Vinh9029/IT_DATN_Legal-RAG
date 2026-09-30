@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from './ui/Button';
-import { X, Upload, CheckCircle2, User as UserIcon, ShieldCheck } from 'lucide-react';
+import { X, Upload, CheckCircle2, User as UserIcon, ShieldCheck, LogOut } from 'lucide-react';
+
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -9,11 +11,13 @@ interface ProfileModalProps {
 }
 
 export const Profile_modal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
-  const { user, uploadUserAvatar } = useAuth();
+  const { user, uploadUserAvatar, signOut } = useAuth();
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
 
   if (!isOpen || !user) return null;
 
@@ -58,7 +62,7 @@ export const Profile_modal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) 
         </button>
 
         <h3 className="font-display text-2xl uppercase tracking-wider text-[#0F172A]">
-          Hồ Sơ Nông Dân Legal
+          Hồ Sơ của tôi
         </h3>
         <p className="mt-1 font-mono text-xs text-slate-400">
           Tài khoản Supabase Auth
@@ -128,12 +132,26 @@ export const Profile_modal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) 
               <span>{statusMsg.text}</span>
             </div>
           )}
+
+          {/* Button Đăng xuất tài khoản di chuyển từ mục Cài đặt */}
+          <button
+            onClick={async () => {
+              await signOut();
+              onClose();
+              navigate('/');
+            }}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50/80 p-2.5 font-mono text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors cursor-pointer"
+          >
+            <LogOut className="size-4" />
+            <span>Đăng xuất tài khoản</span>
+          </button>
         </div>
 
-        <div className="mt-6 pt-3 border-t border-slate-100 font-mono text-[10px] text-slate-400 flex items-center justify-center gap-1">
+        <div className="mt-4 pt-3 border-t border-slate-100 font-mono text-[10px] text-slate-400 flex items-center justify-center gap-1">
           <ShieldCheck className="size-3.5 text-[#2563EB]" />
           <span>Lưu trữ bảo mật Supabase Storage Bucket</span>
         </div>
+
       </div>
     </div>
   );

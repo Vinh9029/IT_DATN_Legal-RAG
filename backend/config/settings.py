@@ -10,6 +10,15 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+# ── HuggingFace Cache Storage (Tự động chuyển relative path thành absolute path) ──
+_hf_home_val = os.getenv("HF_HOME", "data/hf_cache")
+_hf_home_path = Path(_hf_home_val)
+if not _hf_home_path.is_absolute():
+    _hf_home_path = (BASE_DIR / _hf_home_path).resolve()
+os.environ["HF_HOME"] = str(_hf_home_path)
+HF_HOME = _hf_home_path
+
+
 
 # ── LLM API Configuration (LM Studio - fallback) ─────────────────
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:1234/v1")
@@ -53,6 +62,12 @@ OUTPUT_DIR = BASE_DIR / os.getenv("OUTPUT_DIR", "data/evol_instruct/output")
 
 LOG_DIR = BASE_DIR / "logs"
 
+# ── Vector DB Config (Qdrant Local hoặc Pinecone Cloud) ───────────
+VECTOR_DB_TYPE = os.getenv("VECTOR_DB_TYPE", "qdrant").lower()  # "qdrant" hoặc "pinecone"
+QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "legal-rag-vi")
+
 # ── Pinecone Config ───────────────────────────────────────────────
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
 PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT", "us-east-1-aws")
@@ -78,9 +93,10 @@ def ensure_directories():
     for directory in [
         RAW_DATA_DIR, PROCESSED_DATA_DIR, INDEXES_DIR,  # RAG
         SEEDS_DIR, OUTPUT_DIR,                           # Evol-Instruct
-        LOG_DIR
+        LOG_DIR, HF_HOME
     ]:
         directory.mkdir(parents=True, exist_ok=True)
+
 
 
 def validate_config():

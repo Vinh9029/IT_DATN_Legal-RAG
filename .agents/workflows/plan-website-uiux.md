@@ -10,28 +10,35 @@ Xây dựng website thông tin pháp luật Việt Nam theo hướng **Editorial
 - Tối ưu hiển thị cho máy tính và điện thoại, với chuyển động xuất hiện tiết chế và hỗ trợ chế độ giảm chuyển động.
 
 ## Trang trợ lý `/tro-ly/:threadId`
-- Tạo không gian chat riêng theo cùng hệ thống màu sắc và kiểu chữ Editorial Ink.
-- Hiển thị danh sách các cuộc trò chuyện tạm thời, nút tạo cuộc trò chuyện mới và địa chỉ riêng cho từng cuộc trò chuyện.
-- Cho phép chuyển qua lại giữa các cuộc trò chuyện trong phiên; tải lại trang sẽ xóa nội dung nhưng giữ đúng mã cuộc trò chuyện đang mở để bắt đầu lại.
-- Có trạng thái trống với câu hỏi gợi ý theo các nhóm: hợp đồng, lao động, đất đai và doanh nghiệp.
-- Giữ ô nhập luôn sẵn sàng, hiển thị tin nhắn người dùng ngay khi gửi, trạng thái “Đang suy nghĩ…”, phản hồi dạng Markdown và nút dừng khi AI đang trả lời.
+- Tạo không gian chat riêng theo cùng hệ thống màu sắc và kiểu chữ Editorial Ink (hỗ trợ các giao diện Clean Slate, Dark Slate, Warm Ivory, Grid Pattern).
+- Hiển thị danh sách các cuộc trò chuyện, hỗ trợ ghim (Pin), đổi tên trực tiếp, và phân biệt số lượng nhánh thảo luận con (Sub-thread Branch).
+- **Phân tách dữ liệu người dùng (User Data Isolation)**: Tích hợp Supabase Auth với Row Level Security (RLS) trên bảng `threads` và `messages`, đảm bảo mỗi người dùng chỉ xem và thao tác trên lịch sử tin nhắn của chính mình.
+- **Nút xóa nhanh từng tin nhắn (Quick Message Delete)**: Nút biểu tượng thùng rác ở góc trên bên phải mỗi card tin nhắn (cả User và AI) giúp người dùng xóa bỏ tin nhắn thừa trực tiếp mà không cần vào menu cài đặt.
+- **Nhánh thảo luận con (Sub-thread / Deep Dive Branching)**:
+  + Ở mỗi câu trả lời của AI có nút "Mở nhánh thảo luận" (hoặc hiển thị số phản hồi con đã có).
+  + Khi bấm mở, kích hoạt **Right Panel (Tab nhánh phụ)** chiếm khoảng 1/3 màn hình ở phía bên phải.
+  + **Tương tác kéo co giãn (Drag-to-resize)**: Cho phép người dùng kéo thả thanh điều khiển giữa hai màn hình để mở rộng độ rộng tab, hoặc bấm nút Maximize/Minimize để phóng to/thu nhỏ nhanh.
+  + Right Panel hiển thị: Trích đoạn câu trả lời gốc làm ngữ cảnh, danh sách thảo luận sâu dạng Markdown, và ô nhập câu hỏi riêng biệt với hiệu ứng streaming mượt mà.
+- Trạng thái trống với 4 nhóm câu hỏi mẫu định hướng pháp lý (hợp đồng, lao động, đất đai, doanh nghiệp).
 - Hiển thị rõ cảnh báo rằng nội dung chỉ mang tính tham khảo, không thay thế tư vấn chính thức của luật sư.
+- Tích hợp Modal Hồ sơ người dùng (Profile Modal) cho phép tải ảnh đại diện lên Supabase Storage và nút "Đăng xuất tài khoản" tiện lợi.
 
-## Trợ lý AI
-- Kích hoạt Lovable Cloud để chạy phần xử lý AI an toàn phía máy chủ; không tạo cơ sở dữ liệu hoặc đăng nhập vì lịch sử không được lưu.
-- Dùng Lovable AI với mô hình mặc định `openai/gpt-6-astra`, trả lời dạng streaming bằng tiếng Việt.
-- Gửi đầy đủ nội dung của cuộc trò chuyện hiện tại trong mỗi yêu cầu để AI giữ đúng ngữ cảnh.
-- Thiết lập hướng dẫn hệ thống: ưu tiên pháp luật Việt Nam, nêu giới hạn thông tin, không bịa điều luật, khuyến nghị gặp luật sư khi tình huống có rủi ro cao hoặc thiếu dữ kiện.
-- Hiển thị thông báo lỗi cụ thể cho thiếu cấu hình, hết tín dụng, giới hạn tốc độ hoặc lỗi dịch vụ; không tự động gửi lại các lỗi không thể thử lại.
+## Trợ lý AI & Backend Hybrid RAG
+- Kết nối FastAPI Backend với kiến trúc Hybrid RAG: Dense Retrieval (Qdrant), Sparse Retrieval (BM25), Knowledge Graph Expansion (Neo4j) và Cross-Encoder Reranker (bge-reranker-large).
+- Stage 1 Query Evolution hỗ trợ viết lại câu hỏi theo chuẩn pháp lý trước khi tra cứu.
+- Hỗ trợ kết nối linh hoạt mô hình ngôn ngữ lớn cục bộ qua LM Studio / Ollama (ví dụ: `meta-llama-3.1-8b-instruct`, `Qwen2.5-VL-3B-Instruct-GGUF`) thông qua cấu hình `backend/.env`.
+- Developer Verbose Mode: Cho phép mở xem chi tiết Top-K tài liệu pháp lý trích dẫn, điểm số rerank, số hiệu điều luật và thời gian thực thi từng giai đoạn của pipeline.
 
 ## Giao diện và nền tảng kỹ thuật
-- Áp dụng chính xác bảng màu, Anton/Inter/JetBrains Mono, nhịp lưới, đường kẻ và nút nhấn đỏ của phương án Editorial Ink bằng các biến giao diện dùng chung.
-- Dùng các thành phần AI Elements cho danh sách tin nhắn, nội dung Markdown, trạng thái tải và khung nhập; chỉ tùy biến lớp trình bày để khớp thiết kế đã chọn.
-- Tạo dấu hiệu nhận diện chữ “L” riêng cho LƯU HÀNH, không dùng biểu tượng AI chung chung.
-- Thêm tiêu đề, mô tả và metadata chia sẻ riêng cho trang chính và trang trợ lý.
+- Áp dụng chính xác bảng màu, Anton/Inter/JetBrains Mono, nhịp lưới, đường kẻ và nút nhấn của phương án Editorial Ink.
+- Hỗ trợ giao diện sáng / tối (Night Mode) và các theme thẩm mỹ cao.
+- Thiết kế bố cục 3 cột linh hoạt: Sidebar trái (Danh sách hội thoại) — Main Panel (Cuộc trò chuyện chính) — Right Panel (Nhánh thảo luận sâu resizable).
+- Tạo dấu hiệu nhận diện chữ “L” riêng cho LƯU HÀNH.
 
 ## Kiểm tra hoàn thiện
-- Kiểm tra trang chính và luồng: mở trợ lý → tạo hai cuộc trò chuyện → gửi câu hỏi trong từng cuộc → chuyển đổi không lẫn nội dung.
-- Kiểm tra tải lại sẽ xóa lịch sử đúng như yêu cầu và khởi tạo lại cuộc trò chuyện theo địa chỉ đang mở.
-- Kiểm tra phản hồi AI thật, trạng thái đang tải/dừng, Markdown, cảnh báo pháp lý và thông báo lỗi.
-- Kiểm tra giao diện ở kích thước máy tính và điện thoại, bảo đảm chữ, nút và danh sách hội thoại không chồng lấn.
+- Kiểm tra kết nối API backend không bị chặn CORS giữa Frontend Vite (port 5173) và Backend FastAPI (port 8000).
+- Kiểm tra tính năng kéo co giãn thanh trượt Right Panel mượt mà, không giật lag.
+- Kiểm tra tính năng xóa tin nhắn trên từng card hoạt động tức thì.
+- Kiểm tra phân quyền RLS Supabase: chuyển đổi tài khoản người dùng đảm bảo không thấy tin nhắn của tài khoản khác.
+- Kiểm tra đăng xuất tài khoản từ Profile Modal chuyển hướng an toàn về trang chủ.
+

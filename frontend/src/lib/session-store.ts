@@ -1,10 +1,59 @@
-export interface ChatMessage {
+export interface LegalChunk {
+  chunk_id: string;
+  doc_id: string;
+  dieu?: string;
+  content: string;
+  score: number;
+  metadata?: {
+    so_hieu?: string;
+    loai_van_ban?: string;
+    co_quan_ban_hanh?: string;
+    tinh_trang?: string;
+    ngay_ban_hanh?: string;
+    ngay_hieu_luc?: string;
+    linh_vuc?: string;
+    [key: string]: any;
+  };
+}
+
+export interface VerboseRAGInfo {
+  evolvedQuery?: string;
+  topKDocs?: LegalChunk[];
+  timeTaken?: number;
+  stageTimings?: {
+    queryEvolution?: number;
+    retrieval?: number;
+    rerank?: number;
+  };
+}
+
+export interface SubThreadItem {
   id: string;
   sender: 'user' | 'assistant';
   content: string;
   timestamp: string;
   isStreaming?: boolean;
 }
+
+export interface MessageBranch {
+  id: string;
+  parentMessageId: string;
+  title: string;
+  parentSnippet: string;
+  messages: SubThreadItem[];
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  isStreaming?: boolean;
+  verboseInfo?: VerboseRAGInfo;
+  branch?: MessageBranch;
+}
+
 
 export interface ChatThread {
   id: string;
@@ -120,3 +169,100 @@ export function deleteThread(threadId: string): void {
   threads = threads.filter((t) => t.id !== threadId);
   saveThreads(threads);
 }
+
+export function deleteMessageFromThread(threadId: string, messageId: string): ChatThread | undefined {
+  const threads = getThreads();
+  const index = threads.findIndex((t) => t.id === threadId);
+  if (index === -1) return undefined;
+
+  threads[index].messages = threads[index].messages.filter((m) => m.id !== messageId);
+  saveThreads(threads);
+  return threads[index];
+}
+
+export function createOrGetBranch(
+  threadId: string, 
+  messageId: string, 
+  parentContent: string
+): MessageBranch | undefined {
+  const threads = getThreads();
+  const threadIndex = threads.findIndex((t) => t.id === threadId);
+  if (threadIndex === -1) return undefined;
+
+  const msgIndex = threads[threadIndex].messages.findIndex((m) => m.id === messageId);
+  if (msgIndex === -1) return undefined;
+
+  const msg = threads[threadIndex].messages[msgIndex];
+  if (msg.branch) {
+    return msg.branch;
+  }
+
+  // Lấy các dòng đầu tiên của câu trả lời AI làm tiêu đề và snippet
+  const lines = parentContent.split('\n').filter(l => l.trim().length > 0);
+  const rawTitle = lines[0]?.replace(/[#*`>-]/g, '').trim() || 'Nhánh thảo luận pháp lý';
+  const title = rawTitle.length > 40 ? rawTitle.substring(0, 40) + '...' : rawTitle;
+  const parentSnippet = parentContent.length > 180 ? parentContent.substring(0, 180) + '...' : parentContent;
+
+  const newBranch: MessageBranch = {
+    id: 'branch-' + Date.now(),
+    parentMessageId: messageId,
+    title,
+    parentSnippet,
+    messages: [],
+    createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  };
+
+  msg.branch = newBranch;
+  threads[threadIndex].messages[msgIndex] = msg;
+  saveThreads(threads);
+  return newBranch;
+}
+
+export function addMessageToBranch(
+  threadId: string,
+  messageId: string,
+  subItem: SubThreadItem
+): MessageBranch | undefined {
+  const threads = getThreads();
+  const threadIndex = threads.findIndex((t) => t.id === threadId);
+  if (threadIndex === -1) return undefined;
+
+  const msgIndex = threads[threadIndex].messages.findIndex((m) => m.id === messageId);
+  if (msgIndex === -1) return undefined;
+
+  const msg = threads[threadIndex].messages[msgIndex];
+  if (!msg.branch) {
+    createOrGetBranch(threadId, messageId, msg.content);
+  }
+
+  if (msg.branch) {
+    msg.branch.messages.push(subItem);
+    threads[threadIndex].messages[msgIndex] = msg;
+    saveThreads(threads);
+    return msg.branch;
+  }
+  return undefined;
+}
+
+export function updateBranchMessages(
+  threadId: string,
+  messageId: string,
+  messages: SubThreadItem[]
+): MessageBranch | undefined {
+  const threads = getThreads();
+  const threadIndex = threads.findIndex((t) => t.id === threadId);
+  if (threadIndex === -1) return undefined;
+
+  const msgIndex = threads[threadIndex].messages.findIndex((m) => m.id === messageId);
+  if (msgIndex === -1) return undefined;
+
+  const msg = threads[threadIndex].messages[msgIndex];
+  if (msg.branch) {
+    msg.branch.messages = messages;
+    threads[threadIndex].messages[msgIndex] = msg;
+    saveThreads(threads);
+    return msg.branch;
+  }
+  return undefined;
+}
+

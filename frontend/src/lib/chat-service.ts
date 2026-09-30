@@ -1,136 +1,253 @@
 import { supabase } from './supabase';
+import type { VerboseRAGInfo, LegalChunk } from './session-store';
 
 export interface StreamCallbacks {
   onChunk: (chunk: string) => void;
-  onComplete: (fullText: string) => void;
+  onVerboseInfo?: (info: VerboseRAGInfo) => void;
+  onComplete: (fullText: string, verboseInfo?: VerboseRAGInfo) => void;
   onError: (error: Error) => void;
 }
 
-// 4 câu hỏi gợi ý chuẩn theo yêu cầu người dùng & thiết kế
-export const SUGGESTED_QUESTIONS = [
+const RAG_BACKEND_URL = import.meta.env.VITE_RAG_BACKEND_URL || 'http://localhost:8000';
+const LM_STUDIO_URL = import.meta.env.VITE_LM_STUDIO_URL || 'http://localhost:1234';
+
+export interface SuggestedQuestion {
+  category: string;
+  title: string;
+  prompt: string;
+}
+
+// 4 cau hoi goi y chuan theo yeu cau nguoi dung & thiet ke
+export const SUGGESTED_QUESTIONS: SuggestedQuestion[] = [
   {
-    category: "Hợp đồng & Dân sự",
-    title: "Đặt cọc mua bán nhà đất không thành",
-    prompt: "Hợp đồng đặt cọc mua bán nhà đất bằng giấy tay có hiệu lực pháp lý không? Bên nhận cọc hủy hợp đồng thì phạt cọc thế nào?",
-    icon: "FileCheck2"
+    category: 'Hợp đồng',
+    title: 'Hiệu lực của Hợp đồng Đặt cọc',
+    prompt: 'Hợp đồng đặt cọc mua bán nhà đất không công chứng có giá trị pháp lý không?'
   },
   {
-    category: "Lao động",
-    title: "Trợ cấp thất nghiệp & Chấm dứt HĐLĐ",
-    prompt: "Người lao động đơn phương chấm dứt hợp đồng lao động cần báo trước bao nhiêu ngày và thủ tục hưởng trợ cấp thất nghiệp ra sao?",
-    icon: "BriefcaseBusiness"
+    category: 'Lao động',
+    title: 'Thời hạn Báo trước Nghỉ việc',
+    prompt: 'Quy định về thời hạn báo trước khi đơn phương chấm dứt hợp đồng lao động là bao nhiêu ngày?'
   },
   {
-    category: "Đất đai & Nhà ở",
-    title: "Cấp Giấy chứng nhận QSDĐ lần đầu",
-    prompt: "Điều kiện và thủ tục xin cấp Sổ đỏ (Giấy chứng nhận QSDĐ) lần đầu cho đất không có giấy tờ về quyền sử dụng đất?",
-    icon: "Landmark"
+    category: 'Bảo hiểm',
+    title: 'Trợ cấp Thất nghiệp',
+    prompt: 'Điều kiện và thủ tục để được hưởng trợ cấp thất nghiệp theo Luật Việc làm 2013?'
   },
   {
-    category: "Doanh nghiệp",
-    title: "Thủ tục thay đổi người đại diện",
-    prompt: "Hồ sơ và quy trình thay đổi Người đại diện theo pháp luật của Công ty TNHH 2 thành viên trở lên thực hiện thế nào?",
-    icon: "Scale"
+    category: 'Dân sự',
+    title: 'Quyền và Nghĩa vụ Thuê nhà',
+    prompt: 'Bên cho thuê nhà có quyền đơn phương lấy lại nhà trước thời hạn hợp đồng không?'
   }
 ];
 
-// Trả lời mẫu giàu định dạng Markdown (Status Badges, Highlights, Quotes, Bullet Points)
+// MOCK DATA
+
+function getMockVerboseInfo(_prompt?: string): VerboseRAGInfo {
+
+  const mockChunks: LegalChunk[] = [
+    {
+      chunk_id: 'blds-2015-dieu-328-001',
+      doc_id: 'BLDS_2015',
+      dieu: 'Dieu 328',
+      content:
+        'Dat coc la viec mot ben giao cho ben kia mot khoan tien hoac kim khi quy, da quy hoac vat co gia tri khac trong mot thoi han de bao dam giao ket hoac thuc hien hop dong.',
+      score: 0.94,
+      metadata: {
+        law_name: 'Bo luat Dan su 2015',
+        law_number: '91/2015/QH13',
+        effective_date: '2017-01-01',
+        status: 'Con hieu luc',
+      },
+    },
+    {
+      chunk_id: 'blds-2015-dieu-329-001',
+      doc_id: 'BLDS_2015',
+      dieu: 'Dieu 329',
+      content:
+        'Truong hop hop dong duoc giao ket, thuc hien thi tai san dat coc duoc tra lai cho ben dat coc hoac duoc tru de thuc hien nghia vu tra tien.',
+      score: 0.87,
+      metadata: {
+        law_name: 'Bo luat Dan su 2015',
+        law_number: '91/2015/QH13',
+        effective_date: '2017-01-01',
+        status: 'Con hieu luc',
+      },
+    },
+  ];
+
+  return {
+    timeTaken: Math.random() * 1.5 + 0.5,
+    topKDocs: mockChunks,
+  };
+}
+
 function getMockLegalResponse(prompt: string): string {
   const lower = prompt.toLowerCase();
-  
-  if (lower.includes("đặt cọc") || lower.includes("hợp đồng")) {
-    return `### **Tư vấn Căn cứ Pháp lý về Đặt cọc & Hợp đồng Dân sự**
+
+  if (lower.includes('dat coc') || lower.includes('\u0111\u1eb7t c\u1ecdc')) {
+    return `### **Quy \u0111\u1ecbnh v\u1ec1 Hi\u1ec7u l\u1ef1c c\u1ee7a H\u1ee3p \u0111\u1ed3ng \u0110\u1eb7t c\u1ecdc**
 
 ---
 
-#### 1. **Hiệu lực của Hợp đồng Đặt cọc**
-Theo **Điều 328 Bộ luật Dân sự 2015**, đặt cọc là việc một bên giao cho bên kia một khoản tiền hoặc kim khí quý, đá quý để bảo đảm tuyên bố giao kết hoặc thực hiện hợp đồng.
+#### 1. **Hi\u1ec7u l\u1ef1c c\u1ee7a H\u1ee3p \u0111\u1ed3ng \u0110\u1eb7t c\u1ecdc**
+Theo **\u0110i\u1ec1u 328 B\u1ed9 lu\u1eadt D\u00e2n s\u1ef1 2015**, \u0111\u1eb7t c\u1ecdc l\u00e0 vi\u1ec7c m\u1ed9t b\u00ean giao cho b\u00ean kia m\u1ed9t kho\u1ea3n ti\u1ec1n ho\u1eb7c kim kh\u00ed qu\u00fd, \u0111\u00e1 qu\u00fd \u0111\u1ec3 b\u1ea3o \u0111\u1ea3m giao k\u1ebft ho\u1eb7c th\u1ef1c hi\u1ec7n h\u1ee3p \u0111\u1ed3ng.
 
-*Status Badge: [Còn hiệu lực]*  
-*Trích dẫn: **Bộ luật Dân sự 2015 (Luật số 91/2015/QH13)***
+*Status Badge: [C\u00f2n hi\u1ec7u l\u1ef1c]*
+*Tr\u00edch d\u1eabn: **B\u1ed9 lu\u1eadt D\u00e2n s\u1ef1 2015 (Lu\u1eadt s\u1ed1 91/2015/QH13)***
 
 > [!NOTE]
-> **Điểm cần lưu ý đặc biệt**: Pháp luật *không bắt buộc* hợp đồng đặt cọc phải công chứng hay chứng thực. Tuy nhiên, lập hợp đồng bằng văn bản có chữ ký rõ ràng là căn cứ quan trọng nhất để giải quyết tranh chấp.
+> **\u0110i\u1ec3m c\u1ea7n l\u01b0u \u00fd \u0111\u1eb7c bi\u1ec7t**: Ph\u00e1p lu\u1eadt *kh\u00f4ng b\u1eaft bu\u1ed9c* h\u1ee3p \u0111\u1ed3ng \u0111\u1eb7t c\u1ecdc ph\u1ea3i c\u00f4ng ch\u1ee9ng hay ch\u1ee9ng th\u1ef1c.
 
 ---
 
-#### 2. **Trách nhiệm Phạt cọc khi Bên bán/Bên nhận cọc từ chối**
-* **Trường hợp hợp đồng được giao kết**: Tài sản đặt cọc được trả lại cho bên đặt cọc hoặc được trừ để thực hiện nghĩa vụ trả tiền.
-* **Nếu bên nhận cọc từ chối giao kết/thực hiện**:
-  1. Phải **hoàn trả tài sản đặt cọc** cho bên đặt cọc.
-  2. Phải trả thêm một khoản tiền tương đương giá trị tài sản đặt cọc (*trừ trường hợp có thỏa thuận khác*).
+#### 2. **Tr\u00e1ch nhi\u1ec7m Ph\u1ea1t c\u1ecdc khi B\u00ean nh\u1eadn c\u1ecdc t\u1eeb ch\u1ed1i**
+* N\u1ebfu b\u00ean nh\u1eadn c\u1ecdc t\u1eeb ch\u1ed1i giao k\u1ebft/th\u1ef1c hi\u1ec7n:
+  1. Ph\u1ea3i **ho\u00e0n tr\u1ea3 t\u00e0i s\u1ea3n \u0111\u1eb7t c\u1ecdc** cho b\u00ean \u0111\u1eb7t c\u1ecdc.
+  2. Ph\u1ea3i tr\u1ea3 th\u00eam m\u1ed9t kho\u1ea3n ti\u1ec1n t\u01b0\u01a1ng \u0111\u01b0\u01a1ng gi\u00e1 tr\u1ecb t\u00e0i s\u1ea3n \u0111\u1eb7t c\u1ecdc.
 
 ---
 
-#### 3. **Khuyến nghị bước xử lý tiếp theo**
-* Kiểm tra lại nội dung biên nhận/hợp đồng đặt cọc đã ký.
-* Lập văn bản thông báo yêu cầu thực hiện nghĩa vụ hoặc hoàn trả tiền cọc.
-* Trong trường hợp cố tình không trả, có thể khởi kiện tại **Tòa án nhân dân cấp huyện** nơi bị đơn cư trú.`;
+#### 3. **Kh\u00e2u ti\u1ebfp theo**
+* L\u1eadp v\u0103n b\u1ea3n y\u00eau c\u1ea7u ho\u00e0n tr\u1ea3 ti\u1ec1n c\u1ecdc.
+* N\u1ebfu c\u1ed1 t\u00ecnh kh\u00f4ng tr\u1ea3, c\u00f3 th\u1ec3 kh\u1edfi ki\u1ec7n t\u1ea1i T\u00f2a \u00e1n nh\u00e2n d\u00e2n c\u1ea5p huy\u1ec7n.`;
   }
 
-  if (lower.includes("lao động") || lower.includes("thất nghiệp")) {
-    return `### **Quy định về Đơn phương Chấm dứt Hợp đồng & Trợ cấp Thất nghiệp**
+  if (lower.includes('lao dong') || lower.includes('that nghiep') || lower.includes('lao \u0111\u1ed9ng') || lower.includes('th\u1ea5t nghi\u1ec7p')) {
+    return `### **Quy \u0111\u1ecbnh v\u1ec1 \u0110\u01a1n ph\u01b0\u01a1ng Ch\u1ea5m d\u1ee9t H\u1ee3p \u0111\u1ed3ng & Tr\u1ee3 c\u1ea5p Th\u1ea5t nghi\u1ec7p**
 
 ---
 
-#### 1. **Thời hạn báo trước khi đơn phương chấm dứt HĐLĐ**
-Căn cứ **Điều 35 Bộ luật Lao động 2019**:
+#### 1. **Th\u1eddi h\u1ea1n b\u00e1o tr\u01b0\u1edbc khi \u0111\u01a1n ph\u01b0\u01a1ng ch\u1ea5m d\u1ee9t H\u0110L\u0110**
+C\u0103n c\u1ee9 **\u0110i\u1ec1u 35 B\u1ed9 lu\u1eadt Lao \u0111\u1ed9ng 2019**:
 
-*Status Badge: [Còn hiệu lực]*  
-*Trích dẫn: **Bộ luật Lao động 2019 (Luật số 45/2019/QH14)***
-
-* **Ít nhất 45 ngày**: Đối với hợp đồng lao động *không xác định thời hạn*.
-* **Ít nhất 30 ngày**: Đối với hợp đồng lao động *xác định thời hạn* (từ 12 đến 36 tháng).
-* **Ít nhất 03 ngày làm việc**: Đối với hợp đồng lao động *xác định thời hạn dưới 12 tháng*.
+* **\u00cdt nh\u1ea5t 45 ng\u00e0y**: H\u1ee3p \u0111\u1ed3ng *kh\u00f4ng x\u00e1c \u0111\u1ecbnh th\u1eddi h\u1ea1n*.
+* **\u00cdt nh\u1ea5t 30 ng\u00e0y**: H\u1ee3p \u0111\u1ed3ng *x\u00e1c \u0111\u1ecbnh th\u1eddi h\u1ea1n* (12-36 th\u00e1ng).
+* **\u00cdt nh\u1ea5t 03 ng\u00e0y l\u00e0m vi\u1ec7c**: H\u1ee3p \u0111\u1ed3ng *d\u01b0\u1edbi 12 th\u00e1ng*.
 
 ---
 
-#### 2. **Điều kiện & Thủ tục hưởng Trợ cấp Thất nghiệp**
-Theo **Điều 49 Luật Việc làm 2013**:
+#### 2. **\u0110i\u1ec1u ki\u1ec7n h\u01b0\u1edfng Tr\u1ee3 c\u1ea5p Th\u1ea5t nghi\u1ec7p**
+Theo **\u0110i\u1ec1u 49 Lu\u1eadt Vi\u1ec7c l\u00e0m 2013**:
 
-> **Điều kiện nhận trợ cấp**:
-> * Đã chấm dứt HĐLĐ đúng pháp luật (không vi phạm thời hạn báo trước).
-> * Đã đóng BHTN từ đủ **12 tháng trở lên** trong thời gian 24 tháng trước khi chấm dứt HĐLĐ.
-> * Đã nộp hồ sơ hưởng trợ cấp tại **Trung tâm Dịch vụ Việc làm** trong thời hạn **03 tháng** kể từ ngày chấm dứt HĐLĐ.
-
----
-
-#### 3. **Hồ sơ cần chuẩn bị**
-1. Đơn đề nghị hưởng trợ cấp thất nghiệp (theo mẫu).
-2. Bản chính hoặc bản sao có chứng thực của **HĐLĐ hoặc Quyết định nghỉ việc**.
-3. **Sổ Bảo hiểm xã hội** đã chốt bìa và tờ rời.`;
+> * \u0110\u00e3 \u0111\u00f3ng BHTN t\u1eeb \u0111\u1ee7 **12 th\u00e1ng tr\u1edf l\u00ean** trong 24 th\u00e1ng tr\u01b0\u1edbc khi ch\u1ea5m d\u1ee9t H\u0110L\u0110.
+> * N\u1ed9p h\u1ed3 s\u01a1 t\u1ea1i **Trung t\u00e2m D\u1ecbch v\u1ee5 Vi\u1ec7c l\u00e0m** trong **03 th\u00e1ng** k\u1ec3 t\u1eeb ng\u00e0y ch\u1ea5m d\u1ee9t H\u0110L\u0110.`;
   }
 
-  return `### **Định hướng Xử lý Yêu cầu Pháp lý**
-
----
-
-#### 1. **Căn cứ Pháp luật liên quan**
-Dựa trên thông tin bạn cung cấp, vấn đề này được điều chỉnh bởi hệ thống văn bản pháp luật hiện hành của Việt Nam.
-
-*Status Badge: [Còn hiệu lực]*  
-*Phạm vi tham chiếu: **Văn bản Quy phạm Pháp luật chuyên ngành***
+  return `### **\u0110\u1ecbnh h\u01b0\u1edbng X\u1eed l\u00fd Y\u00eau c\u1ea7u Ph\u00e1p l\u00fd**
 
 > [!IMPORTANT]
-> **Lưu ý quan trọng**: Phản hồi này được tổng hợp tự động nhằm mục đích tham khảo định hướng ban đầu, không thay thế văn bản tư vấn chính thức từ Luật sư hoặc Chuyên gia pháp lý.
+> **L\u01b0u \u00fd quan tr\u1ecdng**: Ph\u1ea3n h\u1ed3i n\u00e0y \u0111\u01b0\u1ee3c t\u1ed5ng h\u1ee3p t\u1ef1 \u0111\u1ed9ng nh\u1eb1m m\u1ee5c \u0111\u00edch tham kh\u1ea3o \u0111\u1ecbnh h\u01b0\u1edbng ban \u0111\u1ea7u, kh\u00f4ng thay th\u1ebf v\u0103n b\u1ea3n t\u01b0 v\u1ea5n ch\u00ednh th\u1ee9c t\u1eeb Lu\u1eadt s\u01b0.
 
----
+Li\u00ean h\u1ec7 v\u1edbi **C\u01a1 quan nh\u00e0 n\u01b0\u1edbc c\u00f3 th\u1ea9m quy\u1ec1n** ho\u1eb7c **V\u0103n ph\u00f2ng Lu\u1eadt s\u01b0** \u0111\u1ec3 \u0111\u01b0\u1ee3c tr\u1ee3 gi\u00fap chi ti\u1ebft.`;
+}
 
-#### 2. **Các điểm mấu chốt cần xác minh**
-* **Chủ thể liên quan**: Cá nhân, Tổ chức hoặc Doanh nghiệp tham gia quan hệ pháp luật.
-* **Thời hiệu & Mốc thời gian**: Các sự kiện pháp lý đã phát sinh và thời hạn còn hiệu lực.
-* **Chứng cứ & Giấy tờ**: Giấy chứng nhận, văn bản thỏa thuận, hóa đơn, chứng từ giao dịch.
+// LM STUDIO INTEGRATION
 
----
+async function streamFromLMStudio(
+  prompt: string,
+  context: string,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal
+): Promise<boolean> {
+  try {
+    const systemPrompt = `Ban la tro ly phap ly AI chuyen ve phap luat Viet Nam. Hay tra loi dua tren cac van ban phap luat duoc cung cap. Su dung dinh dang Markdown voi cac tieu de ro rang. Luon trich dan dieu khoan va ten van ban phap luat cu the.`;
 
-#### 3. **Hướng dẫn bước tiếp theo**
-1. *Rà soát lại toàn bộ tài liệu*, giấy tờ giao dịch hiện có.
-2. *Xác định rõ nguyện vọng* và kết quả pháp lý mong muốn đạt được.
-3. Liên hệ với **Cơ quan nhà nước có thẩm quyền** hoặc **Văn phòng Luật sư** để được trợ giúp chi tiết.`;
+    const userMessage = context
+      ? `Cau hoi: ${prompt}\n\nNgu canh tu co so du lieu phap luat:\n${context}`
+      : prompt;
+
+    const res = await fetch(`${LM_STUDIO_URL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'local-model',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        stream: true,
+        temperature: 0.3,
+        max_tokens: 2048,
+      }),
+      signal,
+    });
+
+    if (!res.ok || !res.body) return false;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter((l) => l.startsWith('data: '));
+
+      for (const line of lines) {
+        const jsonStr = line.replace('data: ', '').trim();
+        if (jsonStr === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(jsonStr);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            callbacks.onChunk(fullText);
+          }
+        } catch {
+          // ignore malformed JSON chunks
+        }
+      }
+    }
+
+    if (fullText) {
+      callbacks.onComplete(fullText);
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// HELPERS
+
+/**
+ * Mo phong streaming tung tu cho mock/fallback response.
+ */
+async function simulateStreaming(
+  fullText: string,
+  callbacks: StreamCallbacks,
+  signal: AbortSignal | undefined,
+  verboseInfo: VerboseRAGInfo
+): Promise<void> {
+  const words = fullText.split(' ');
+  let currentText = '';
+
+  for (let i = 0; i < words.length; i++) {
+    if (signal?.aborted) {
+      throw new Error('Yeu cau da bi huy boi nguoi dung.');
+    }
+    currentText += (i === 0 ? '' : ' ') + words[i];
+    callbacks.onChunk(currentText);
+
+    const delay = Math.floor(Math.random() * 25) + 15;
+    await new Promise((res) => setTimeout(res, delay));
+  }
+
+  callbacks.onComplete(currentText, verboseInfo);
 }
 
 /**
- * Gửi yêu cầu câu hỏi và streaming câu trả lời từng từ/chunk
+ * Gui yeu cau cau hoi va streaming cau tra loi tung tu/chunk.
+ *
+ * Thu tu uu tien:
+ *   1. FastAPI RAG Backend (/api/query) -> lay context + goi LM Studio streaming
+ *   2. LM Studio truc tiep (neu backend offline nhung LM Studio online)
+ *   3. Supabase Edge Function (fallback cloud)
+ *   4. Mock response (offline hoan toan)
  */
 export async function streamLegalAnswer(
   prompt: string,
@@ -138,39 +255,82 @@ export async function streamLegalAnswer(
   signal?: AbortSignal
 ): Promise<void> {
   try {
-    // Thử gọi Supabase Edge Function nếu khả thi
-    const { data, error } = await supabase.functions.invoke('rag-chat', {
-      body: { prompt }
-    }).catch(() => ({ data: null, error: true }));
+    // BUOC 1: Goi FastAPI RAG Backend de lay context
+    let ragResponse: any = null;
+    try {
+      const res = await fetch(`${RAG_BACKEND_URL}/api/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: prompt, top_k: 5, enable_graph: true }),
+        signal,
+      });
+      if (res.ok) {
+        ragResponse = await res.json();
+      }
+    } catch {
+      // Backend offline -> tiep tuc fallback
+    }
 
-    if (!error && data && data.text) {
-      callbacks.onComplete(data.text);
+    // Xay dung VerboseInfo tu RAG results
+    let verboseInfo: VerboseRAGInfo;
+    if (ragResponse?.results) {
+      verboseInfo = {
+        timeTaken: ragResponse.time_taken,
+        topKDocs: ragResponse.results.map((r: any) => ({
+          chunk_id: r.chunk_id,
+          doc_id: r.doc_id,
+          dieu: r.dieu,
+          content: r.content,
+          score: r.score,
+          metadata: r.metadata,
+        })),
+      };
+    } else {
+      verboseInfo = getMockVerboseInfo(prompt);
+    }
+
+    // Gui VerboseInfo ve UI som (hien thi sources trong khi LLM dang stream)
+    callbacks.onVerboseInfo?.(verboseInfo);
+
+    // BUOC 2: Neu backend online, dung LM Studio de stream cau tra loi
+    if (ragResponse?.results) {
+      const context = ragResponse.results
+        .map((r: any) => `[${r.dieu ?? ''}] ${r.content}`)
+        .join('\n\n');
+
+      const lmOk = await streamFromLMStudio(prompt, context, callbacks, signal);
+      if (lmOk) return;
+
+      if (ragResponse.llm_answer) {
+        await simulateStreaming(ragResponse.llm_answer, callbacks, signal, verboseInfo);
+        return;
+      }
+    }
+
+    // BUOC 3: Thu LM Studio truc tiep (khong co RAG context)
+    const lmDirectOk = await streamFromLMStudio(prompt, '', callbacks, signal);
+    if (lmDirectOk) return;
+
+    // BUOC 4: Thu Supabase Edge Function
+    const { data, error } = await supabase.functions
+      .invoke('rag-chat', { body: { prompt } })
+      .catch(() => ({ data: null, error: true }));
+
+    if (!error && data?.text) {
+      callbacks.onComplete(data.text, verboseInfo);
       return;
     }
 
-    // Fallback Streaming Simulation (hiệu ứng typing tự nhiên như AI thực thụ)
-    const fullText = getMockLegalResponse(prompt);
-    const words = fullText.split(' ');
-    let currentText = '';
-
-    for (let i = 0; i < words.length; i++) {
-      if (signal?.aborted) {
-        throw new Error('Yêu cầu đã bị hủy bởi người dùng.');
-      }
-      currentText += (i === 0 ? '' : ' ') + words[i];
-      callbacks.onChunk(currentText);
-
-      // Delay biến thiên nhẹ cho cảm giác gõ máy thực tế
-      const delay = Math.floor(Math.random() * 25) + 15;
-      await new Promise((res) => setTimeout(res, delay));
-    }
-
-    callbacks.onComplete(currentText);
+    // BUOC 5: Mock fallback (offline hoan toan)
+    const mockText = getMockLegalResponse(prompt);
+    await simulateStreaming(mockText, callbacks, signal, verboseInfo);
   } catch (err: any) {
-    if (err.name === 'AbortError' || err.message?.includes('hủy')) {
-      console.log('Stream aborted');
+    if (err.name === 'AbortError' || err.message?.includes('huy')) {
+      console.log('Stream aborted by user');
     } else {
-      callbacks.onError(err instanceof Error ? err : new Error('Có lỗi xảy ra khi kết nối máy chủ.'));
+      callbacks.onError(
+        err instanceof Error ? err : new Error('Co loi xay ra khi ket noi may chu.')
+      );
     }
   }
 }

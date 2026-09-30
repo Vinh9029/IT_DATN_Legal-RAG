@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '@/components/Header';
+import { Header } from '@/components/header';
+
 import { Button } from '@/components/ui/Button';
 import { Hero_chat_demo } from '@/components/Hero_chat_demo';
 import { Floating_chatbot } from '@/components/Floating_chatbot';
