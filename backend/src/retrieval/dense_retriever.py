@@ -46,14 +46,13 @@ class DenseRetriever:
         query_embedding = self.model.encode(query, show_progress_bar=False).tolist()
 
         if self.db_type == "qdrant":
-            # Search trên Qdrant (qdrant-client v1.7+ dùng query_points thay vì search)
-            from qdrant_client.models import NamedVector
-            search_result = self.qdrant_client.query_points(
+            # Search trên Qdrant - dùng search() tương thích Qdrant server v1.7.x
+            search_result = self.qdrant_client.search(
                 collection_name=self.collection_name,
-                query=query_embedding,
+                query_vector=query_embedding,
                 limit=top_k,
                 with_payload=True,
-            ).points
+            )
 
             results = []
             for hit in search_result:

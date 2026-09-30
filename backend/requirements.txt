@@ -14,7 +14,7 @@ pydantic>=2.4.0              # Request/Response schema validation
 pydantic-settings>=2.0.0     # Pydantic v2 settings từ .env
 
 # Vector DB — Dense Retrieval
-qdrant-client>=1.7.0         # Qdrant Vector DB (Docker Local - khuyên dùng)
+qdrant-client>=1.7.0,<1.8.0  # Qdrant Vector DB - pin để tương thích server v1.7.4
 sentence-transformers>=2.7.0,<4.0.0 # Bi-encoder embedding (bkai vietnamese-bi-encoder)
 transformers<4.49.0,>=4.38.0   # Tương thích với PyTorch 2.4.x (CPU / DirectML)
 
