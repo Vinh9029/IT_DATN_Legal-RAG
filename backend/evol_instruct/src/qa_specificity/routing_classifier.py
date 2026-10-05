@@ -23,6 +23,18 @@ logger = logging.getLogger(__name__)
 
 SpecificityLabel = Literal["broad", "narrow"]
 
+# PhoBERT được pre-train trên văn bản ĐÃ tách từ (âm tiết nối bằng "_"). Đưa câu
+# thô vào thì "khởi kiện" thành hai token rời và dấu câu dính vào chữ ("đồng,"
+# → "đồ@@ ng@@ ,"). Train và inference PHẢI dùng cùng một hàm này — lệch nhau là
+# model nhận phân phối input khác hẳn lúc học.
+SEGMENTER_NAME = "underthesea.word_tokenize"
+
+
+def segment_vi(text: str) -> str:
+    """Tách từ tiếng Việt theo định dạng PhoBERT cần ("khởi_kiện")."""
+    from underthesea import word_tokenize
+    return word_tokenize(text, format="text")
+
 
 class RoutingClassifier:
     """
@@ -37,6 +49,7 @@ class RoutingClassifier:
         self._label2id: dict = {"broad": 0, "narrow": 1}
         self._id2label: dict = {0: "broad", 1: "narrow"}
         self._max_length: int = 256
+        self._segment: bool = True
         self._ready: bool = False
         self._fallback_mode: bool = False
 
@@ -65,6 +78,8 @@ class RoutingClassifier:
             # id2label có thể có key là string (JSON serialize)
             raw_id2label = cfg.get("id2label", {})
             self._id2label = {int(k): v for k, v in raw_id2label.items()}
+            # Adapter train trước khi có bước tách từ thì không có khoá này.
+            self._segment = cfg.get("segmenter") is not None
 
             import torch
             from transformers import AutoTokenizer
@@ -76,10 +91,14 @@ class RoutingClassifier:
             )
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
+            # num_labels/id2label phải khớp lúc train, nếu không base model dựng
+            # head phân loại sai kích thước trước khi nạp trọng số adapter.
             self._model = AutoPeftModelForSequenceClassification.from_pretrained(
                 str(self.model_dir),
-                device_map=device,
-            )
+                num_labels=len(self._id2label),
+                id2label=self._id2label,
+                label2id=self._label2id,
+            ).to(device)
             self._model.eval()
             self._device = device
             self._ready = True
@@ -95,6 +114,9 @@ class RoutingClassifier:
             self._fallback_mode = True
 
     # ─── Inference ────────────────────────────────────────────────────────────
+    def _prep(self, query: str) -> str:
+        return segment_vi(query) if self._segment else query
+
     def predict(self, query: str) -> SpecificityLabel:
         """
         Phân loại một câu hỏi thành 'broad' hoặc 'narrow'.
@@ -107,7 +129,7 @@ class RoutingClassifier:
             import torch
 
             inputs = self._tokenizer(
-                query,
+                self._prep(query),
                 max_length=self._max_length,
                 truncation=True,
                 padding=True,
@@ -135,7 +157,7 @@ class RoutingClassifier:
             import torch
 
             inputs = self._tokenizer(
-                queries,
+                [self._prep(q) for q in queries],
                 max_length=self._max_length,
                 truncation=True,
                 padding=True,
@@ -173,7 +195,7 @@ class RoutingClassifier:
 
     @property
     def mode(self) -> str:
-        return "heuristic" if self._fallback_mode else "phobert-qlora"
+        return "heuristic" if self._fallback_mode else "phobert-lora"
 
     def __repr__(self):
         return (
