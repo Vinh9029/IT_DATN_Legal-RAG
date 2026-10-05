@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/header';
 
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 import { Hero_chat_demo } from '@/components/Hero_chat_demo';
 import { Floating_chatbot } from '@/components/Floating_chatbot';
 import {
@@ -61,7 +61,7 @@ export const Index: React.FC = () => {
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-10 lg:grid-cols-[1fr_1fr] items-start">
               <div className="editorial-rise">
-                <div className="inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white/95 backdrop-blur-sm px-4 py-1.5 text-xs font-mono font-medium text-slate-700 shadow-sm">
+                <div className="inline-flex items-center gap-2.5 rounded-full border border-slate-200 bg-white/95 backdrop-blur-sm px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm">
                   <span className="relative flex size-2">
                     <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#2563EB] opacity-60"></span>
                     <span className="relative inline-flex size-2 rounded-full bg-[#2563EB]"></span>
@@ -70,7 +70,7 @@ export const Index: React.FC = () => {
                 </div>
 
                 {/* HEADING TEXT WITH PROPER SPACING */}
-                <h1 className="mt-6 font-display text-[clamp(3.8rem,8.5vw,7.5rem)] uppercase leading-[1.15] text-[#0F172A] tracking-tight">
+                <h1 className="mt-6 font-display text-[clamp(2.75rem,5.6vw,5rem)] uppercase leading-[1.35] tracking-tight text-[#0F172A]">
                   Pháp luật,<br />
                   <span className="text-[#2563EB]">đọc được</span><br />
                   rõ ràng.
@@ -83,7 +83,7 @@ export const Index: React.FC = () => {
                     onClick={() => navigate('/tro-ly')}
                     className="justify-center gap-3 bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-md group px-8"
                   >
-                    <span className="font-mono text-sm uppercase tracking-wider">Mở trợ lý pháp lý</span>
+                    <span className="text-base font-semibold uppercase tracking-wide">Mở trợ lý pháp lý</span>
                     <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
                   </Button>
                 </div>
@@ -92,10 +92,10 @@ export const Index: React.FC = () => {
               {/* HERO RIGHT COLUMN: EDITORIAL INTRO TEXT DIRECTLY ABOVE ANIMATED CHATBOT DEMO */}
               <div className="lg:pl-4">
                 <div className="mb-6">
-                  <p className="font-display text-xl md:text-2xl uppercase leading-snug tracking-tight text-[#0F172A]">
+                  <p className="font-display text-xl md:text-2xl uppercase leading-snug text-balance text-[#0F172A]">
                     Tìm hướng đi đầu tiên cho vấn đề pháp lý của bạn —
                   </p>
-                  <p className="mt-2 text-sm md:text-base leading-relaxed text-slate-600 font-medium italic">
+                  <p className="mt-2 text-base md:text-lg leading-relaxed text-slate-600 font-medium italic">
                     bằng ngôn ngữ gần gũi, chính xác và có giới hạn rõ ràng.
                   </p>
                 </div>
@@ -106,7 +106,7 @@ export const Index: React.FC = () => {
           </div>
 
           {/* BOTTOM DISCLAIMER MOVED TO THE RIGHT NEXT TO THE ARROW */}
-          <div className="editorial-grow absolute inset-x-5 bottom-6 flex items-center justify-end gap-3 border-t border-slate-300/70 pt-4 font-mono text-[11px] uppercase text-slate-700 md:inset-x-12">
+          <div className="editorial-grow absolute inset-x-5 bottom-6 flex items-center justify-end gap-3 border-t border-slate-300/70 pt-4 text-sm text-slate-700 md:inset-x-12">
             <span className="flex items-center gap-2 font-medium bg-white/80 backdrop-blur-xs px-3 py-1 rounded-md border border-slate-200/60">
               <ShieldCheck className="size-4 text-[#2563EB]" />
               Nội dung tham khảo căn cứ luật hiện hành
@@ -126,15 +126,15 @@ export const Index: React.FC = () => {
           <div className="mx-auto max-w-7xl px-5 py-20 md:px-10 md:py-28">
             <div className="grid gap-8 border-b border-slate-200 pb-12 md:grid-cols-2 items-end">
               <div className="border-l-[3px] border-[#2563EB] pl-5">
-                <p className="font-mono text-xs uppercase tracking-widest text-[#2563EB]">
+                <p className="text-sm font-semibold uppercase tracking-wide text-[#2563EB]">
                   Lĩnh vực thường gặp
                 </p>
-                <h2 className="mt-3 font-display text-4xl uppercase leading-tight text-[#0F172A] md:text-6xl tracking-tight">
+                <h2 className="mt-3 font-display text-3xl uppercase leading-[1.2] tracking-tight text-balance text-[#0F172A] md:text-5xl">
                   Bắt đầu từ đúng nhóm vấn đề.
                 </h2>
               </div>
               <div className="flex md:justify-end">
-                <p className="max-w-md text-sm md:text-base leading-relaxed text-slate-600 font-medium bg-white/70 backdrop-blur-xs p-4 rounded-xl border border-slate-200/60">
+                <p className="max-w-md text-base md:text-lg leading-relaxed text-slate-600 bg-white/70 backdrop-blur-xs p-4 rounded-xl border border-slate-200/60">
                   Phân loại rõ ràng các nhóm vụ việc phổ biến giúp bạn dễ dàng đưa ra câu hỏi và nhận hướng dẫn chi tiết từ Trợ lý AI.
                 </p>
               </div>
@@ -157,15 +157,15 @@ export const Index: React.FC = () => {
                         <area.icon className="size-6 text-[#2563EB] group-hover:text-white transition-colors" strokeWidth={1.5} />
                       </div>
                     </div>
-                    <h3 className="mt-6 font-display text-2xl md:text-3xl uppercase text-[#0F172A] transition-colors group-hover:text-[#2563EB]">
+                    <h3 className="mt-5 font-display text-2xl uppercase leading-[1.3] text-[#0F172A] transition-colors group-hover:text-[#2563EB]">
                       {area.title}
                     </h3>
-                    <p className="mt-3 text-sm leading-6 text-slate-600 font-normal">
+                    <p className="mt-3 text-base leading-relaxed text-slate-600">
                       {area.text}
                     </p>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between font-mono text-xs font-semibold text-[#2563EB]">
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-sm font-semibold text-[#2563EB]">
                     <span>Hỏi trợ lý AI chủ đề này</span>
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </div>
@@ -178,13 +178,13 @@ export const Index: React.FC = () => {
         {/* SECTION 3: CÁCH TIẾP CẬN — IRAC FRAMEWORK */}
         <section id="quy-trinh" className="mx-auto grid max-w-7xl gap-12 px-5 py-20 md:px-10 md:py-28 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="border-l-[3px] border-[#2563EB] pl-5">
-            <p className="font-mono text-xs uppercase tracking-widest text-[#2563EB]">
+            <p className="text-sm font-semibold uppercase tracking-wide text-[#2563EB]">
               Cách tiếp cận — Khung IRAC
             </p>
-            <h2 className="mt-4 font-display text-5xl uppercase leading-tight text-[#0F172A] md:text-6xl tracking-tight">
+            <h2 className="mt-4 font-display text-4xl uppercase leading-[1.2] tracking-tight text-balance text-[#0F172A] md:text-[2.6rem]">
               Từ tình huống đến hướng xử lý.
             </h2>
-            <p className="mt-6 text-sm leading-relaxed text-slate-600">
+            <p className="mt-6 text-lg leading-relaxed text-slate-600">
               Áp dụng khung lập luận pháp lý chuẩn quốc tế <strong className="text-[#0F172A]">IRAC</strong> — Issue, Rule, Application, Conclusion — giúp phân tích vụ việc có hệ thống và đưa ra kết luận rõ ràng.
             </p>
           </div>
@@ -196,11 +196,11 @@ export const Index: React.FC = () => {
               ["A", "Application — Phân tích áp dụng", "Lập luận chi tiết: áp dụng quy phạm vào tình tiết cụ thể, chỉ ra điểm phù hợp và các dữ kiện, tài liệu còn thiếu cần bổ sung."],
               ["C", "Conclusion — Kết luận & hướng xử lý", "Đưa ra kết luận pháp lý, phương án giải quyết khả thi: hòa giải, chuẩn bị hồ sơ khởi kiện hoặc tìm Luật sư khi tình huống phức tạp."],
             ].map(([letter, title, text]) => (
-              <li key={letter} className="grid grid-cols-[3.5rem_1fr] gap-4 border-b border-slate-200 py-8 transition-colors hover:bg-slate-50/50">
-                <span className="font-display text-3xl font-bold text-[#2563EB]">{letter}</span>
+              <li key={letter} className="grid grid-cols-[3.5rem_1fr] gap-4 border-b border-slate-200 py-7 transition-colors hover:bg-slate-50/50">
+                <span className="font-display text-4xl text-[#2563EB]">{letter}</span>
                 <div>
-                  <h3 className="text-xl font-bold text-[#0F172A]">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+                  <h3 className="text-2xl font-bold text-[#0F172A]">{title}</h3>
+                  <p className="mt-2 text-base leading-relaxed text-slate-600">{text}</p>
                 </div>
               </li>
             ))}
@@ -209,22 +209,22 @@ export const Index: React.FC = () => {
 
         {/* SECTION 4: GIỚI HẠN & CẢNH BÁO */}
         <section id="luu-y" className="bg-[#0F172A] text-white py-20 md:py-24">
-          <div className="mx-auto grid max-w-7xl gap-10 px-5 md:px-10 lg:grid-cols-[1fr_1.3fr] items-center">
+          <div className="mx-auto grid max-w-7xl gap-10 px-5 md:px-10 lg:grid-cols-[1.2fr_1fr] items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-md bg-[#2563EB]/20 px-3 py-1 font-mono text-xs font-semibold text-[#2563EB]">
+              <div className="inline-flex items-center gap-2 rounded-md bg-[#2563EB]/20 px-3 py-1 text-sm font-semibold text-[#60A5FA]">
                 <Bot className="size-4" />
                 <span>Giới hạn cần biết</span>
               </div>
-              <h2 className="mt-4 font-display text-4xl uppercase leading-tight md:text-5xl text-white">
+              <h2 className="mt-4 font-display text-3xl uppercase leading-[1.3] tracking-tight md:text-[2rem] text-white">
                 Thông tin tốt giúp bạn hỏi đúng.<br />Không thay thế Luật sư hiểu hồ sơ.
               </h2>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 md:p-8 backdrop-blur-sm">
-              <p className="text-sm leading-7 text-slate-300">
+              <p className="text-base leading-8 text-slate-300">
                 Nội dung trên trang và phản hồi của Trợ lý AI mang tính chất tham khảo chung, có thể chưa phản ánh đầy đủ diễn biến thực tế hoặc các điều chỉnh văn bản mới nhất. Với các tranh chấp, tố tụng hình sự hay vụ việc mang rủi ro tài chính lớn, bạn hãy luôn chủ động tham khảo tư vấn chuyên môn từ Luật sư có giấy phép hành nghề.
               </p>
               <div className="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
-                <span className="font-mono text-xs text-slate-400">LƯU HÀNH Legal Tech System</span>
+                <span className="text-sm text-slate-400">LƯU HÀNH Legal Tech System</span>
                 <Button
                   variant="accent"
                   size="sm"
@@ -242,12 +242,12 @@ export const Index: React.FC = () => {
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 px-5 py-10 md:flex-row md:items-end md:justify-between md:px-10">
           <div>
-            <p className="font-display text-3xl uppercase tracking-wider text-[#0F172A]">LƯU HÀNH</p>
-            <p className="mt-2 text-sm text-slate-500">Pháp luật Việt Nam được trình bày để dễ tiếp cận & áp dụng.</p>
+            <p className="font-display text-2xl uppercase text-[#0F172A]">LƯU HÀNH</p>
+            <p className="mt-2 text-base text-slate-500">Pháp luật Việt Nam được trình bày để dễ tiếp cận & áp dụng.</p>
           </div>
-          <div className="flex flex-col gap-2 font-mono text-xs text-slate-500 md:text-right">
+          <div className="flex flex-col gap-2 text-sm text-slate-500 md:text-right">
             <span>© 2026 LƯU HÀNH Legal RAG · Nội dung mang tính chất tham khảo</span>
-            <span className="text-[10px] text-slate-400">Tích hợp Supabase Engine & AI RAG System</span>
+            <span className="text-xs text-slate-400">Tích hợp Supabase Engine & AI RAG System</span>
           </div>
         </div>
       </footer>

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Brand_mark } from './Brand_mark';
-import { Button } from './ui/Button';
+import { Button } from './ui/button';
 import { Auth_modal } from './Auth_modal';
 import { useAuth } from '@/lib/auth-context';
+import { smoothScrollToId } from '@/lib/smooth-scroll';
 import { ArrowRight, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 
 
@@ -21,13 +22,9 @@ export const Header: React.FC = () => {
     e.preventDefault();
     if (location.pathname !== '/') {
       navigate('/', { replace: false });
-      setTimeout(() => {
-        const el = document.getElementById(targetId);
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
+      setTimeout(() => smoothScrollToId(targetId), 100);
     } else {
-      const el = document.getElementById(targetId);
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
+      smoothScrollToId(targetId);
     }
   };
 
@@ -37,7 +34,7 @@ export const Header: React.FC = () => {
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 md:px-10">
           <Brand_mark />
 
-          <nav className="hidden items-center gap-8 font-mono text-xs uppercase tracking-wider text-slate-600 md:flex">
+          <nav className="hidden items-center gap-8 text-sm font-semibold uppercase tracking-wide text-slate-600 md:flex">
             <a
               href="#linh-vuc"
               onClick={(e) => handleNavClick(e, 'linh-vuc')}
@@ -66,7 +63,7 @@ export const Header: React.FC = () => {
               variant="accent"
               size="md"
               onClick={() => navigate('/tro-ly')}
-              className="group font-mono text-xs uppercase tracking-wider shadow-sm"
+              className="group whitespace-nowrap px-3 sm:px-4 text-xs sm:text-sm font-semibold uppercase tracking-wide shadow-sm"
             >
               <span>Hỏi đáp AI</span>
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
@@ -96,10 +93,10 @@ export const Header: React.FC = () => {
 
                 {/* User Profile Dropdown Menu */}
                 {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-xl font-sans text-xs z-50 editorial-rise">
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-xl font-sans text-sm z-50 editorial-rise">
                     <div className="px-3 py-2 border-b border-slate-100">
                       <p className="font-bold text-[#0F172A] truncate">{userName}</p>
-                      <p className="font-mono text-[10px] text-slate-400 truncate mt-0.5">{user.email}</p>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{user.email}</p>
                     </div>
                     <button
                       onClick={() => {
@@ -119,10 +116,10 @@ export const Header: React.FC = () => {
                 variant="outline"
                 size="md"
                 onClick={() => setAuthModalOpen(true)}
-                className="font-mono text-xs uppercase tracking-wider"
+                className="whitespace-nowrap px-3 sm:px-4 text-sm font-semibold uppercase tracking-wide"
               >
                 <LogIn className="size-4 text-[#2563EB]" />
-                <span>Đăng nhập</span>
+                <span className="hidden sm:inline">Đăng nhập</span>
               </Button>
             )}
           </div>

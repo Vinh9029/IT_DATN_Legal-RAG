@@ -7,7 +7,7 @@ export const Legal_disclaimer: React.FC<{ className?: string; compact?: boolean 
 }) => {
   if (compact) {
     return (
-      <div className={`flex items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500 font-mono ${className}`}>
+      <div className={`flex items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 ${className}`}>
         <ShieldAlert className="size-4 shrink-0 text-[#2563EB]" />
         <span>Nội dung mang tính chất tham khảo định hướng, không thay thế ý kiến tư vấn pháp lý chính thức của Luật sư.</span>
       </div>

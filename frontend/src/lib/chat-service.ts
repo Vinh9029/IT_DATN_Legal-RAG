@@ -203,7 +203,7 @@ async function streamFromLMStudio(
     }
 
     if (fullText) {
-      callbacks.onComplete(fullText);
+      callbacks.onComplete(trimRepeatedBlocks(fullText));
       return true;
     }
     return false;
@@ -213,6 +213,35 @@ async function streamFromLMStudio(
 }
 
 // HELPERS
+
+const MIN_LOOP_PARAGRAPH_CHARS = 40;
+
+/**
+ * Cat khoi lap: model nho doi khi lap nguyen mot khoi den het max_tokens.
+ * Chi tinh la lap khi >= 2 doan dai lien tiep trung nguyen van va dung thu tu voi
+ * mot khoi truoc do (cung logic voi find_loop_cut o backend/src/retrieval/generator.py).
+ */
+export function trimRepeatedBlocks(text: string): string {
+  const keys: string[] = [];
+  const starts: number[] = [];
+  let pos = 0;
+  for (const para of text.split('\n')) {
+    const key = para.split(/\s+/).join(' ').trim().replace(/^[•*\-– ]+|[•*\-– ]+$/g, '').toLowerCase();
+    if (key.length >= MIN_LOOP_PARAGRAPH_CHARS) {
+      keys.push(key);
+      starts.push(pos);
+    }
+    pos += para.length + 1;
+  }
+  for (let i = 1; i < keys.length - 1; i++) {
+    for (let j = 0; j < i; j++) {
+      if (keys[j] === keys[i] && keys[j + 1] === keys[i + 1]) {
+        return text.slice(0, starts[i]).trimEnd();
+      }
+    }
+  }
+  return text;
+}
 
 /**
  * Mo phong streaming tung tu cho mock/fallback response.
@@ -292,19 +321,11 @@ export async function streamLegalAnswer(
     // Gui VerboseInfo ve UI som (hien thi sources trong khi LLM dang stream)
     callbacks.onVerboseInfo?.(verboseInfo);
 
-    // BUOC 2: Neu backend online, dung LM Studio de stream cau tra loi
-    if (ragResponse?.results) {
-      const context = ragResponse.results
-        .map((r: any) => `[${r.dieu ?? ''}] ${r.content}`)
-        .join('\n\n');
-
-      const lmOk = await streamFromLMStudio(prompt, context, callbacks, signal);
-      if (lmOk) return;
-
-      if (ragResponse.llm_answer) {
-        await simulateStreaming(ragResponse.llm_answer, callbacks, signal, verboseInfo);
-        return;
-      }
+    // BUOC 2: Backend da sinh san cau tra loi (Stage 5) -> dung luon, khong goi LM Studio lan nua
+    // (trinh duyet goi thang LM Studio bi chan CORS, va context o day thieu so hieu van ban)
+    if (ragResponse?.llm_answer) {
+      await simulateStreaming(trimRepeatedBlocks(ragResponse.llm_answer), callbacks, signal, verboseInfo);
+      return;
     }
 
     // BUOC 3: Thu LM Studio truc tiep (khong co RAG context)

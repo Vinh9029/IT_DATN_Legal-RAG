@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* dark: theo class .dark (theme Dark Slate của trang Trợ lý), không theo hệ điều hành */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Nâng thang chữ nhỏ của Tailwind (mặc định 12/14/16px) cho dễ đọc tiếng Việt có dấu */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.6;
+  --text-base: 1.0625rem;
+  --text-base--line-height: 1.65;
+}
+
 @layer base {
   :root {
     --background: #F8FAFC;
@@ -21,7 +34,7 @@
     --status-crimson: #DC2626;
     --status-crimson-bg: #FEE2E2;
 
-    --font-display: 'Anton', 'Playfair Display', Georgia, serif;
+    --font-display: 'Be Vietnam Pro', 'Inter', system-ui, sans-serif;
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-mono: 'JetBrains Mono', monospace;
   }
@@ -37,6 +50,7 @@
 
 .font-display {
   font-family: var(--font-display);
+  font-weight: 800;
 }
 
 .font-sans {
@@ -53,12 +67,24 @@
   50% { opacity: 0; }
 }
 
-.typing-cursor::after {
-  content: '▋';
+/* Con trỏ bám vào dòng chữ cuối cùng của Markdown thay vì xuống dòng sau cả khối */
+.typing-cursor > :is(p, h1, h2, h3, h4):last-child::after,
+.typing-cursor > :is(ul, ol):last-child > li:last-child::after,
+.typing-cursor > :is(ul, ol):last-child > li:last-child > p:last-child::after,
+.typing-cursor > div:last-child > p:last-child::after {
+  content: '';
   display: inline-block;
-  margin-left: 2px;
-  color: #2563EB;
-  animation: cursor-blink 0.8s infinite;
+  width: 0.5em;
+  height: 1.1em;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  background-color: #2563EB;
+  animation: cursor-blink 0.9s steps(1) infinite;
+}
+
+.typing-cursor > :is(ul, ol):last-child > li:last-child:has(> p)::after {
+  content: none;
 }
 
 /* Editorial rise animation */
@@ -90,4 +116,32 @@
     opacity: 1;
     transform: scaleX(1);
   }
+}
+
+/* Chữ trạng thái "đang suy nghĩ": ánh sáng lướt qua + mờ dần khi đổi câu */
+.thinking-text {
+  background: linear-gradient(90deg, #64748B 0%, #64748B 40%, #2563EB 50%, #64748B 60%, #64748B 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: thinkingShimmer 1.8s linear infinite;
+}
+
+.dark .thinking-text {
+  background-image: linear-gradient(90deg, #94A3B8 0%, #94A3B8 40%, #93C5FD 50%, #94A3B8 60%, #94A3B8 100%);
+}
+
+.thinking-fade {
+  animation: thinkingShimmer 1.8s linear infinite, thinkingFade 0.4s ease-out;
+}
+
+@keyframes thinkingShimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes thinkingFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
