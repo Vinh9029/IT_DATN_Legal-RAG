@@ -263,3 +263,130 @@
   border-radius: 999px;
   background-color: #CBD5E1;
 }
+
+/* ── Soạn thảo văn bản ─────────────────────────────────────── */
+/* Trang giấy A4: thể thức khớp lib/drafting/page-format.ts (bản in PDF/Word dùng cùng số đo) */
+.dp-paper {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm 15mm 20mm 30mm;
+  background: #fff;
+  color: #000;
+  font-family: 'Times New Roman', Tinos, Times, serif;
+  font-size: 13pt;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 12px 32px -12px rgba(15, 23, 42, 0.18);
+}
+
+.dp-paper p { margin: 0 0 2pt; }
+.dp-paper .dp-indent { text-indent: 10mm; }
+.dp-paper .dp-gap { margin-top: 6pt; }
+
+/* Ô điền: chấm chấm như mẫu giấy khi trống, gạch chân mảnh khi đã điền */
+.dp-field {
+  border-radius: 2px;
+  outline: none;
+  text-indent: 0;
+  cursor: text;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  background-image: linear-gradient(to right, rgba(37, 99, 235, 0.35) 50%, transparent 50%);
+  background-position: 0 100%;
+  background-size: 4px 1px;
+  background-repeat: repeat-x;
+}
+
+.dp-field:hover { background-color: rgba(37, 99, 235, 0.05); }
+.dp-field:focus,
+.dp-field[data-active='true'] {
+  background-color: rgba(37, 99, 235, 0.08);
+  box-shadow: 0 1.5px 0 #2563EB;
+}
+
+.dp-field[data-empty='true'] {
+  display: inline-block;
+  min-height: 1.4em;
+  vertical-align: bottom;
+  background-image: radial-gradient(circle, #64748B 0.6px, transparent 0.9px);
+  background-size: 5px 3px;
+  background-position: 0 calc(100% - 2px);
+}
+
+.dp-field[data-empty='true']::before {
+  content: attr(data-placeholder);
+  color: #94A3B8;
+  font-style: italic;
+  pointer-events: none;
+}
+
+.dp-field[data-block='true'] { display: block; min-height: 2.8em; white-space: pre-wrap; }
+.dp-field[data-block='true'][data-empty='true'] {
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.4em - 1.5px), #94A3B8 calc(1.4em - 1.5px), transparent 1.4em);
+  background-size: auto;
+  background-position: 0 0;
+}
+
+/* Số chú thích của mẫu chính thức — chỉ có trên màn hình */
+.dp-note {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 600;
+  color: #2563EB;
+  vertical-align: super;
+  margin: 0 1px;
+  cursor: pointer;
+  user-select: none;
+  text-indent: 0;
+}
+
+/* Mục "nếu có" còn trống: mờ đi — để trống sẽ không in ra */
+.dp-optional { opacity: 0.45; transition: opacity 0.25s ease; }
+.dp-optional:hover,
+.dp-optional:focus-within { opacity: 1; }
+
+/* Ô vừa được AI sửa / hoàn tác: nền vàng nhạt rồi tan dần */
+.dp-flash { animation: dpFlash 1.8s cubic-bezier(0.16, 1, 0.3, 1); }
+
+@keyframes dpFlash {
+  0%, 20% { background-color: rgba(250, 204, 21, 0.45); }
+  100% { background-color: transparent; }
+}
+
+/* Panel trượt vào từ phải / từ dưới */
+.dp-slide-right { animation: dpSlideRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes dpSlideRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.dp-slide-left { animation: dpSlideLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes dpSlideLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.dp-sheet { animation: dpSheet 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes dpSheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.dp-fade { animation: dpFade 0.25s ease-out both; }
+@keyframes dpFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Menu thả xuống: mở từ mép trên */
+.dp-pop { animation: dpPop 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: top right; }
+@keyframes dpPop {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Vòng tiến độ */
+.dp-ring { transition: stroke-dashoffset 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Ảnh thu nhỏ biểu mẫu trên trang chọn mẫu */
+.dp-thumb .dp-paper { box-shadow: none; }

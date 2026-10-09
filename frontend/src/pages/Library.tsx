@@ -126,7 +126,7 @@ export const Library: React.FC = () => {
             <p className="text-sm font-semibold uppercase tracking-wide text-[#2563EB]">Thư viện pháp luật</p>
             <h1 className="mt-3 font-display text-3xl uppercase leading-[1.2] tracking-tight text-balance md:text-5xl">Tra cứu & đọc văn bản gốc.</h1>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-600 md:text-lg">
-              Đọc trọn từng Điều luật mà trợ lý AI đã trích dẫn — có mục lục, tìm kiếm không dấu và liên kết tới từng Điều.
+              Đọc trọn vẹn từng Điều luật mà trợ lý AI trích dẫn — từ khoản, điểm đến các Điều liên quan — và tra cứu nhanh mọi quy định trong các bộ luật.
             </p>
           </div>
 

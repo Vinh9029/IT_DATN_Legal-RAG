@@ -25,12 +25,14 @@ app.add_middleware(
 
 
 from src.api.routers import query
+from src.api.routers import drafting
 
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "message": "Legal RAG API is running"}
 
 app.include_router(query.router, prefix="/api", tags=["rag"])
+app.include_router(drafting.router, prefix="/api", tags=["drafting"])
 
 @app.on_event("startup")
 async def startup_event():
