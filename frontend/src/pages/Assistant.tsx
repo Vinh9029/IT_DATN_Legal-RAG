@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Brand_mark } from '@/components/Brand_mark';
@@ -9,6 +9,8 @@ import { Status_badge } from '@/components/Status_badge';
 import { Thinking_indicator } from '@/components/Thinking_indicator';
 import { Profile_modal } from '@/components/Profile_modal';
 import { useAuth } from '@/lib/auth-context';
+import { useLibraryIndex } from '@/lib/library/hooks';
+import { lawPath, libraryService, normalizeArticleNumber } from '@/lib/library/library-service';
 import { 
   SUGGESTED_QUESTIONS, 
   streamLegalAnswer 
@@ -28,8 +30,9 @@ import {
   addMessageToBranch,
   updateBranchMessages
 } from '@/lib/session-store';
-import type { ChatMessage, ChatThread, VerboseRAGInfo, SubThreadItem } from '@/lib/session-store';
+import type { ChatMessage, ChatThread, VerboseRAGInfo, SubThreadItem, LegalChunk } from '@/lib/session-store';
 import { 
+  BookOpen, 
   Plus, 
   Send, 
   Square, 
@@ -62,12 +65,21 @@ import {
 export const Assistant: React.FC = () => {
   const { threadId } = useParams<{ threadId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  // Nối trích dẫn về Thư viện pháp luật: chunk nào thuộc văn bản đã có trong thư viện thì có link đọc toàn văn
+  const [libraryIndex] = useLibraryIndex();
+  const libraryLawFor = (doc: LegalChunk) =>
+    libraryIndex.status === 'ready'
+      ? libraryService.resolveReference(libraryIndex.data, doc.metadata?.so_hieu, doc.metadata?.law_number, doc.doc_id, doc.metadata?.law_name)
+      : undefined;
 
 
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [currentThread, setCurrentThread] = useState<ChatThread | null>(null);
-  const [inputQuery, setInputQuery] = useState('');
+  // Trang khác (vd. Thư viện) có thể mở Trợ lý kèm câu hỏi soạn sẵn qua state { prefill }
+  const [inputQuery, setInputQuery] = useState(() => (location.state as { prefill?: string } | null)?.prefill ?? '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1067,6 +1079,22 @@ export const Assistant: React.FC = () => {
                                         <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans line-clamp-3">
                                           {doc.content}
                                         </p>
+
+                                        {(() => {
+                                          const law = libraryLawFor(doc);
+                                          return law ? (
+                                            <a
+                                              href={lawPath(law.id, normalizeArticleNumber(doc.dieu))}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="group/lib mt-2 inline-flex items-center gap-1.5 font-sans text-xs font-semibold text-[#2563EB] hover:underline underline-offset-2"
+                                            >
+                                              <BookOpen className="size-3.5" />
+                                              Đọc toàn văn trong Thư viện
+                                              <ChevronRight className="size-3 transition-transform group-hover/lib:translate-x-0.5" />
+                                            </a>
+                                          ) : null;
+                                        })()}
 
                                         {doc.metadata && (
                                           <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-1.5">

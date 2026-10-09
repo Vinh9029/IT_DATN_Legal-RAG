@@ -224,3 +224,42 @@
 @keyframes communityLeave {
   to { opacity: 0; transform: scale(0.97) translateY(-4px); }
 }
+
+/* ── Thư viện pháp luật ────────────────────────────────────── */
+/* Từ khoá tìm kiếm trong văn bản */
+.lib-mark {
+  border-radius: 3px;
+  background-color: #FEF08A;
+  color: inherit;
+  padding: 0 1px;
+  box-shadow: 0 0 0 1px #FDE68A;
+}
+
+/* Điều vừa nhảy tới: nền xanh nhạt rồi tan dần để mắt bắt được vị trí */
+.lib-article {
+  transition: background-color 0.3s ease;
+}
+
+.lib-flash {
+  animation: libFlash 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes libFlash {
+  0%, 25% { background-color: rgba(37, 99, 235, 0.09); box-shadow: inset 3px 0 0 #2563EB; }
+  100% { background-color: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+
+/* Thanh cuộn mảnh cho mục lục */
+.lib-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+
+.lib-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lib-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background-color: #CBD5E1;
+}

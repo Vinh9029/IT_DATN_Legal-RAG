@@ -5,8 +5,14 @@ import { Button } from './ui/button';
 import { Auth_modal } from './Auth_modal';
 import { useAuth } from '@/lib/auth-context';
 import { smoothScrollToId } from '@/lib/smooth-scroll';
-import { ArrowRight, LogIn, LogOut, User as UserIcon, Users } from 'lucide-react';
+import { ArrowRight, Library, LogIn, LogOut, User as UserIcon, Users } from 'lucide-react';
 import { cn } from './ui/button';
+
+// Các trang riêng (không phải mục cuộn của trang chủ). Thêm trang mới = thêm một dòng.
+const PAGE_LINKS = [
+  { to: '/cong-dong', label: 'Cộng đồng', icon: Users },
+  { to: '/thu-vien', label: 'Thư viện', icon: Library },
+] as const;
 
 
 export const Header: React.FC = () => {
@@ -16,7 +22,6 @@ export const Header: React.FC = () => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const isCommunity = location.pathname.startsWith('/cong-dong');
   const userAvatar = user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
   const userName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email;
 
@@ -59,36 +64,48 @@ export const Header: React.FC = () => {
               Lưu ý pháp lý
             </a>
             {/* Trang riêng, không phải mục cuộn trong trang chủ */}
-            <a
-              href="/cong-dong"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/cong-dong');
-              }}
-              aria-current={isCommunity ? 'page' : undefined}
-              className={cn(
-                'relative transition-colors hover:text-[#2563EB]',
-                'after:absolute after:-bottom-1.5 after:left-0 after:h-0.5 after:w-full after:origin-left after:rounded-full after:bg-[#2563EB] after:transition-transform after:duration-300',
-                isCommunity ? 'text-[#2563EB] after:scale-x-100' : 'after:scale-x-0 hover:after:scale-x-100',
-              )}
-            >
-              Cộng đồng
-            </a>
+            {PAGE_LINKS.map(({ to, label }) => {
+              const active = location.pathname.startsWith(to);
+              return (
+                <a
+                  key={to}
+                  href={to}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(to);
+                  }}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'relative transition-colors hover:text-[#2563EB]',
+                    'after:absolute after:-bottom-1.5 after:left-0 after:h-0.5 after:w-full after:origin-left after:rounded-full after:bg-[#2563EB] after:transition-transform after:duration-300',
+                    active ? 'text-[#2563EB] after:scale-x-100' : 'after:scale-x-0 hover:after:scale-x-100',
+                  )}
+                >
+                  {label}
+                </a>
+              );
+            })}
           </nav>
 
           <div className="flex items-center gap-3">
-            {/* Màn hình nhỏ ẩn thanh điều hướng, nên Cộng đồng có nút riêng */}
-            <button
-              type="button"
-              onClick={() => navigate('/cong-dong')}
-              aria-label="Cộng đồng"
-              className={cn(
-                'flex size-10 items-center justify-center rounded-lg border transition-colors md:hidden cursor-pointer',
-                isCommunity ? 'border-[#2563EB] bg-[#2563EB]/10 text-[#2563EB]' : 'border-slate-200 bg-white text-slate-600 hover:border-[#2563EB] hover:text-[#2563EB]',
-              )}
-            >
-              <Users className="size-5" />
-            </button>
+            {/* Màn hình nhỏ ẩn thanh điều hướng, nên mỗi trang riêng có nút biểu tượng */}
+            {PAGE_LINKS.map(({ to, label, icon: Icon }) => {
+              const active = location.pathname.startsWith(to);
+              return (
+                <button
+                  key={to}
+                  type="button"
+                  onClick={() => navigate(to)}
+                  aria-label={label}
+                  className={cn(
+                    'flex size-10 shrink-0 items-center justify-center rounded-lg border transition-colors md:hidden cursor-pointer',
+                    active ? 'border-[#2563EB] bg-[#2563EB]/10 text-[#2563EB]' : 'border-slate-200 bg-white text-slate-600 hover:border-[#2563EB] hover:text-[#2563EB]',
+                  )}
+                >
+                  <Icon className="size-5" />
+                </button>
+              );
+            })}
             <Button
               variant="accent"
               size="md"
