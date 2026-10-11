@@ -88,7 +88,16 @@ export function saveThreads(threads: ChatThread[]): void {
 }
 
 export function createThread(firstMessageTitle?: string): ChatThread {
-  const threads = getThreads();
+  // Tái dùng chat rỗng sẵn có thay vì tạo thêm, đồng thời dọn các chat rỗng thừa
+  const all = getThreads();
+  const empty = all.find((t) => t.messages.length === 0);
+  if (empty && !firstMessageTitle) {
+    const threads = [empty, ...all.filter((t) => t.messages.length > 0)];
+    saveThreads(threads);
+    return empty;
+  }
+
+  const threads = all.filter((t) => t.messages.length > 0);
   const newThread: ChatThread = {
     id: 'thread-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
     title: firstMessageTitle ? (firstMessageTitle.length > 30 ? firstMessageTitle.substring(0, 30) + '...' : firstMessageTitle) : 'Cuộc trò chuyện mới',

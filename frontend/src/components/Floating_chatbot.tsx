@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, ArrowRight, HelpCircle, ChevronRight } from 'lucide-react';
-import { Button } from './ui/Button';
+import { Button } from './ui/button';
 
 interface FAQItem {
   id: string;
@@ -49,7 +49,7 @@ export const Floating_chatbot: React.FC = () => {
               </div>
               <div>
                 <h3 className="font-bold text-sm leading-none">Hỏi Đáp Nhanh LƯU HÀNH</h3>
-                <p className="font-mono text-[10px] text-[#2563EB] mt-1">⚡ FAQ Engine & Guide</p>
+                <p className="text-xs text-[#2563EB] mt-1">⚡ FAQ Engine & Guide</p>
               </div>
             </div>
             <button 
@@ -66,7 +66,7 @@ export const Floating_chatbot: React.FC = () => {
               <div className="space-y-3">
                 <button
                   onClick={() => setSelectedFaq(null)}
-                  className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-[#2563EB] hover:underline"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563EB] hover:underline"
                 >
                   ← Quay lại danh sách câu hỏi
                 </button>
@@ -84,7 +84,7 @@ export const Floating_chatbot: React.FC = () => {
                         setIsOpen(false);
                         navigate(selectedFaq.actionLink!);
                       }}
-                      className="mt-4 w-full justify-center gap-2 font-mono text-xs"
+                      className="mt-4 w-full justify-center gap-2 text-xs"
                     >
                       <span>{selectedFaq.actionText}</span>
                       <ArrowRight className="size-3.5" />
@@ -94,7 +94,7 @@ export const Floating_chatbot: React.FC = () => {
               </div>
             ) : (
               <div>
-                <div className="flex items-center gap-1.5 font-mono text-xs font-semibold uppercase text-slate-500 mb-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase text-slate-500 mb-2">
                   <HelpCircle className="size-4 text-[#2563EB]" />
                   <span>Câu hỏi thường gặp</span>
                 </div>
@@ -120,7 +120,7 @@ export const Floating_chatbot: React.FC = () => {
                       setIsOpen(false);
                       navigate('/tro-ly');
                     }}
-                    className="w-full justify-between font-mono text-xs bg-[#0F172A] hover:bg-[#1E3A8A]"
+                    className="w-full justify-between text-xs bg-[#0F172A] hover:bg-[#1E3A8A]"
                   >
                     <span>Hỏi đáp Trợ lý AI chính thức</span>
                     <ArrowRight className="size-3.5 text-[#2563EB]" />

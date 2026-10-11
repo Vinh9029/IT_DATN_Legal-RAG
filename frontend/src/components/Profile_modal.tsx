@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
-import { Button } from './ui/Button';
+import { Button } from './ui/button';
 import { X, Upload, CheckCircle2, User as UserIcon, ShieldCheck, LogOut } from 'lucide-react';
 
 
@@ -61,10 +61,10 @@ export const Profile_modal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) 
           <X className="size-5" />
         </button>
 
-        <h3 className="font-display text-2xl uppercase tracking-wider text-[#0F172A]">
+        <h3 className="font-display text-xl uppercase text-[#0F172A]">
           Hồ Sơ của tôi
         </h3>
-        <p className="mt-1 font-mono text-xs text-slate-400">
+        <p className="mt-1 text-xs text-slate-400">
           Tài khoản Supabase Auth
         </p>
 
@@ -90,7 +90,7 @@ export const Profile_modal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) 
 
         {/* File Input & Upload */}
         <div className="mt-6 border-t border-slate-100 pt-4">
-          <label className="block font-mono text-xs font-semibold uppercase text-slate-600 mb-2">
+          <label className="block text-xs font-semibold uppercase text-slate-600 mb-2">
             Đổi ảnh đại diện (Supabase Storage)
           </label>
 
@@ -117,7 +117,7 @@ export const Profile_modal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) 
                 size="md"
                 disabled={isUploading}
                 onClick={handleUpload}
-                className="w-full justify-center gap-2 font-mono text-xs uppercase"
+                className="w-full justify-center gap-2 text-xs uppercase"
               >
                 {isUploading ? 'Đang tải lên Supabase...' : 'Lưu Avatar mới'}
               </Button>
@@ -140,14 +140,14 @@ export const Profile_modal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) 
               onClose();
               navigate('/');
             }}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50/80 p-2.5 font-mono text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors cursor-pointer"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50/80 p-2.5 text-xs font-semibold text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors cursor-pointer"
           >
             <LogOut className="size-4" />
             <span>Đăng xuất tài khoản</span>
           </button>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-slate-100 font-mono text-[10px] text-slate-400 flex items-center justify-center gap-1">
+        <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-center gap-1">
           <ShieldCheck className="size-3.5 text-[#2563EB]" />
           <span>Lưu trữ bảo mật Supabase Storage Bucket</span>
         </div>

@@ -1,0 +1,46 @@
+{
+  "_comment": "Danh mục văn bản của Thư viện pháp luật. Thêm một văn bản = thêm một mục vào 'laws' rồi chạy scripts/build_legal_library.py. 'sources' là đường dẫn tương đối so với backend/data, xếp ĐÚNG THỨ TỰ các phần.",
+  "laws": [
+    {
+      "id": "bo-luat-dan-su-2015",
+      "title": "Bộ luật Dân sự",
+      "short_title": "BLDS 2015",
+      "so_hieu": "91/2015/QH13",
+      "loai_van_ban": "Bộ luật",
+      "co_quan_ban_hanh": "Quốc hội",
+      "ngay_ban_hanh": "2015-11-24",
+      "ngay_hieu_luc": "2017-01-01",
+      "tinh_trang": "Còn hiệu lực",
+      "linh_vuc": "Dân sự",
+      "summary": "Quy định địa vị pháp lý, chuẩn mực ứng xử của cá nhân, pháp nhân; quyền, nghĩa vụ về nhân thân và tài sản trong các quan hệ dân sự: tài sản, hợp đồng, thừa kế, bồi thường thiệt hại ngoài hợp đồng.",
+      "version_note": "Bản gốc đăng Công báo, chưa hợp nhất các văn bản sửa đổi, bổ sung (nếu có).",
+      "aliases": ["BLDS_2015", "Bộ luật Dân sự 2015", "Bo luat Dan su 2015"],
+      "expected_articles": 689,
+      "sources": [
+        "corpus_civil/pdf/Bộ luật Dân sự 2015 (91-2015-QH13) - Phần 1.pdf",
+        "corpus_civil/pdf/Bộ luật Dân sự 2015 (91-2015-QH13) - Phần 2.pdf"
+      ]
+    },
+    {
+      "id": "bo-luat-to-tung-dan-su-2015",
+      "title": "Bộ luật Tố tụng Dân sự",
+      "short_title": "BLTTDS 2015",
+      "so_hieu": "92/2015/QH13",
+      "loai_van_ban": "Bộ luật",
+      "co_quan_ban_hanh": "Quốc hội",
+      "ngay_ban_hanh": "2015-11-25",
+      "ngay_hieu_luc": "2016-07-01",
+      "tinh_trang": "Còn hiệu lực",
+      "linh_vuc": "Tố tụng dân sự",
+      "summary": "Quy định trình tự, thủ tục khởi kiện, giải quyết vụ việc dân sự tại Tòa án: thẩm quyền, chứng cứ, xét xử sơ thẩm, phúc thẩm, giám đốc thẩm, tái thẩm và thi hành án.",
+      "version_note": "Bản gốc đăng Công báo, chưa hợp nhất các văn bản sửa đổi, bổ sung (nếu có).",
+      "aliases": ["BLTTDS_2015", "Bộ luật Tố tụng Dân sự 2015", "Bo luat To tung Dan su 2015"],
+      "expected_articles": 517,
+      "sources": [
+        "corpus_civil/pdf/Bộ luật Tố tụng Dân sự 2015 (92-2015-QH13) - Phần 1.pdf",
+        "corpus_civil/pdf/Bộ luật Tố tụng Dân sự 2015 (92-2015-QH13) - Phần 2.pdf",
+        "corpus_civil/pdf/Bộ luật Tố tụng Dân sự 2015 (92-2015-QH13) - Phần 3.pdf"
+      ]
+    }
+  ]
+}

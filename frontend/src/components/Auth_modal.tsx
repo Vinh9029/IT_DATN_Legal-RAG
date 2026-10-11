@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { Button } from './ui/Button';
+import { Button } from './ui/button';
 import { X, Mail, Lock, ShieldCheck } from 'lucide-react';
 
 interface AuthModalProps {
@@ -64,10 +64,10 @@ export const Auth_modal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-white border border-slate-200 p-1 shadow-xs">
             <img src="/logo.png" alt="Logo" className="size-full object-contain" />
           </div>
-          <h3 className="mt-3 font-display text-2xl uppercase tracking-wider text-[#0F172A]">
+          <h3 className="mt-3 font-display text-xl uppercase text-[#0F172A]">
             Tài Khoản LƯU HÀNH
           </h3>
-          {/* <p className="mt-1 font-mono text-xs text-slate-500">
+          {/* <p className="mt-1 text-xs text-slate-500">
             Tích hợp Supabase Engine & Google OAuth
           </p> */}
         </div>
@@ -104,12 +104,12 @@ export const Auth_modal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
         <div className="my-5 flex items-center gap-3">
           <div className="h-px flex-1 bg-slate-200" />
-          <span className="font-mono text-[10px] uppercase text-slate-400">hoặc dùng Email</span>
+          <span className="text-xs uppercase text-slate-400">hoặc dùng Email</span>
           <div className="h-px flex-1 bg-slate-200" />
         </div>
 
         {/* Tab Selection */}
-        <div className="flex rounded-lg bg-slate-100 p-1 font-mono text-xs">
+        <div className="flex rounded-lg bg-slate-100 p-1 text-xs">
           <button
             onClick={() => { setTab('login'); setErrorMsg(''); setSuccessMsg(''); }}
             className={`flex-1 rounded-md py-1.5 font-semibold transition-all ${tab === 'login' ? 'bg-white text-[#0F172A] shadow-xs' : 'text-slate-500 hover:text-slate-900'
@@ -141,7 +141,7 @@ export const Auth_modal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div>
-            <label className="block font-mono text-[11px] uppercase font-semibold text-slate-600 mb-1">
+            <label className="block text-xs uppercase font-semibold text-slate-600 mb-1">
               Email
             </label>
             <div className="relative flex items-center">
@@ -158,7 +158,7 @@ export const Auth_modal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </div>
 
           <div>
-            <label className="block font-mono text-[11px] uppercase font-semibold text-slate-600 mb-1">
+            <label className="block text-xs uppercase font-semibold text-slate-600 mb-1">
               Mật khẩu
             </label>
             <div className="relative flex items-center">
@@ -180,13 +180,13 @@ export const Auth_modal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             variant="accent"
             size="lg"
             disabled={loading}
-            className="w-full font-mono text-xs uppercase tracking-wider mt-2"
+            className="w-full text-sm font-semibold uppercase tracking-wide mt-2"
           >
             {loading ? 'Đang xử lý...' : tab === 'login' ? 'Đăng nhập' : 'Đăng ký tài khoản'}
           </Button>
         </form>
 
-        <div className="mt-5 text-center font-mono text-[10px] text-slate-400 flex items-center justify-center gap-1">
+        <div className="mt-5 text-center text-xs text-slate-400 flex items-center justify-center gap-1">
           <ShieldCheck className="size-3.5 text-[#2563EB]" />
           <span>Bảo mật Supabase Authentication & SSL 256-bit</span>
         </div>

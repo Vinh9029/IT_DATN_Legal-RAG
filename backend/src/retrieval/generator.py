@@ -44,6 +44,32 @@ Trả lời dựa trên các điều khoản trên. Trích dẫn số điều v�
 MAX_CHUNK_CHARS = 800
 # Số chunk tối đa đưa vào context (tránh quá dài)
 MAX_CONTEXT_CHUNKS = 5
+# Đoạn văn ngắn hơn mức này (gạch đầu dòng rỗng, tiêu đề) không tính khi dò lặp
+MIN_LOOP_PARAGRAPH_CHARS = 40
+
+
+def find_loop_cut(text: str) -> Optional[int]:
+    """
+    Model nhỏ ở temperature thấp đôi khi lặp nguyên một khối đến hết max_tokens.
+    Trả về vị trí bắt đầu khối lặp (để cắt), hoặc None nếu không lặp.
+    Chỉ tính là lặp khi >= 2 đoạn dài liên tiếp trùng nguyên văn và đúng thứ tự với
+    một khối trước đó — một tiêu đề lặp lại giữa các phần không bị coi là lặp.
+    """
+    keys: List[str] = []
+    starts: List[int] = []
+    pos = 0
+    for para in text.split("\n"):
+        key = " ".join(para.split()).strip("•*-– ").lower()
+        if len(key) >= MIN_LOOP_PARAGRAPH_CHARS:
+            keys.append(key)
+            starts.append(pos)
+        pos += len(para) + 1
+
+    for i in range(1, len(keys) - 1):
+        for j in range(i):
+            if keys[j] == keys[i] and keys[j + 1] == keys[i + 1]:
+                return starts[i]
+    return None
 
 
 class LegalGenerator:
@@ -144,19 +170,33 @@ class LegalGenerator:
         )
 
         try:
-            response = self.client.chat.completions.create(
+            # Stream nội bộ để dừng sớm khi model rơi vào vòng lặp thay vì chờ hết max_tokens
+            stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                stream=True,
             )
 
-            choice = response.choices[0] if response.choices else None
-            if choice is None:
-                logger.warning("Generator: LLM trả về không có choices.")
-                return None
+            content = ""
+            for chunk_event in stream:
+                delta = chunk_event.choices[0].delta if chunk_event.choices else None
+                if not (delta and delta.content):
+                    continue
+                content += delta.content
+                if "\n" in delta.content:
+                    cut = find_loop_cut(content)
+                    if cut is not None:
+                        logger.warning(f"Generator: phát hiện lặp khối ở ký tự {cut} → dừng sinh và cắt.")
+                        content = content[:cut]
+                        stream.close()
+                        break
+            else:
+                cut = find_loop_cut(content)
+                if cut is not None:
+                    content = content[:cut]
 
-            content = choice.message.content
             if not content or not content.strip():
                 logger.warning("Generator: LLM trả về content rỗng.")
                 return None

@@ -66,7 +66,7 @@ export const Hero_chat_demo: React.FC = () => {
           <div className="size-3 rounded-full bg-red-400 shadow-inner" />
           <div className="size-3 rounded-full bg-amber-400 shadow-inner" />
           <div className="size-3 rounded-full bg-emerald-400 shadow-inner" />
-          <span className="ml-2 font-mono text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+          <span className="ml-2 font-mono text-xs font-semibold text-slate-500 flex items-center gap-1.5">
             <Search className="size-3 text-[#2563EB]" />
             luuhanh.vn/rag-assistant
           </span>
@@ -85,7 +85,7 @@ export const Hero_chat_demo: React.FC = () => {
               />
             ))}
           </div>
-          <div className="flex items-center gap-1.5 rounded-full bg-[#2563EB]/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-[#2563EB]">
+          <div className="hidden sm:flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#2563EB]/10 px-2.5 py-0.5 text-xs font-semibold text-[#2563EB]">
             <span className="size-1.5 rounded-full bg-[#2563EB] animate-pulse" />
             AI Engine Online
           </div>
@@ -93,10 +93,10 @@ export const Hero_chat_demo: React.FC = () => {
       </div>
 
       {/* Demo Chat Content Container */}
-      <div className="p-5 space-y-4 min-h-[320px] max-h-[380px] overflow-y-auto bg-[#F8FAFC]/50">
+      <div className="p-5 space-y-4 min-h-[360px] max-h-[460px] overflow-y-auto bg-[#F8FAFC]/50">
         {/* User Question Bubble */}
         <div className="flex items-start gap-3 justify-end">
-          <div className="max-w-[88%] rounded-2xl rounded-tr-sm bg-[#0F172A] px-4 py-3 text-xs text-white shadow-md font-medium">
+          <div className="max-w-[88%] rounded-2xl rounded-tr-sm bg-[#0F172A] px-4 py-3 text-sm text-white shadow-md font-medium">
             <p className="inline">{typedQuestion}</p>
             {stage === 'typing_question' && (
               <span className="inline-block w-1.5 h-3.5 bg-[#2563EB] ml-1 animate-pulse rounded-sm" />
@@ -120,8 +120,8 @@ export const Hero_chat_demo: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex-1 rounded-2xl rounded-tl-sm border border-slate-200 bg-white p-4 text-xs leading-relaxed text-[#0F172A] shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 font-mono text-[10px] text-slate-400">
+            <div className="flex-1 rounded-2xl rounded-tl-sm border border-slate-200 bg-white p-4 text-sm leading-relaxed text-[#0F172A] shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 text-xs text-slate-400">
                 <span className="flex items-center gap-1 font-semibold text-[#2563EB]">
                   <Sparkles className="size-3" />
                   Căn cứ: {currentScenario.badge}
@@ -133,7 +133,7 @@ export const Hero_chat_demo: React.FC = () => {
               </div>
 
               {stage === 'thinking' ? (
-                <div className="flex items-center gap-2 py-3 text-slate-500 font-mono text-[11px]">
+                <div className="flex items-center gap-2 py-3 text-slate-500 text-xs">
                   <div className="flex space-x-1">
                     <div className="size-1.5 rounded-full bg-[#2563EB] animate-bounce" />
                     <div className="size-1.5 rounded-full bg-[#2563EB] animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -163,7 +163,7 @@ export const Hero_chat_demo: React.FC = () => {
 
       {/* Demo Footer with Micro Progress Bar */}
       <div className="border-t border-slate-200 bg-slate-50 px-4 py-2 space-y-1.5">
-        <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
+        <div className="flex items-center justify-between text-xs text-slate-400">
           <span>* Minh họa hội thoại Trợ lý Legal AI</span>
           <span className="text-[#2563EB] font-semibold">Live Interactive Demo</span>
         </div>
