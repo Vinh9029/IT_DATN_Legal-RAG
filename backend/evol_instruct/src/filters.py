@@ -242,6 +242,47 @@ def filter_legal_hallucination(response: str, legal_refs: set[str] = None) -> bo
     return True
 
 
+# ── Bám context (chỉ chế độ grounded) ─────────────────────────────
+_ARTICLE_REF_RE = re.compile(r"\bđiều\s+(\d+[a-zđ]?)\b", re.IGNORECASE)
+
+
+def filter_context_citations(response: str, context: str) -> bool:
+    """
+    Chế độ grounded: response phải trích ít nhất một "Điều N" và mọi "Điều N"
+    đều có trong context. Chỉ so số Điều vì tên văn bản model viết rất tự do.
+    Không có context → luôn đạt.
+    """
+    if not context:
+        return True
+    cited = {m.lower() for m in _ARTICLE_REF_RE.findall(response or "")}
+    if not cited:
+        logger.debug("❌ Grounded: không trích Điều nào")
+        return False
+    allowed = {m.lower() for m in _ARTICLE_REF_RE.findall(context)}
+    outside = cited - allowed
+    if outside:
+        logger.debug(f"❌ Grounded: trích Điều ngoài context {sorted(outside)}")
+        return False
+    return True
+
+
+def filter_context_copy(evolved_prompt: str, context: str, max_chars: int = 300) -> bool:
+    """
+    Chế độ grounded: câu hỏi evolve không được chép nguyên khối Điều nguồn.
+    Ngưỡng 300: trích một khoản/điểm hợp lệ đo được tối đa 213 ký tự.
+    """
+    if not context or not evolved_prompt:
+        return True
+    from difflib import SequenceMatcher
+    m = SequenceMatcher(None, evolved_prompt, context, autojunk=False).find_longest_match(
+        0, len(evolved_prompt), 0, len(context)
+    )
+    if m.size >= max_chars:
+        logger.debug(f"❌ Câu hỏi chép nguyên context ({m.size} ký tự)")
+        return False
+    return True
+
+
 # ── Pool Deduplication ────────────────────────────────────────────
 
 class PoolDeduplicator:
@@ -317,6 +358,7 @@ class PoolDeduplicator:
 def eliminate_evolved(
     original_prompt: str, evolved_prompt: str,
     sim_threshold: float = None, pool: PoolDeduplicator = None,
+    context: str = "",
 ) -> tuple[bool, list[str]]:
     """
     Lọc SỚM chỉ dựa trên evolved prompt — chạy TRƯỚC khi gọi LLM sinh IRAC.
@@ -336,6 +378,8 @@ def eliminate_evolved(
         return False, fails
     if not filter_prompt_leakage(evolved_prompt):
         fails.append("prompt_leakage")
+    if not filter_context_copy(evolved_prompt, context):
+        fails.append("context_copy")
     if not filter_semantic_similarity(original_prompt, evolved_prompt, sim_threshold):
         fails.append("semantic_similarity")
     if pool is not None:
@@ -353,9 +397,12 @@ def instruction_eliminator(
     original_prompt: str, evolved_prompt: str, response: str,
     legal_refs: set[str] = None, sim_threshold: float = None,
     pool: PoolDeduplicator = None, min_irac_sections: int = 3,
+    context: str = "",
 ) -> tuple[bool, list[str]]:
-    """Bộ lọc tổng hợp. Returns (passed, failed_filters)."""
+    """Bộ lọc tổng hợp. Returns (passed, failed_filters). `context` bật thêm lọc grounded."""
     fails = []
+    if not filter_context_citations(response, context):
+        fails.append("context_citation")
     if not filter_prompt_leakage(evolved_prompt):
         fails.append("prompt_leakage")
     if not filter_refusal(response):

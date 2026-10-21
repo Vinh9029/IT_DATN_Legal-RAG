@@ -40,6 +40,27 @@ def build_legal_references(metadatas) -> set[str]:
     return refs
 
 
+# Median Điều dân sự ~940 ký tự; cắt ở 2.000 để chừa chỗ cho few-shot + câu trả lời.
+MAX_CONTEXT_CHARS = 2000
+
+
+def build_source_contexts() -> dict[str, str]:
+    """{source_doc_id: "<tên văn bản>\\n<nội dung Điều>"} từ corpus dân sự của Phần 3."""
+    from evol_instruct.src.qa_specificity.corpus_filter import load_scoped_corpus
+
+    contexts = {}
+    for doc in load_scoped_corpus():
+        sid = doc.get("source_doc_id")
+        content = (doc.get("content") or "").strip()
+        if not sid or not content:
+            continue
+        title = (doc.get("metadata") or {}).get("title", "")
+        if len(content) > MAX_CONTEXT_CHARS:
+            content = content[:MAX_CONTEXT_CHARS] + "..."
+        contexts[sid] = f"{title}\n{content}" if title else content
+    return contexts
+
+
 def main():
     parser = argparse.ArgumentParser(description="Chạy Evol-Instruct pipeline")
     parser.add_argument("--seeds-file", default="seeds.jsonl", help="File seeds đầu vào")
@@ -63,6 +84,9 @@ def main():
                         help="Chấp nhận cả response bị cắt vì chạm max_tokens")
     parser.add_argument("--seed", type=int, default=None,
                         help="Seed cho random để chạy lại tái lập được")
+    parser.add_argument("--ground-source", action="store_true",
+                        help="Đưa Điều nguồn của seed (seed sinh bằng 02 --source civil) "
+                             "vào responder làm [CONTEXT], lưu vào trường `input`")
     args = parser.parse_args()
 
     logger = setup_logging("03_evolution.log")
@@ -104,7 +128,23 @@ def main():
                 "--no-hallucination-check nếu cố ý bỏ qua."
             )
 
-    # 4. Khởi tạo & chạy pipeline
+    # 4. Context Điều nguồn cho chế độ grounded
+    source_contexts = None
+    if args.ground_source:
+        source_contexts = build_source_contexts()
+        n_hit = sum(
+            1 for s in seeds
+            if (s.get("metadata") or {}).get("source_doc_id") in source_contexts
+        )
+        logger.info(f"Grounded: {n_hit}/{len(seeds)} seed có Điều nguồn")
+        if n_hit == 0:
+            logger.error(
+                "❌ Không seed nào có Điều nguồn — seeds phải sinh bằng "
+                "02_generate_seeds.py --source civil."
+            )
+            sys.exit(1)
+
+    # 5. Khởi tạo & chạy pipeline
     pipeline = EvolPipeline(
         llm_client=llm,
         output_file=args.output_file,
@@ -115,6 +155,7 @@ def main():
         dedup_pool=not args.no_dedup_pool,
         dedup_threshold=args.dedup_threshold,
         strict_truncation=not args.allow_truncated,
+        source_contexts=source_contexts,
     )
 
     pipeline.run(seeds, batch_size=args.batch_size, target=args.target)

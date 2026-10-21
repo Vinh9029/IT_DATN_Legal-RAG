@@ -124,3 +124,38 @@ class TestGenerateSeeds:
         seeds = generate_seeds_from_templates(documents, target_seeds=100)
         instructions = [s["instruction"] for s in seeds]
         assert len(instructions) == len(set(instructions))  # Không trùng
+
+
+class TestParseSeedLines:
+    """Output thật của Llama-3.1-8B ở mẻ thử 2026-10-21 (rút gọn)."""
+
+    def _parse(self, text):
+        from evol_instruct.scripts.seed_gen_helpers import parse_seed_lines
+        return parse_seed_lines(text)
+
+    def test_drops_lead_in_line(self):
+        text = (
+            "Tôi có thể giúp bạn tạo ra 3 câu hỏi pháp lý dựa trên nội dung văn bản. Dưới đây là các câu hỏi:\n"
+            "Một chấp hành viên được cấp phù hiệu bị lỗi hình thức, khi nào thì được cấp lại phù hiệu?"
+        )
+        assert self._parse(text) == [
+            "Một chấp hành viên được cấp phù hiệu bị lỗi hình thức, khi nào thì được cấp lại phù hiệu?"
+        ]
+
+    def test_drops_refusal_even_with_question_mark(self):
+        text = "Tôi xin lỗi, nhưng tôi không thể tạo câu hỏi này, bạn có muốn đổi văn bản khác không?"
+        assert self._parse(text) == []
+
+    def test_strips_numbered_label(self):
+        text = "Hỏi 1: Tòa án nhân dân cấp tỉnh có phải xét xử bằng Hội đồng gồm ba Thẩm phán không?"
+        assert self._parse(text) == [
+            "Tòa án nhân dân cấp tỉnh có phải xét xử bằng Hội đồng gồm ba Thẩm phán không?"
+        ]
+
+    def test_strips_bold_label_and_bullet(self):
+        text = "- **Câu hỏi 2:** Anh Nguyễn Văn A vay 200 triệu quá hạn 6 tháng, chị B có quyền khởi kiện không?"
+        assert self._parse(text)[0].startswith("Anh Nguyễn Văn A")
+
+    def test_keeps_irac_request_after_question(self):
+        text = "Ông Trần Văn C có được thừa kế không? Hãy phân tích theo cấu trúc IRAC."
+        assert self._parse(text) == [text]

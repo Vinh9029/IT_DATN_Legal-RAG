@@ -34,6 +34,49 @@ from tqdm import tqdm
 from loguru import logger
 
 
+# ── Nguồn civil ───────────────────────────────────────────────────
+
+
+def load_civil_documents(seed: int = 42, max_docs: int = 0) -> list[dict]:
+    """
+    Document cho seed = corpus dân sự của Phần 3 (đã lọc phạm vi, hiệu lực, cắt
+    theo Điều), bỏ các Điều thuộc tập test QA để tránh rò rỉ.
+    """
+    import json
+    import random
+
+    from config.qa_settings import TEST_FILE
+    from evol_instruct.src.qa_specificity.corpus_filter import load_scoped_corpus
+
+    docs = load_scoped_corpus()
+
+    test_ids = set()
+    if TEST_FILE.exists():
+        with open(TEST_FILE, encoding="utf-8") as f:
+            test_ids = {item["source_doc_id"] for item in json.load(f)}
+    before = len(docs)
+    docs = [d for d in docs if d.get("source_doc_id") not in test_ids]
+    logger.info(f"[civil] {before} Điều → bỏ {before - len(docs)} Điều thuộc tập test QA")
+
+    # Corpus xếp theo nguồn — không xáo thì --max-docs chỉ lấy đầu một bộ luật.
+    random.Random(seed).shuffle(docs)
+    if max_docs > 0:
+        docs = docs[:max_docs]
+
+    # Nguồn PDF cục bộ thiếu so_hieu/linh_vuc → dùng tiêu đề và nhánh phạm vi.
+    # Chép dict để không sửa cache của corpus_filter.
+    out = []
+    for d in docs:
+        meta = dict(d.get("metadata") or {})
+        if not meta.get("so_hieu"):
+            meta["so_hieu"] = meta.get("title", "")
+        if not meta.get("linh_vuc"):
+            meta["linh_vuc"] = d.get("scope", "")
+        meta["source_doc_id"] = d.get("source_doc_id", "")
+        out.append({**d, "metadata": meta})
+    return out
+
+
 # ── Main ──────────────────────────────────────────────────────────
 
 
@@ -58,6 +101,19 @@ Examples:
         choices=["template", "gemini", "llm", "both"],
         default="gemini",
         help="Phương thức tạo seeds (mặc định: gemini)",
+    )
+    parser.add_argument(
+        "--source",
+        choices=["hf", "civil"],
+        default="hf",
+        help="Nguồn document: hf = toàn bộ dataset HF (mặc định, hành vi cũ); "
+             "civil = corpus dân sự đã lọc hiệu lực của Phần 3, mỗi Điều một document",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Seed xáo trộn document khi --source civil (tái lập được)",
     )
     parser.add_argument(
         "--target-seeds",
@@ -97,7 +153,10 @@ Examples:
     log.info("=" * 60)
 
     # ── Load documents ────────────────────────────────────────────
-    documents = load_and_preprocess(max_items=args.max_docs)
+    if args.source == "civil":
+        documents = load_civil_documents(seed=args.seed, max_docs=args.max_docs)
+    else:
+        documents = load_and_preprocess(max_items=args.max_docs)
     if not documents:
         log.error("❌ Không có documents! Chạy 01_download_data.py trước.")
         sys.exit(1)

@@ -3,6 +3,7 @@ Shared helper functions cho seed generation.
 Dùng chung bởi 02_generate_seeds.py và 06_gemini_pipeline.py.
 """
 
+import re
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -12,6 +13,31 @@ from tqdm import tqdm
 
 from config.prompts import SYSTEM_SEED_GENERATOR
 from evol_instruct.src.utils import generate_item_id
+from evol_instruct.src.filters import filter_refusal
+
+
+# "Câu hỏi 1:", "Hỏi 2 -", "**Câu 3.**" — nhãn đánh số model hay chèn trước câu hỏi.
+_SEED_LABEL_RE = re.compile(
+    r"^\**\s*(?:câu\s*hỏi|câu|hỏi|question)\s*\d*\s*\**\s*[:：.\-–)]\s*\**\s*",
+    re.IGNORECASE,
+)
+
+
+def parse_seed_lines(response: str, min_len: int = 25) -> list[str]:
+    """
+    Tách output của LLM thành câu hỏi seed: gột đánh số/nhãn, chỉ nhận dòng đủ
+    dài, có dấu "?" và không phải lời từ chối (loại lời dẫn "Dưới đây là...").
+    """
+    questions = []
+    for raw in (response or "").split("\n"):
+        line = raw.strip().lstrip("0123456789.-) •–*").strip()
+        line = _SEED_LABEL_RE.sub("", line).strip().strip("*").strip()
+        if len(line) <= min_len or "?" not in line:
+            continue
+        if not filter_refusal(line):
+            continue
+        questions.append(line)
+    return questions
 
 
 def generate_seeds_with_gemini(
@@ -77,11 +103,7 @@ def generate_seeds_with_gemini(
         try:
             response = gemini.evolve(system_prompt, user_prompt)
 
-            lines = [
-                line.strip().lstrip("0123456789.-) •–*")
-                for line in response.split("\n")
-                if line.strip() and len(line.strip()) > 25
-            ]
+            lines = parse_seed_lines(response)
 
             for line in lines[:seeds_per_doc]:
                 line = line.strip()
@@ -186,11 +208,7 @@ def generate_seeds_with_llm_client(
                 temperature=0.7,
             )
 
-            lines = [
-                line.strip().lstrip("0123456789.-) •–*")
-                for line in response.split("\n")
-                if line.strip() and len(line.strip()) > 25
-            ]
+            lines = parse_seed_lines(response)
 
             for line in lines[:seeds_per_doc]:
                 line = line.strip()
@@ -210,6 +228,9 @@ def generate_seeds_with_llm_client(
                         "generator": "llm",
                     },
                 }
+                # Chỉ có với --source civil: truy ngược seed về đúng Điều nguồn.
+                if metadata.get("source_doc_id"):
+                    seed["metadata"]["source_doc_id"] = metadata["source_doc_id"]
                 seeds.append(seed)
 
         except Exception as e:

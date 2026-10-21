@@ -1,0 +1,88 @@
+{
+  "total_items": 1111,
+  "total_source_articles": 702,
+  "split_by": "source_doc_id",
+  "splits": {
+    "train": {
+      "n_items": 996,
+      "n_source_articles": 632,
+      "technique_counts": {
+        "complicating_input": 192,
+        "deepening": 174,
+        "concretizing": 173,
+        "increased_reasoning": 172,
+        "constraint_addition": 152,
+        "mutation": 133
+      },
+      "scope_counts": {
+        "to_tung_thi_hanh_an": 235,
+        "dan_su_chung": 202,
+        "hon_nhan_gia_dinh": 181,
+        "hop_dong_bao_dam": 94,
+        "dat_dai_nha_o": 86,
+        "boi_thuong": 74,
+        "giai_quyet_tranh_chap": 70,
+        "so_huu_tri_tue": 54
+      },
+      "words_mean": {
+        "instruction": 223.1,
+        "input": 269.2,
+        "output": 370.5
+      }
+    },
+    "validation": {
+      "n_items": 115,
+      "n_source_articles": 70,
+      "technique_counts": {
+        "complicating_input": 27,
+        "constraint_addition": 26,
+        "concretizing": 21,
+        "deepening": 17,
+        "increased_reasoning": 16,
+        "mutation": 8
+      },
+      "scope_counts": {
+        "dan_su_chung": 40,
+        "hon_nhan_gia_dinh": 31,
+        "to_tung_thi_hanh_an": 17,
+        "hop_dong_bao_dam": 11,
+        "dat_dai_nha_o": 6,
+        "so_huu_tri_tue": 4,
+        "giai_quyet_tranh_chap": 3,
+        "boi_thuong": 3
+      },
+      "words_mean": {
+        "instruction": 226.8,
+        "input": 248.5,
+        "output": 348.6
+      }
+    }
+  },
+  "all": {
+    "n_items": 1111,
+    "n_source_articles": 702,
+    "technique_counts": {
+      "complicating_input": 219,
+      "concretizing": 194,
+      "deepening": 191,
+      "increased_reasoning": 188,
+      "constraint_addition": 178,
+      "mutation": 141
+    },
+    "scope_counts": {
+      "to_tung_thi_hanh_an": 252,
+      "dan_su_chung": 242,
+      "hon_nhan_gia_dinh": 212,
+      "hop_dong_bao_dam": 105,
+      "dat_dai_nha_o": 92,
+      "boi_thuong": 77,
+      "giai_quyet_tranh_chap": 73,
+      "so_huu_tri_tue": 58
+    },
+    "words_mean": {
+      "instruction": 223.4,
+      "input": 267.1,
+      "output": 368.2
+    }
+  }
+}

@@ -46,7 +46,7 @@ Những file này **không chạy lại** nhưng là **input trực tiếp** cho
 cd backend
 python scripts/offline_rag/01_fix_preprocess.py
 # Output: data/rag/raw/preprocessed_cache.jsonl (154k–171k dòng)
-# Lần đầu tải HF dataset ~6 GB → setx HF_HOME "G:\hf_cache" nếu ổ C: gần đầy
+# Lần đầu tải HF dataset ~6 GB → setx HF_HOME "<ổ khác>:\hf_cache" nếu ổ C: gần đầy
 ```
 
 ### Bước 1b — Chunk theo Điều/Khoản + đảm bảo doc_id khớp

@@ -129,3 +129,60 @@ class TestInstructionEliminator:
         )
         assert passed is False
         assert "prompt_leakage" in fails
+
+
+class TestContextCitations:
+    """Chế độ grounded — số liệu từ mẻ thử Llama-3.1-8B 2026-10-21."""
+
+    CTX = ("Bộ luật Tố tụng Dân sự 2015\nĐiều 406. Thành phần Hội đồng xét tính hợp pháp "
+           "của cuộc đình công\n1. ... theo quy định tại Điều 403 của Bộ luật này.")
+
+    def _f(self, resp, ctx=None):
+        from evol_instruct.src.filters import filter_context_citations
+        return filter_context_citations(resp, self.CTX if ctx is None else ctx)
+
+    def test_no_context_always_passes(self):
+        assert self._f("Theo Điều 166 Bộ luật Lao động", ctx="")
+
+    def test_cites_context_article(self):
+        assert self._f("Theo Điều 406 Bộ luật Tố tụng dân sự, Hội đồng gồm ba Thẩm phán.")
+
+    def test_cross_reference_inside_context_is_allowed(self):
+        assert self._f("Theo Điều 406 và Điều 403 BLTTDS ...")
+
+    def test_outside_article_rejected(self):
+        assert not self._f("Theo Điều 166 Bộ luật Lao động 2019, người lao động ...")
+
+    def test_mixed_inside_and_outside_rejected(self):
+        assert not self._f("Theo Điều 406 BLTTDS và Điều 38 Bộ luật Lao động ...")
+
+    def test_no_citation_rejected(self):
+        assert not self._f("Theo quy định của pháp luật hiện hành, Tòa án xét xử ...")
+
+    def test_lettered_article(self):
+        assert self._f("Theo Điều 64a ...", ctx="Điều 64a. Bổ sung")
+
+    def test_eliminator_reports_reason(self):
+        from evol_instruct.src.filters import instruction_eliminator
+        ok, fails = instruction_eliminator("a", "b", "Theo Điều 166 ...", context=self.CTX)
+        assert "context_citation" in fails
+
+
+class TestContextCopy:
+    CTX = "Điều 5. Giấy tờ chứng minh người thuộc trường hợp có thời gian đào tạo nghề công chứng là 06 tháng. " * 8
+
+    def test_no_context_passes(self):
+        from evol_instruct.src.filters import filter_context_copy
+        assert filter_context_copy("bất kỳ", "")
+
+    def test_short_quote_passes(self):
+        from evol_instruct.src.filters import filter_context_copy
+        q = "Ông A có thuộc trường hợp có thời gian đào tạo nghề công chứng là 06 tháng không?"
+        assert filter_context_copy(q, self.CTX)
+
+    def test_pasted_block_rejected(self):
+        from evol_instruct.src.filters import filter_context_copy, eliminate_evolved
+        q = "Ông A hỏi: " + self.CTX[:400] + " vậy ông có đủ điều kiện không?"
+        assert not filter_context_copy(q, self.CTX)
+        ok, fails = eliminate_evolved("seed khác hẳn", q, context=self.CTX)
+        assert "context_copy" in fails

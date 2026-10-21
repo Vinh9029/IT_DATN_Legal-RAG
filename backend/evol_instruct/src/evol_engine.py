@@ -28,6 +28,9 @@ from config.prompts import (
     SYSTEM_IRAC_RESPONDER,
     EVOL_TECHNIQUES,
     FEW_SHOT_IRAC_EXAMPLE,
+    GROUNDED_RULE,
+    GROUNDED_USER_TEMPLATE,
+    GROUNDED_EVOL_SUFFIX,
 )
 from evol_instruct.src.llm_client import LLMClient, TruncatedResponseError
 from evol_instruct.src.filters import (
@@ -75,8 +78,15 @@ class EvolPipeline:
         dedup_pool: bool = True,
         dedup_threshold: float = None,
         strict_truncation: bool = True,
+        source_contexts: dict[str, str] = None,
     ):
+        """
+        Args:
+            source_contexts: {source_doc_id: nội dung Điều nguồn} — bật chế độ
+                grounded; context được lưu vào trường `input`. None = hành vi cũ.
+        """
         self.llm = llm_client or LLMClient()
+        self.source_contexts = source_contexts or {}
         self.output_path = OUTPUT_DIR / output_file
         self.checkpoint = Checkpoint(
             OUTPUT_DIR / (checkpoint_file or default_checkpoint_name(output_file))
@@ -133,13 +143,16 @@ class EvolPipeline:
 
     # ── Bước 1: Evolve ────────────────────────────────────────────
 
-    def evolve_instruction(self, seed_instruction: str, technique_key: str = None) -> str:
+    def evolve_instruction(
+        self, seed_instruction: str, technique_key: str = None, context: str = ""
+    ) -> str:
         """
         Bước 1: Tiến hóa instruction bằng kỹ thuật được chọn.
 
         Args:
             seed_instruction: Câu hỏi gốc (seed).
             technique_key: Key của kỹ thuật (None = round-robin).
+            context: Điều nguồn (chế độ grounded). Rỗng = hành vi cũ.
 
         Returns:
             Evolved instruction string.
@@ -150,8 +163,14 @@ class EvolPipeline:
         technique = EVOL_TECHNIQUES[technique_key]
         user_prompt = technique["prompt"].format(seed_instruction=seed_instruction)
 
+        # Ràng buộc nguồn đặt ở system: prompt kỹ thuật kết bằng "Câu hỏi viết
+        # lại:" — nối thêm sau đó thì model coi khối nguồn là phần phải viết lại.
+        system_prompt = SYSTEM_EVOL_REWRITER
+        if context:
+            system_prompt += GROUNDED_EVOL_SUFFIX.format(context=context)
+
         messages = [
-            {"role": "system", "content": SYSTEM_EVOL_REWRITER},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
 
@@ -170,12 +189,13 @@ class EvolPipeline:
 
     # ── Bước 2: IRAC ──────────────────────────────────────────────
 
-    def generate_irac_response(self, evolved_instruction: str) -> str:
+    def generate_irac_response(self, evolved_instruction: str, context: str = "") -> str:
         """
         Bước 2: Sinh phản hồi chuẩn IRAC (temperature thấp).
 
         Args:
             evolved_instruction: Câu hỏi đã tiến hóa.
+            context: Nội dung Điều nguồn (chế độ grounded). Rỗng = hành vi cũ.
 
         Returns:
             IRAC response string.
@@ -183,10 +203,16 @@ class EvolPipeline:
         system_with_example = (
             SYSTEM_IRAC_RESPONDER + "\n\n" + FEW_SHOT_IRAC_EXAMPLE
         )
+        user_content = evolved_instruction
+        if context:
+            system_with_example += "\n" + GROUNDED_RULE
+            user_content = GROUNDED_USER_TEMPLATE.format(
+                context=context, instruction=evolved_instruction
+            )
 
         messages = [
             {"role": "system", "content": system_with_example},
-            {"role": "user", "content": evolved_instruction},
+            {"role": "user", "content": user_content},
         ]
 
         response = self.llm.chat(
@@ -217,11 +243,12 @@ class EvolPipeline:
 
         try:
             # Bước 1: Evolve (lặp `rounds` vòng theo WizardLM)
+            context = self._context_for(seed)
             current = seed_instruction
             techniques = []
             for _ in range(self.rounds):
                 tk = technique_key if (technique_key and not techniques) else self._next_technique()
-                current = strip_lead_label(self.evolve_instruction(current, tk))
+                current = strip_lead_label(self.evolve_instruction(current, tk, context=context))
                 techniques.append(tk)
             evolved = current
             used_technique = techniques[-1]
@@ -238,6 +265,7 @@ class EvolPipeline:
                 evolved_prompt=evolved,
                 sim_threshold=self.sim_threshold,
                 pool=self.pool,
+                context=context,
             )
             if not ok:
                 self.stats["total_rejected"] += 1
@@ -251,7 +279,7 @@ class EvolPipeline:
                 return None
 
             # Bước 3: Generate IRAC response
-            response = self.generate_irac_response(evolved)
+            response = self.generate_irac_response(evolved, context=context)
 
             # Bước 4: Filter đầy đủ
             passed, failed = instruction_eliminator(
@@ -260,13 +288,14 @@ class EvolPipeline:
                 response=response,
                 legal_refs=self.legal_references,
                 sim_threshold=self.sim_threshold,
+                context=context,
             )
 
             if passed:
                 # Bước 5: Lưu (Alpaca JSONL format)
                 record = {
                     "instruction": evolved,
-                    "input": "",
+                    "input": context,
                     "output": response,
                     "metadata": {
                         "technique": used_technique,
@@ -276,6 +305,7 @@ class EvolPipeline:
                         "seed_instruction": seed_instruction,
                         "timestamp": datetime.now().isoformat(),
                         "source_metadata": seed.get("metadata", {}),
+                        "grounded": bool(context),
                     },
                 }
                 append_jsonl(record, self.output_path)
@@ -308,6 +338,13 @@ class EvolPipeline:
             self.stats["total_errors"] += 1
             logger.error(f"Error processing {item_id}: {e}")
             return None
+
+    def _context_for(self, seed: dict) -> str:
+        """Điều nguồn của seed (chế độ grounded), hoặc "" nếu không có."""
+        if not self.source_contexts:
+            return ""
+        sid = (seed.get("metadata") or {}).get("source_doc_id", "")
+        return self.source_contexts.get(sid, "")
 
     def _finish(self, item_id: str):
         self.checkpoint.mark_processed(item_id)

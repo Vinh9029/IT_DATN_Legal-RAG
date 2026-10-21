@@ -81,6 +81,31 @@ QUY TẮC BỔ SUNG:
 - Phải phân biệt rõ trách nhiệm dân sự, hành chính và hình sự khi cần."""
 
 
+# Chế độ grounded (03_run_evolution.py --ground-source): responder nhận Điều nguồn
+# làm [CONTEXT], khung giống CONTEXT_TEMPLATE của src/retrieval/generator.py.
+GROUNDED_RULE = """
+QUY TẮC KHI CÓ [CONTEXT]:
+- Phần Rule CHỈ trích dẫn quy định có trong [CONTEXT]; ghi đúng số điều và tên văn bản như trong đó.
+- Được nêu thêm nguyên tắc pháp lý chung, nhưng KHÔNG gán số điều/số hiệu cho bất kỳ quy định nào không có trong [CONTEXT].
+- Nếu [CONTEXT] không đủ để kết luận một ý, nói rõ ý đó cần căn cứ thêm thay vì tự suy diễn."""
+
+GROUNDED_USER_TEMPLATE = """[CONTEXT — Điều khoản pháp luật liên quan]
+{context}
+
+[CÂU HỎI]
+{instruction}"""
+
+# Nối vào system prompt evolve ở chế độ grounded để câu hỏi không trôi sang luật khác.
+GROUNDED_EVOL_SUFFIX = """
+
+RÀNG BUỘC NGUỒN (bắt buộc):
+- Câu hỏi viết lại phải xoay quanh và trả lời được bằng ĐIỀU LUẬT NGUỒN dưới đây.
+- KHÔNG nêu số điều, số hiệu của văn bản nào khác ngoài điều luật nguồn.
+
+[ĐIỀU LUẬT NGUỒN]
+{context}"""
+
+
 # ══════════════════════════════════════════════════════════════════
 # EVOL-INSTRUCT TECHNIQUE PROMPTS (6 kỹ thuật)
 # ══════════════════════════════════════════════════════════════════
