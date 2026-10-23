@@ -90,6 +90,7 @@ coverage.xml
 # *.json / *.jsonl ở trên chặn toàn cục nên deliverables mặc định không lên git.
 backend/data/qa_pairs/raw/
 backend/data/qa_pairs/labeled/
+backend/data/qa_pairs/eval/_cache/
 !backend/data/qa_pairs/final/
 !backend/data/qa_pairs/final/*.json
 

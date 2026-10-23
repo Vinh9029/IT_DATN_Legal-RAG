@@ -1,0 +1,721 @@
+{
+  "K": 5,
+  "pool_grid": [
+    5,
+    10,
+    20,
+    50,
+    100,
+    200
+  ],
+  "n_val": 968,
+  "n_test": 942,
+  "val_sweep": {
+    "5": {
+      "broad": {
+        "n": 484,
+        "recall": 0.5785,
+        "mrr": 0.477
+      },
+      "narrow": {
+        "n": 484,
+        "recall": 0.4545,
+        "mrr": 0.4038
+      },
+      "all": {
+        "n": 968,
+        "recall": 0.5165,
+        "mrr": 0.4404
+      }
+    },
+    "10": {
+      "broad": {
+        "n": 484,
+        "recall": 0.5971,
+        "mrr": 0.4694
+      },
+      "narrow": {
+        "n": 484,
+        "recall": 0.4773,
+        "mrr": 0.4088
+      },
+      "all": {
+        "n": 968,
+        "recall": 0.5372,
+        "mrr": 0.4391
+      }
+    },
+    "20": {
+      "broad": {
+        "n": 484,
+        "recall": 0.6033,
+        "mrr": 0.4656
+      },
+      "narrow": {
+        "n": 484,
+        "recall": 0.5041,
+        "mrr": 0.4211
+      },
+      "all": {
+        "n": 968,
+        "recall": 0.5537,
+        "mrr": 0.4434
+      }
+    },
+    "50": {
+      "broad": {
+        "n": 484,
+        "recall": 0.6074,
+        "mrr": 0.4657
+      },
+      "narrow": {
+        "n": 484,
+        "recall": 0.5103,
+        "mrr": 0.42
+      },
+      "all": {
+        "n": 968,
+        "recall": 0.5589,
+        "mrr": 0.4428
+      }
+    },
+    "100": {
+      "broad": {
+        "n": 484,
+        "recall": 0.5888,
+        "mrr": 0.4472
+      },
+      "narrow": {
+        "n": 484,
+        "recall": 0.5145,
+        "mrr": 0.4146
+      },
+      "all": {
+        "n": 968,
+        "recall": 0.5517,
+        "mrr": 0.4309
+      }
+    },
+    "200": {
+      "broad": {
+        "n": 484,
+        "recall": 0.5702,
+        "mrr": 0.432
+      },
+      "narrow": {
+        "n": 484,
+        "recall": 0.4938,
+        "mrr": 0.3995
+      },
+      "all": {
+        "n": 968,
+        "recall": 0.532,
+        "mrr": 0.4157
+      }
+    }
+  },
+  "val_sweep_p_vs_best": {
+    "broad": {
+      "best": 50,
+      "5": 0.2127,
+      "10": 0.6333,
+      "20": 0.8387,
+      "100": 0.1323,
+      "200": 0.0088
+    },
+    "narrow": {
+      "best": 100,
+      "5": 0.0048,
+      "10": 0.0702,
+      "20": 0.547,
+      "50": 0.7465,
+      "200": 0.038
+    }
+  },
+  "chosen": {
+    "n_narrow": 10,
+    "n_broad": 20,
+    "from_val": false
+  },
+  "test_main": {
+    "fixed_small": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6539,
+        "mrr": 0.5113,
+        "mean_pool": 10.0
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.4968,
+        "mrr": 0.4103,
+        "mean_pool": 10.0
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5754,
+        "mrr": 0.4608,
+        "mean_pool": 10.0
+      }
+    },
+    "fixed_large": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6476,
+        "mrr": 0.4935,
+        "mean_pool": 20.0
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.5372,
+        "mrr": 0.4423,
+        "mean_pool": 20.0
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5924,
+        "mrr": 0.4679,
+        "mean_pool": 20.0
+      }
+    },
+    "random": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6507,
+        "mrr": 0.5024,
+        "mean_pool": 15.0
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.517,
+        "mrr": 0.4263,
+        "mean_pool": 15.0
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5839,
+        "mrr": 0.4643,
+        "mean_pool": 15.0
+      }
+    },
+    "routing_q_tilde": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6645,
+        "mrr": 0.5139,
+        "mean_pool": 12.55
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.4968,
+        "mrr": 0.4103,
+        "mean_pool": 10.11
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5807,
+        "mrr": 0.4621,
+        "mean_pool": 11.33
+      }
+    },
+    "routing_q": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6476,
+        "mrr": 0.4935,
+        "mean_pool": 20.0
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.4968,
+        "mrr": 0.4103,
+        "mean_pool": 10.04
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5722,
+        "mrr": 0.4519,
+        "mean_pool": 15.02
+      }
+    },
+    "oracle": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6476,
+        "mrr": 0.4935,
+        "mean_pool": 20.0
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.4968,
+        "mrr": 0.4103,
+        "mean_pool": 10.0
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5722,
+        "mrr": 0.4519,
+        "mean_pool": 15.0
+      }
+    }
+  },
+  "bootstrap": {
+    "resamples": 10000,
+    "vs": "fixed_large",
+    "p": {
+      "fixed_small": {
+        "broad": {
+          "p_recall": 0.6787,
+          "p_mrr": 0.0497
+        },
+        "narrow": {
+          "p_recall": 0.0143,
+          "p_mrr": 0.0064
+        },
+        "all": {
+          "p_recall": 0.1087,
+          "p_mrr": 0.3341
+        }
+      },
+      "random": {
+        "broad": {
+          "p_recall": 0.6787,
+          "p_mrr": 0.0497
+        },
+        "narrow": {
+          "p_recall": 0.0143,
+          "p_mrr": 0.0064
+        },
+        "all": {
+          "p_recall": 0.1087,
+          "p_mrr": 0.3341
+        }
+      },
+      "routing_q_tilde": {
+        "broad": {
+          "p_recall": 0.1672,
+          "p_mrr": 0.0071
+        },
+        "narrow": {
+          "p_recall": 0.0143,
+          "p_mrr": 0.0064
+        },
+        "all": {
+          "p_recall": 0.2712,
+          "p_mrr": 0.4047
+        }
+      },
+      "routing_q": {
+        "broad": {
+          "p_recall": 1.0,
+          "p_mrr": 1.0
+        },
+        "narrow": {
+          "p_recall": 0.0143,
+          "p_mrr": 0.0064
+        },
+        "all": {
+          "p_recall": 0.0136,
+          "p_mrr": 0.0083
+        }
+      },
+      "oracle": {
+        "broad": {
+          "p_recall": 1.0,
+          "p_mrr": 1.0
+        },
+        "narrow": {
+          "p_recall": 0.0143,
+          "p_mrr": 0.0064
+        },
+        "all": {
+          "p_recall": 0.0136,
+          "p_mrr": 0.0083
+        }
+      }
+    }
+  },
+  "routing_rate_narrow": {
+    "q": {
+      "broad": 0.0,
+      "narrow": 0.9958
+    },
+    "q_tilde": {
+      "broad": 0.7452,
+      "narrow": 0.9894
+    }
+  },
+  "rewrite_shift": {
+    "acc_q": 0.9979,
+    "acc_q_tilde": 0.6221,
+    "broad": 471,
+    "broad_to_narrow": 351,
+    "narrow_to_broad": 5,
+    "broad_inserted": 422,
+    "misrouted_inserted": 327,
+    "mean_syllables": {
+      "q": 33.8,
+      "q_tilde": 136.8
+    }
+  },
+  "test_ablation": {
+    "bm25_only": {
+      "broad": {
+        "n": 471,
+        "recall": 0.3907,
+        "mrr": 0.2577
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.3715,
+        "mrr": 0.2678
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.3811,
+        "mrr": 0.2628
+      }
+    },
+    "dense_only": {
+      "broad": {
+        "n": 471,
+        "recall": 0.5881,
+        "mrr": 0.4317
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.3524,
+        "mrr": 0.2595
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.4703,
+        "mrr": 0.3456
+      }
+    },
+    "hybrid_rrf": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6285,
+        "mrr": 0.4396
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.4798,
+        "mrr": 0.3402
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5541,
+        "mrr": 0.3899
+      }
+    },
+    "plus_rerank": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6476,
+        "mrr": 0.4935
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.5372,
+        "mrr": 0.4423
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5924,
+        "mrr": 0.4679
+      }
+    },
+    "plus_routing": {
+      "broad": {
+        "n": 471,
+        "recall": 0.6645,
+        "mrr": 0.5139
+      },
+      "narrow": {
+        "n": 471,
+        "recall": 0.4968,
+        "mrr": 0.4103
+      },
+      "all": {
+        "n": 942,
+        "recall": 0.5807,
+        "mrr": 0.4621
+      }
+    }
+  },
+  "case_candidates": [
+    {
+      "item_id": "q_507b12bc9630",
+      "pair_id": "pair_8cb56b1cee6c",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": 5,
+      "rank_fixed_large": null,
+      "question": "Người có khó khăn trong nhận thức, làm chủ hành vi có quyền được Tòa án chỉ định người đại diện theo pháp luật như thế nào?"
+    },
+    {
+      "item_id": "q_21cde664f2ae",
+      "pair_id": "pair_8cb56b1cee6c",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Bà A bị tâm thần nặng không thể nhận thức, làm chủ hành vi và đang ở tại cơ sở khám bệnh, chữa bệnh. Bà mẹ B là cha ruột của bà đã mất vì thương vong trong chiến tranh năm 1990 thì người đại diện theo pháp luật của bà A được Tòa án chỉ định ai?"
+    },
+    {
+      "item_id": "q_382b82642997",
+      "pair_id": "pair_d71c095b2dee",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": 3,
+      "rank_fixed_large": null,
+      "question": "Người chiếm hữu tài sản có các quyền và nghĩa vụ gì khi thực hiện việc chiếm hữu công khai?"
+    },
+    {
+      "item_id": "q_749d67230d71",
+      "pair_id": "pair_fb84dc67f552",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": 5,
+      "rank_fixed_large": null,
+      "question": "Một bên có quyền đơn phương chấm dứt thực hiện hợp đồng khi bên kia vi phạm nghiêm trọng nghĩa vụ trong hợp đồng như thế nào?"
+    },
+    {
+      "item_id": "q_54da3c974cff",
+      "pair_id": "pair_27ce4faa869a",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 3,
+      "question": "Anh A và chị B thành lập công ty hợp tác với vốn góp 1 tỷ đồng mỗi người. Hiện tại, công ty có khoản nợ 2,5 tỷ đồng. Thời gian còn lại bao lâu để anh A và chị B phải chịu trách nhiệm bằng tài sản riêng theo phần tương ứng với phần đóng góp của mình?"
+    },
+    {
+      "item_id": "q_6f8d22db8129",
+      "pair_id": "pair_6ce724ce5c70",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 2,
+      "question": "Một hợp đồng gia công bị chấm dứt thì bên đặt gia công phải thực hiện nghĩa vụ gì?"
+    },
+    {
+      "item_id": "q_6269790339d3",
+      "pair_id": "pair_2ffc846fd00a",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Anh H yêu cầu thay đổi người phiên dịch trong vụ án này vì người phiên dịch không đáp ứng được yêu cầu của tòa án, việc thay đổi này cần phải được Thẩm phán quyết định như thế nào?"
+    },
+    {
+      "item_id": "q_1b354f4257ef",
+      "pair_id": "pair_7be729c38713",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": 4,
+      "rank_fixed_large": null,
+      "question": "Nếu chị B nộp tiền tạm ứng cho việc định giá tài sản trị giá 10 triệu đồng, nhưng thực tế chỉ cần 5 triệu thì chị B được trả lại phần tiền còn thừa bao lâu?"
+    },
+    {
+      "item_id": "q_f01e8db79ea4",
+      "pair_id": "pair_7c03ae5f9de9",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 3,
+      "question": "Anh A là người làm chứng, anh được triệu tập đến phiên tòa vào lúc 9h ngày mai nhưng chưa thể về đến tòa án trước đó thì Hội đồng xét xử quyết định như thế nào?"
+    },
+    {
+      "item_id": "q_5eb9e35235ce",
+      "pair_id": "pair_54e6ac1d7fb0",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": 4,
+      "rank_fixed_large": null,
+      "question": "Anh A gửi đơn kháng cáo bản án sơ thẩm từ ngày 15/8, Tòa án đã gửi thông báo cho Anh A về việc nộp tiền tạm ứng án phí phúc thẩm vào ngày 20/8. Trong thời hạn 10 ngày kể từ ngày nhận được thông báo, người nào phải nộp tiền tạm ứng án phí phúc thẩm và nộp biên lai thu tiền tạm ứng án phí phúc thẩm cho Tòa án?"
+    },
+    {
+      "item_id": "q_731dfb52362d",
+      "pair_id": "pair_8771f9af413d",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 2,
+      "question": "Anh A bị Tòa án nhân dân tỉnh Hưng Yên ra bản án số 123/2023 ngày 15/12/2023. Anh A phát hiện có vi phạm trong bản án đó và đề nghị xem xét kháng nghị theo thủ tục giám đốc thẩm trước khi bản án đó hết thời hiệu kháng nghị là bao lâu?"
+    },
+    {
+      "item_id": "q_9d811ae0b072",
+      "pair_id": "pair_cca21a2c012b",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Theo khoản 1 Điều 437 Bộ luật Tố tụng Dân sự 2015, Tòa án có quyền yêu cầu người được thi hành giải thích những điểm chưa rõ trong đơn trong thời hạn chuẩn bị xét đơn yêu cầu là bao nhiêu tháng?"
+    },
+    {
+      "item_id": "q_3d630f0ad32d",
+      "pair_id": "pair_090bf14fbcdf",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Theo khoản 2 Điều 442 Bộ luật Tố tụng Dân sự 2015, thời hạn kháng nghị của Viện trưởng Viện kiểm sát nhân dân cấp cao là bao nhiêu ngày?"
+    },
+    {
+      "item_id": "q_10bcb78c545d",
+      "pair_id": "pair_8bacf3ac9d21",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Khi người yêu cầu không cung cấp được thông tin về nhân thân của đương sự ở nước ngoài thì tòa án xử lý thế nào?"
+    },
+    {
+      "item_id": "q_cca35b2b937a",
+      "pair_id": "pair_8bacf3ac9d21",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Anh A khởi kiện chị B ở Mỹ, anh A chưa kê khai địa chỉ của chị B trong đơn khởi kiện. Trong thời hạn 30 ngày, anh A có thể yêu cầu Tòa án Việt Nam đề nghị cơ quan chức năng của Mỹ giúp xác định địa chỉ của chị B hay không?"
+    },
+    {
+      "item_id": "q_8d3700071c59",
+      "pair_id": "pair_72f71364a201",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 2,
+      "question": "Thông tư này quy định chi tiết về Cơ sở dữ liệu hộ tịch điện tử và đăng ký hộ tịch trực tuyến như thế nào?"
+    },
+    {
+      "item_id": "q_1f275609e82f",
+      "pair_id": "pair_4ead788892db",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": 4,
+      "rank_fixed_large": null,
+      "question": "Anh A là một công chứng viên đã hành nghề từ năm 2015, trước đó anh A không phải là người hành nghề. Hôm nay anh A nộp hồ sơ đề nghị miễn nhiệm công chứng viên về Sở Tư pháp. Trong thời gian chờ quyết định của Bộ trưởng Bộ Tư pháp, hợp đồng này có hiệu lực từ thời điểm nào?"
+    },
+    {
+      "item_id": "q_8f779868acc4",
+      "pair_id": "pair_f76c28a0ab14",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Bà P nhận được số tiền 10 triệu đồng từ bên bán tại trụ sở cơ quan thi hành án dân sự vào ngày hôm nay. Bà P phải nộp số tiền này vào đâu?"
+    },
+    {
+      "item_id": "q_34ddae44b437",
+      "pair_id": "pair_9d8e8ea0cadf",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Theo khoản 3 Điều 2 văn bản này, người bị thiệt hại và người thừa kế của họ là đối tượng áp dụng nào trong công tác bồi thường nhà nước?"
+    },
+    {
+      "item_id": "q_ca821227a2c5",
+      "pair_id": "pair_b46acbb3defb",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": 4,
+      "rank_fixed_large": null,
+      "question": "Công ty ABC tham gia đề tài nghiên cứu về giống cây trồng và được giao quyền đăng ký giống cây trồng này. Đến thời điểm năm 2025, Công ty ABC muốn chuyển giao quyền đăng ký cho một công ty khác. Thời gian lưu giữ, duy trì giống cây trồng để đảm bảo tính ổn định của giống cây trồng này là bao lâu?"
+    },
+    {
+      "item_id": "q_8a3f9b4bc8a1",
+      "pair_id": "pair_08b09e107595",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": 5,
+      "rank_fixed_large": null,
+      "question": "Việc bổ nhiệm Phó Chi cục trưởng của Chi cục Thi hành án dân sự có thể tiến hành theo trình tự nào?"
+    },
+    {
+      "item_id": "q_7da8dd96d204",
+      "pair_id": "pair_0a6a190a50e3",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": 5,
+      "rank_fixed_large": null,
+      "question": "Cơ quan nào quyết định nội dung, lựa chọn hình thức và chỉ đạo việc tổ chức để Nhân dân bàn và quyết định về các vấn đề liên quan đến địa bàn cấp xã?"
+    },
+    {
+      "item_id": "q_b6f01d15e8ba",
+      "pair_id": "pair_0de8a0446f4c",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Ở cấp xã, những nội dung nào thì cần tham vấn ý kiến của nhân dân trước khi cơ quan có thẩm quyền quyết định?"
+    },
+    {
+      "item_id": "q_04fc70c84efa",
+      "pair_id": "pair_0de8a0446f4c",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Theo Điều 25 Nghị quyết 10/2022/QH15, dự thảo quy hoạch sử dụng đất cấp huyện và phương án điều chỉnh phải được tham vấn ý kiến trước khi Ủy ban nhân dân cấp xã phê duyệt không?"
+    },
+    {
+      "item_id": "q_96841ac65776",
+      "pair_id": "pair_fd53def0f283",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Theo Điều 7 khoản 1 văn bản 21/2021/NĐ-CP, quyền của bên nhận bảo đảm đối với tài sản bảo đảm phát sinh hiệu lực không thay đổi hoặc chấm dứt trong trường hợp nào?"
+    },
+    {
+      "item_id": "q_0b5364b491b1",
+      "pair_id": "pair_41c7f2204372",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Anh H thế chấp ngân hàng 1 căn nhà với giá trị 500 triệu đồng để vay tiền. Sau đó anh H cho một người bạn mượn căn nhà này để ở. Lúc này anh H có bắt buộc phải thông báo cho ngân hàng biết việc mình đã cho người khác thuê căn nhà không?"
+    },
+    {
+      "item_id": "q_38f77542ff0e",
+      "pair_id": "pair_47bb1764c5d2",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 2,
+      "question": "Anh A vay của chị B 100 triệu đồng vào ngày 15/02/2024, nhưng chưa ký hợp đồng bảo đảm. Hợp đồng này có hiệu lực từ thời điểm nào?"
+    },
+    {
+      "item_id": "q_cd48554de0f4",
+      "pair_id": "pair_956db8659f30",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": 5,
+      "rank_fixed_large": null,
+      "question": "Cơ quan quản lý nhà nước có trách nhiệm gửi văn bản khi nào trong quá trình giải quyết yêu cầu bồi thường và xác định trách nhiệm hoàn trả?"
+    },
+    {
+      "item_id": "q_07c981142957",
+      "pair_id": "pair_85abec682bc3",
+      "label": "broad",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 4,
+      "question": "Cơ quan, tổ chức có liên quan được yêu cầu bồi thường nhà nước thực hiện các quyền và nghĩa vụ gì?"
+    },
+    {
+      "item_id": "q_b913e4c24db8",
+      "pair_id": "pair_85abec682bc3",
+      "label": "narrow",
+      "pred": "narrow",
+      "rank_routing": null,
+      "rank_fixed_large": 1,
+      "question": "Theo Điều 14 của Thông tư số 08/2019/TT-BTP ngày 24 tháng 7 năm 2019, căn cứ nào được xem xét để thực hiện đôn đốc công tác bồi thường nhà nước?"
+    }
+  ],
+  "n_case_candidates": 89
+}
