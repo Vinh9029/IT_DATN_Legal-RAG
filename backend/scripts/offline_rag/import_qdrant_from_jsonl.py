@@ -1,19 +1,20 @@
 """
-Import qdrant_vectors.jsonl (generated từ Kaggle) vào Qdrant Docker local.
+Import qdrant_vectors.jsonl vào Qdrant Cloud hoặc Qdrant Local.
 
-Chạy sau khi download qdrant_vectors.jsonl từ Kaggle về:
-  backend/data/rag/processed/qdrant_vectors.jsonl
-
-Usage:
-    python scripts/offline_rag/import_qdrant_from_jsonl.py
+Tối ưu hóa:
+- Streaming từng dòng: Không ngốn 10GB RAM, khởi động upsert ngay lập tức (không chờ đọc file 12 phút).
+- Tự động resume: Nhận diện điểm dừng trước đó (19,795 points...) và tiếp tục ngay lập tức.
+- Auto-retry: Xử lý rớt mạng tạm thời [WinError 10054] hoặc [Errno 11001] với exponential backoff.
 """
 import sys
 import json
 import math
 import time
-import uuid
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from config.settings import (
@@ -29,6 +30,36 @@ from loguru import logger
 from tqdm import tqdm
 
 
+def stream_batches(filepath: Path, skip_count: int, batch_size: int):
+    """Đọc file jsonl theo dòng (streaming) và gom thành từng batch."""
+    batch = []
+    line_idx = 0
+    with open(filepath, "r", encoding="utf-8") as f:
+        for line in f:
+            line_idx += 1
+            if line_idx <= skip_count:
+                continue
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+                batch.append(
+                    PointStruct(
+                        id=rec["id"],
+                        vector=rec["vector"],
+                        payload=rec["payload"],
+                    )
+                )
+                if len(batch) >= batch_size:
+                    yield batch
+                    batch = []
+            except Exception:
+                continue
+        if batch:
+            yield batch
+
+
 def main():
     ensure_directories()
 
@@ -36,16 +67,38 @@ def main():
     if not vectors_path.exists():
         logger.error(
             f"File {vectors_path} không tồn tại!\n"
-            "Hãy download qdrant_vectors.jsonl từ Kaggle Notebook 2 và đặt vào:\n"
-            f"  {vectors_path}"
+            f"Hãy đặt file qdrant_vectors.jsonl vào: {vectors_path}"
         )
         sys.exit(1)
 
-    logger.info(f"Kết nối Qdrant tại {QDRANT_HOST}:{QDRANT_PORT}...")
-    client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=300)
+    # ── Kết nối Qdrant Cloud hoặc Qdrant Local ───────────────────────
+    qdrant_url = os.getenv("QDRANT_URL", "").strip().strip('"').strip("'")
+    qdrant_api_key = os.getenv("QDRANT_API_KEY", "").strip().strip('"').strip("'")
+    if qdrant_api_key.startswith("teyJ"):
+        qdrant_api_key = qdrant_api_key[1:]
 
-    # Tạo hoặc tái sử dụng collection
-    existing = [c.name for c in client.get_collections().collections]
+    if qdrant_url:
+        logger.info(f"Kết nối Qdrant Cloud (gRPC/HTTP2) tại {qdrant_url}...")
+        client = QdrantClient(
+            url=qdrant_url,
+            api_key=qdrant_api_key if qdrant_api_key else None,
+            prefer_grpc=True,
+            timeout=120,
+        )
+    else:
+        logger.info(f"Kết nối Qdrant Local tại {QDRANT_HOST}:{QDRANT_PORT}...")
+        client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=120)
+
+    # ── Đảm bảo Collection tồn tại (có retry) ──────────────────────────
+    existing = []
+    for _ in range(5):
+        try:
+            existing = [c.name for c in client.get_collections().collections]
+            break
+        except Exception as e:
+            logger.warning(f"Đang thử kết nối lại Qdrant... ({e})")
+            time.sleep(3)
+
     existing_points = 0
     if QDRANT_COLLECTION_NAME not in existing:
         logger.info(f"Tạo collection mới: {QDRANT_COLLECTION_NAME} (dim={EMBEDDING_DIM}, cosine)")
@@ -54,58 +107,54 @@ def main():
             vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
         )
     else:
-        info = client.get_collection(QDRANT_COLLECTION_NAME)
-        existing_points = info.points_count
-        logger.info(f"Collection '{QDRANT_COLLECTION_NAME}' đã có {existing_points} points.")
-
-    # Đọc toàn bộ records
-    logger.info(f"Đọc {vectors_path} ...")
-    records = []
-    with open(vectors_path, "r", encoding="utf-8") as f:
-        for line in tqdm(f, desc="Đọc vectors"):
-            line = line.strip()
-            if line:
-                try:
-                    records.append(json.loads(line, strict=False))
-                except json.JSONDecodeError:
-                    pass
-    total = len(records)
-    logger.info(f"Tổng số records: {total:,}")
-
-    # Resume
-    BATCH_SIZE = 256
-    start_idx = (existing_points // BATCH_SIZE) * BATCH_SIZE
-    if start_idx > 0:
-        logger.info(f"Resume từ index {start_idx} (bỏ qua {start_idx} records đã có)...")
-
-    total_batches = math.ceil((total - start_idx) / BATCH_SIZE)
-
-    for i in tqdm(range(start_idx, total, BATCH_SIZE), total=total_batches, desc="Upserting"):
-        batch = records[i : i + BATCH_SIZE]
-        points = [
-            PointStruct(
-                id=rec["id"],
-                vector=rec["vector"],
-                payload=rec["payload"],
-            )
-            for rec in batch
-        ]
-        for attempt in range(3):
+        for _ in range(3):
             try:
-                client.upsert(collection_name=QDRANT_COLLECTION_NAME, points=points)
+                info = client.get_collection(QDRANT_COLLECTION_NAME)
+                existing_points = info.points_count
+                break
+            except Exception:
+                time.sleep(2)
+        logger.info(f"Collection '{QDRANT_COLLECTION_NAME}' đã có sẵn {existing_points:,} points.")
+
+    TOTAL_RECORDS = 551020
+    BATCH_SIZE = 128  # Batch 128 gửi qua Cloud rất ổn định, không bị nghẽn socket
+
+    # Resume chính xác
+    skip_records = existing_points
+    if skip_records > 0:
+        logger.success(f"Resume tự động: Đã có {skip_records:,} points, bỏ qua và nạp tiếp từ point {skip_records+1:,}...")
+
+    remaining = max(0, TOTAL_RECORDS - skip_records)
+    total_batches = math.ceil(remaining / BATCH_SIZE)
+
+    logger.info(f"Bắt đầu stream và upsert {remaining:,} points còn lại ({total_batches:,} batches)...")
+
+    pbar = tqdm(total=total_batches, desc="Upserting Cloud", unit="batch")
+
+    for batch in stream_batches(vectors_path, skip_count=skip_records, batch_size=BATCH_SIZE):
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                client.upsert(collection_name=QDRANT_COLLECTION_NAME, points=batch)
+                pbar.update(1)
                 break
             except Exception as e:
-                if attempt < 2:
-                    wait = 5 * (attempt + 1)
-                    logger.warning(f"Upsert lỗi (lần {attempt+1}/3): {e}. Thử lại sau {wait}s...")
+                if attempt < max_retries - 1:
+                    wait = 3 * (attempt + 1)
+                    logger.warning(
+                        f"Mạng chập chờn ({e.__class__.__name__}). Thử lại lần {attempt+2}/{max_retries} sau {wait}s..."
+                    )
                     time.sleep(wait)
                 else:
+                    pbar.close()
                     raise
 
+    pbar.close()
     final = client.get_collection(QDRANT_COLLECTION_NAME)
+    dashboard_url = f"{qdrant_url}/dashboard" if qdrant_url else f"http://{QDRANT_HOST}:{QDRANT_PORT}/dashboard"
     logger.success(
-        f"✅ Import xong! Tổng {final.points_count:,} points trong collection '{QDRANT_COLLECTION_NAME}'.\n"
-        "   Kiểm tra: http://localhost:6333/dashboard"
+        f"✅ Import hoàn tất 100%! Tổng {final.points_count:,} points trong collection '{QDRANT_COLLECTION_NAME}'.\n"
+        f"   Kiểm tra Dashboard: {dashboard_url}"
     )
 
 

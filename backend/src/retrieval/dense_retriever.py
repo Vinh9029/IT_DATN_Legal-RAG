@@ -15,6 +15,8 @@ class DenseRetriever:
         db_type: str = "qdrant",
         qdrant_host: str = "localhost",
         qdrant_port: int = 6333,
+        qdrant_url: str = "",
+        qdrant_api_key: str = "",
         qdrant_collection: str = "legal-rag-vi",
         pinecone_api_key: str = "",
         pinecone_env: str = "us-east-1-aws",
@@ -32,7 +34,12 @@ class DenseRetriever:
 
         if self.db_type == "qdrant":
             from qdrant_client import QdrantClient
-            self.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port)
+            if qdrant_url:
+                logger.info(f"DenseRetriever kết nối Qdrant Cloud: {qdrant_url}")
+                self.qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None, prefer_grpc=False, timeout=60)
+            else:
+                logger.info(f"DenseRetriever kết nối Qdrant Local: {qdrant_host}:{qdrant_port}")
+                self.qdrant_client = QdrantClient(host=qdrant_host, port=qdrant_port, timeout=60)
             self.collection_name = qdrant_collection
             self.pinecone_index = None
         else:
@@ -46,13 +53,22 @@ class DenseRetriever:
         query_embedding = self.model.encode(query, show_progress_bar=False).tolist()
 
         if self.db_type == "qdrant":
-            # Search trên Qdrant - dùng search() tương thích Qdrant server v1.7.x
-            search_result = self.qdrant_client.search(
-                collection_name=self.collection_name,
-                query_vector=query_embedding,
-                limit=top_k,
-                with_payload=True,
-            )
+            # Hỗ trợ cả qdrant-client mới (query_points) và bản cũ (search)
+            if hasattr(self.qdrant_client, "query_points"):
+                response = self.qdrant_client.query_points(
+                    collection_name=self.collection_name,
+                    query=query_embedding,
+                    limit=top_k,
+                    with_payload=True,
+                )
+                search_result = response.points
+            else:
+                search_result = self.qdrant_client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_embedding,
+                    limit=top_k,
+                    with_payload=True,
+                )
 
             results = []
             for hit in search_result:
