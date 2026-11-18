@@ -14,7 +14,7 @@ pydantic>=2.4.0              # Request/Response schema validation
 pydantic-settings>=2.0.0     # Pydantic v2 settings từ .env
 
 # Vector DB — Dense Retrieval
-qdrant-client>=1.7.0,<1.8.0  # Qdrant Vector DB - pin để tương thích server v1.7.4
+qdrant-client>=1.12.0        # Qdrant Vector DB (tương thích cả Local v1.7+ và Qdrant Cloud v1.12+)
 sentence-transformers>=2.7.0,<4.0.0 # Bi-encoder embedding (bkai vietnamese-bi-encoder)
 transformers<4.49.0,>=4.38.0   # Tương thích với PyTorch 2.4.x (CPU / DirectML)
 
@@ -65,7 +65,7 @@ FlagEmbedding>=1.2.5         # BAAI/bge-reranker-large (hiệu quả cao)
 # LLM Client
 openai>=1.0.0                # OpenAI-compatible API (LM Studio, OpenAI)
 tenacity>=8.2.0              # Retry với exponential backoff
-google-genai>=2.0.0          # Google Gemini API SDK (mode gemini của script 02/06)
+google-genai>=2.0.0          # Google Gemini API SDK (chuẩn mới chính thức thay thế google-generativeai đã kết thúc)
 
 # Đọc nguồn corpus cục bộ (Phần 3 — qa_specificity/corpus_loader)
 # Chỉ cần khi nguồn về dưới dạng tương ứng; .jsonl/.json/.csv/.tsv/.txt/.md/.html

@@ -97,3 +97,7 @@ python evol_instruct/scripts/13_train_routing_classifier.py
 
 # Output adapter và tokenizer sẽ được lưu tại: backend/models/routing_classifier/
 # QueryEvolver trong RAG Pipeline sẽ tự động nạp adapter này để định tuyến câu hỏi lúc runtime.
+
+
+##Fast-running Backend sever:
+.venv\Scripts\uvicorn.exe src.api.main:app --reload --host 0.0.0.0 --port 8000
