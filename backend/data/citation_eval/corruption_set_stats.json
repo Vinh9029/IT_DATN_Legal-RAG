@@ -1,0 +1,25 @@
+{
+  "n_source_records": 1111,
+  "n_pairs": 986,
+  "skipped": {
+    "no_clean_target_citation": 96,
+    "source_not_in_kb_or_ambiguous": 29
+  },
+  "n_source_docs": 124,
+  "n_dev_docs": 62,
+  "counts": {
+    "dev/C0_original": 442,
+    "dev/C1_nonexistent": 442,
+    "dev/C2_neighbor": 440,
+    "dev/C3_far": 373,
+    "dev/C4_expired": 426,
+    "dev/C5_fabricated": 442,
+    "test/C0_original": 544,
+    "test/C1_nonexistent": 544,
+    "test/C2_neighbor": 543,
+    "test/C3_far": 461,
+    "test/C4_expired": 526,
+    "test/C5_fabricated": 544
+  },
+  "seed": 42
+}

@@ -13,6 +13,12 @@ from src.retrieval.rrf_fusion import reciprocal_rank_fusion
 from src.retrieval.reranker import CrossEncoderReranker
 from src.retrieval.generator import LegalGenerator
 from src.retrieval.query_evolver import QueryEvolver
+try:
+    from src.verification.stage import run_citation_stage
+except Exception as _e:  # Stage 6 là phần thêm: lỗi import không được làm sập router
+    logger.warning(f"Stage 6 (Citation Verification) không import được, bỏ qua: {_e}")
+    def run_citation_stage(**_kwargs):
+        return None
 from config.settings import (
     VECTOR_DB_TYPE, QDRANT_HOST, QDRANT_PORT, QDRANT_COLLECTION_NAME,
     QDRANT_URL, QDRANT_API_KEY,
@@ -180,6 +186,20 @@ async def query_legal_documents(request: QueryRequest):
     else:
         logger.warning("Stage 5 (Generator) returned None — LLM không khả dụng hoặc context rỗng.")
 
+    # ─── Stage 6: Citation Verification (+ sửa một lần nếu có trích dẫn sai) ──
+    # Không bao giờ raise: lỗi/tắt → citation_stage=None, câu trả lời Stage 5 giữ nguyên.
+    citation_stage = run_citation_stage(
+        query=request.query,
+        answer=llm_answer,
+        chunks=reranked,
+        generator=generator,
+        reranker=reranker,
+    )
+    llm_answer_original = None
+    if citation_stage:
+        llm_answer_original = citation_stage["original_answer"]
+        llm_answer = citation_stage["final_answer"]
+
     # ─── Build Response ───────────────────────────────────────
     results = [
         RetrievedChunk(
@@ -197,6 +217,8 @@ async def query_legal_documents(request: QueryRequest):
         query=request.query,
         results=results,
         llm_answer=llm_answer,
-        time_taken=time.time() - start_time
+        time_taken=time.time() - start_time,
+        citation_report=citation_stage["report"] if citation_stage else None,
+        llm_answer_original=llm_answer_original,
     )
 

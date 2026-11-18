@@ -16,6 +16,41 @@ export interface LegalChunk {
   };
 }
 
+// Stage 6 — kiểm chứng trích dẫn (khớp CitationCheck/CitationReport trong backend/src/api/schemas.py)
+export interface CitationCheck {
+  text: string;
+  dieu: string;
+  khoan?: string | null;
+  diem?: string | null;
+  status: 'valid' | 'warning' | 'invalid' | 'unverifiable';
+  reasons: string[];
+  reason_texts?: string[];
+  resolution?: string;
+  doc_id?: string | null;
+  so_hieu?: string | null;
+  loai?: string | null;
+  title?: string | null;
+  tinh_trang?: string | null;
+  in_context?: boolean;
+  chunk_id?: string | null;
+  start?: number;
+  end?: number;
+}
+
+export interface CitationReport {
+  counts: Partial<Record<CitationCheck['status'], number>>;
+  n_citations: number;
+  citations: CitationCheck[];
+  repair?: {
+    attempted: boolean;
+    accepted: boolean;
+    invalid_before: number;
+    invalid_after?: number | null;
+    note?: string | null;
+  } | null;
+  elapsed_ms?: number;
+}
+
 export interface VerboseRAGInfo {
   evolvedQuery?: string;
   topKDocs?: LegalChunk[];
@@ -25,6 +60,7 @@ export interface VerboseRAGInfo {
     retrieval?: number;
     rerank?: number;
   };
+  citationReport?: CitationReport;
 }
 
 export interface SubThreadItem {

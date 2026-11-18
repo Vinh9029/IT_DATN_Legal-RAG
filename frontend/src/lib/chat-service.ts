@@ -313,6 +313,8 @@ export async function streamLegalAnswer(
           score: r.score,
           metadata: r.metadata,
         })),
+        // Stage 6
+        citationReport: ragResponse.citation_report ?? undefined,
       };
     } else {
       verboseInfo = getMockVerboseInfo(prompt);

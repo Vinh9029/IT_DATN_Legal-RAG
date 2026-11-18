@@ -6,6 +6,7 @@ import { Brand_mark } from '@/components/Brand_mark';
 import { Button } from '@/components/ui/button';
 import { Legal_disclaimer } from '@/components/Legal_disclaimer';
 import { Status_badge } from '@/components/Status_badge';
+import { Citation_report } from '@/components/Citation_report';
 import { Thinking_indicator } from '@/components/Thinking_indicator';
 import { Profile_modal } from '@/components/Profile_modal';
 import { useAuth } from '@/lib/auth-context';
@@ -971,6 +972,11 @@ export const Assistant: React.FC = () => {
                       ) : (
                         /* DYNAMIC TYPING INDICATOR */
                         <Thinking_indicator className="text-sm" />
+                      )}
+
+                      {/* STAGE 6: KIỂM CHỨNG TRÍCH DẪN */}
+                      {!msg.isStreaming && msg.verboseInfo?.citationReport && (
+                        <Citation_report report={msg.verboseInfo.citationReport} isDark={isDark} />
                       )}
 
                       {/* VERBOSE DEVELOPER MODE ACCORDION */}

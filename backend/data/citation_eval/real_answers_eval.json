@@ -1,0 +1,86 @@
+{
+  "n_questions": 200,
+  "answers_without_any_citation": 1,
+  "before_repair": {
+    "n_citations": 694,
+    "citations_per_answer": 3.47,
+    "status": {
+      "valid": 317,
+      "invalid": 128,
+      "warning": 234,
+      "unverifiable": 15
+    },
+    "reasons": {
+      "content_mismatch": 115,
+      "partial": 264,
+      "doc_not_found": 4,
+      "unresolved": 7,
+      "doc_not_in_kb": 9,
+      "dieu_out_of_range": 6,
+      "effect_unknown": 16,
+      "not_yet": 4,
+      "khoan_not_found": 2,
+      "dieu_missing": 1,
+      "expired": 6,
+      "quote_mismatch": 1
+    },
+    "resolution": {
+      "so_hieu": 294,
+      "inherited": 167,
+      "context": 20,
+      "alias": 162,
+      "unresolved": 7,
+      "self_ref": 44
+    },
+    "share_in_context": 0.7277,
+    "answers_with_invalid": 58
+  },
+  "repair": {
+    "attempted": 58,
+    "accepted": 30,
+    "seconds_when_attempted": {
+      "median": 8.73,
+      "p90": 20.51
+    }
+  },
+  "after_repair": {
+    "n_citations": 634,
+    "status": {
+      "valid": 318,
+      "invalid": 69,
+      "warning": 232,
+      "unverifiable": 15
+    },
+    "reasons": {
+      "content_mismatch": 68,
+      "partial": 239,
+      "doc_not_found": 4,
+      "unresolved": 7,
+      "doc_not_in_kb": 3,
+      "effect_unknown": 18,
+      "not_yet": 2,
+      "khoan_not_found": 2,
+      "dieu_missing": 1,
+      "quote_mismatch": 1
+    },
+    "resolution": {
+      "so_hieu": 286,
+      "inherited": 150,
+      "context": 22,
+      "alias": 135,
+      "unresolved": 7,
+      "self_ref": 34
+    },
+    "share_in_context": 0.7902
+  },
+  "latency_generation_seconds_median": 6.3,
+  "latency_verify_cpu": {
+    "n_answers": 30,
+    "device": "cpu",
+    "median": 7.867,
+    "p90": 21.325,
+    "max": 42.113,
+    "seconds_per_citation": 2.699
+  },
+  "note": "Nhãn verifier, CHƯA đối chiếu nhãn người — precision thật xem annotation_agreement.json."
+}

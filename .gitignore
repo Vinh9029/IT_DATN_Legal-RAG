@@ -102,3 +102,4 @@ backend/data/corpus_civil/*
 # File override tuỳ chọn của Phần 3 (nếu muốn tách API key judge khỏi .env chung).
 # Không bắt buộc — mặc định cứ để JUDGE_* trong .env ở root là đủ.
 backend/config/qa.env
+backend/data/citation_eval/_cache/

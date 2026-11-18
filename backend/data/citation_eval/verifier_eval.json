@@ -1,0 +1,379 @@
+{
+  "dataset": {
+    "n_pairs": 986,
+    "n_source_docs": 124,
+    "n_dev_docs": 62,
+    "counts": {
+      "dev/C0_original": 442,
+      "dev/C1_nonexistent": 442,
+      "dev/C2_neighbor": 440,
+      "dev/C3_far": 373,
+      "dev/C4_expired": 426,
+      "dev/C5_fabricated": 442,
+      "test/C0_original": 544,
+      "test/C1_nonexistent": 544,
+      "test/C2_neighbor": 543,
+      "test/C3_far": 461,
+      "test/C4_expired": 526,
+      "test/C5_fabricated": 544
+    },
+    "seed": 42
+  },
+  "threshold_from_dev": {
+    "tau": 0.7174,
+    "balanced_acc": 0.8576,
+    "tpr_bad": 0.7634,
+    "tnr_ok": 0.9517,
+    "criterion": "false_alarm<= 0.05"
+  },
+  "threshold_balanced_from_dev": {
+    "tau": 0.9785,
+    "balanced_acc": 0.8922,
+    "tpr_bad": 0.9178,
+    "tnr_ok": 0.8667,
+    "criterion": "balanced_accuracy"
+  },
+  "ce_auc": {
+    "dev": {
+      "C0_vs_C2_neighbor": 0.9366,
+      "C0_vs_C3_far": 0.9853
+    },
+    "test": {
+      "C0_vs_C2_neighbor": 0.9439,
+      "C0_vs_C3_far": 0.9888
+    }
+  },
+  "test": {
+    "A_structure": {
+      "per_variant": {
+        "C0_original": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "valid": 385,
+            "warning": 159
+          }
+        },
+        "C1_nonexistent": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 544
+          }
+        },
+        "C2_neighbor": {
+          "n": 543,
+          "correct_rate": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "status_dist": {
+            "valid": 384,
+            "warning": 159
+          }
+        },
+        "C3_far": {
+          "n": 461,
+          "correct_rate": 0.0,
+          "ci95": [
+            0.0,
+            0.0
+          ],
+          "status_dist": {
+            "valid": 331,
+            "warning": 130
+          }
+        },
+        "C4_expired": {
+          "n": 526,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 526
+          }
+        },
+        "C5_fabricated": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "unverifiable": 544
+          }
+        }
+      },
+      "invalid_detection": {
+        "precision": 1.0,
+        "recall": 0.5159,
+        "f1": 0.6807,
+        "note": "C1–C4 dương, C0 âm; C5 tính riêng (kỳ vọng unverifiable)"
+      }
+    },
+    "B_quote": {
+      "per_variant": {
+        "C0_original": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "valid": 385,
+            "warning": 159
+          }
+        },
+        "C1_nonexistent": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 544
+          }
+        },
+        "C2_neighbor": {
+          "n": 543,
+          "correct_rate": 0.0166,
+          "ci95": [
+            0.0052,
+            0.0335
+          ],
+          "status_dist": {
+            "valid": 376,
+            "warning": 158,
+            "invalid": 9
+          }
+        },
+        "C3_far": {
+          "n": 461,
+          "correct_rate": 0.0195,
+          "ci95": [
+            0.0072,
+            0.0397
+          ],
+          "status_dist": {
+            "valid": 324,
+            "warning": 128,
+            "invalid": 9
+          }
+        },
+        "C4_expired": {
+          "n": 526,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 526
+          }
+        },
+        "C5_fabricated": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "unverifiable": 544
+          }
+        }
+      },
+      "invalid_detection": {
+        "precision": 1.0,
+        "recall": 0.5246,
+        "f1": 0.6882,
+        "note": "C1–C4 dương, C0 âm; C5 tính riêng (kỳ vọng unverifiable)"
+      }
+    },
+    "C_full": {
+      "per_variant": {
+        "C0_original": {
+          "n": 544,
+          "correct_rate": 0.9504,
+          "ci95": [
+            0.933,
+            0.9676
+          ],
+          "status_dist": {
+            "valid": 364,
+            "warning": 153,
+            "invalid": 27
+          }
+        },
+        "C1_nonexistent": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 544
+          }
+        },
+        "C2_neighbor": {
+          "n": 543,
+          "correct_rate": 0.6648,
+          "ci95": [
+            0.6287,
+            0.7128
+          ],
+          "status_dist": {
+            "valid": 122,
+            "invalid": 361,
+            "warning": 60
+          }
+        },
+        "C3_far": {
+          "n": 461,
+          "correct_rate": 0.9479,
+          "ci95": [
+            0.8941,
+            0.9767
+          ],
+          "status_dist": {
+            "invalid": 437,
+            "warning": 14,
+            "valid": 10
+          }
+        },
+        "C4_expired": {
+          "n": 526,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 526
+          }
+        },
+        "C5_fabricated": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "unverifiable": 544
+          }
+        }
+      },
+      "invalid_detection": {
+        "precision": 0.9858,
+        "recall": 0.9007,
+        "f1": 0.9413,
+        "note": "C1–C4 dương, C0 âm; C5 tính riêng (kỳ vọng unverifiable)"
+      }
+    },
+    "C_full_balanced_threshold": {
+      "per_variant": {
+        "C0_original": {
+          "n": 544,
+          "correct_rate": 0.8971,
+          "ci95": [
+            0.8537,
+            0.9223
+          ],
+          "status_dist": {
+            "valid": 346,
+            "invalid": 56,
+            "warning": 142
+          }
+        },
+        "C1_nonexistent": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 544
+          }
+        },
+        "C2_neighbor": {
+          "n": 543,
+          "correct_rate": 0.8692,
+          "ci95": [
+            0.8286,
+            0.8991
+          ],
+          "status_dist": {
+            "invalid": 472,
+            "valid": 47,
+            "warning": 24
+          }
+        },
+        "C3_far": {
+          "n": 461,
+          "correct_rate": 0.9892,
+          "ci95": [
+            0.9708,
+            0.9983
+          ],
+          "status_dist": {
+            "invalid": 456,
+            "warning": 1,
+            "valid": 4
+          }
+        },
+        "C4_expired": {
+          "n": 526,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "invalid": 526
+          }
+        },
+        "C5_fabricated": {
+          "n": 544,
+          "correct_rate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ],
+          "status_dist": {
+            "unverifiable": 544
+          }
+        }
+      },
+      "invalid_detection": {
+        "precision": 0.9727,
+        "recall": 0.9634,
+        "f1": 0.968,
+        "note": "C1–C4 dương, C0 âm; C5 tính riêng (kỳ vọng unverifiable)"
+      }
+    }
+  },
+  "notes": [
+    "Ngưỡng cross-encoder chọn trên dev (group split theo văn bản nguồn), test chạy một lần.",
+    "Production dùng điểm vận hành báo nhầm ≤5% trên dev (threshold_from_dev); điểm balanced accuracy báo cáo kèm (C_full_balanced_threshold). Tiêu chí ≤5% được chọn sau khi thấy mức báo cờ cao trên câu trả lời thật (D3), không dựa trên số test.",
+    "Phiên bản 2 (2026-11-18): bỏ kiểm nội dung với dòng chỉ liệt kê nguồn + điểm cụm 'Điều X và Điều Y' lấy max — sửa lỗi xử lý phát hiện khi chạy D3.",
+    "Chỉ chấm cross-encoder cho trích dẫn đích; logic quyết định dùng chung hàm với production.",
+    "Dữ liệu Evol đã lọc bằng regex trích Điều → không đo recall trích xuất ở đây (xem D3)."
+  ]
+}

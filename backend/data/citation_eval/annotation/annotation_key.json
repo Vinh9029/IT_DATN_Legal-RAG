@@ -1,0 +1,908 @@
+{
+  "tau": 0.7174,
+  "items": [
+    {
+      "cid": "c001",
+      "item_id": "q_666819d8ce81",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9988
+    },
+    {
+      "cid": "c002",
+      "item_id": "q_dd0899edec87",
+      "citation_index": 1,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.4447
+    },
+    {
+      "cid": "c003",
+      "item_id": "q_0d397b5638d5",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9986
+    },
+    {
+      "cid": "c004",
+      "item_id": "q_991d9c509a00",
+      "citation_index": 12,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.5131
+    },
+    {
+      "cid": "c005",
+      "item_id": "q_fde65e5e1a30",
+      "citation_index": 4,
+      "status": "unverifiable",
+      "reasons": [
+        "doc_not_in_kb"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c006",
+      "item_id": "q_1d55c37d5455",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.999
+    },
+    {
+      "cid": "c007",
+      "item_id": "q_4cece96cb079",
+      "citation_index": 4,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": null
+    },
+    {
+      "cid": "c008",
+      "item_id": "q_3f14588369ff",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "partial",
+        "content_mismatch"
+      ],
+      "ce_score": 0.1566
+    },
+    {
+      "cid": "c009",
+      "item_id": "q_ac7bb4801b21",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9957
+    },
+    {
+      "cid": "c010",
+      "item_id": "q_2094e17ef519",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9998
+    },
+    {
+      "cid": "c011",
+      "item_id": "q_0c8e8d8be940",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9765
+    },
+    {
+      "cid": "c012",
+      "item_id": "q_5c82a50fed1c",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9999
+    },
+    {
+      "cid": "c013",
+      "item_id": "q_57effe09b17a",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9991
+    },
+    {
+      "cid": "c014",
+      "item_id": "q_ac7bb4801b21",
+      "citation_index": 2,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9937
+    },
+    {
+      "cid": "c015",
+      "item_id": "q_66c404f21c6e",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9989
+    },
+    {
+      "cid": "c016",
+      "item_id": "q_c1b27cb0307c",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9993
+    },
+    {
+      "cid": "c017",
+      "item_id": "q_a55b69b2637b",
+      "citation_index": 2,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": null
+    },
+    {
+      "cid": "c018",
+      "item_id": "q_e2ec266d058b",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9998
+    },
+    {
+      "cid": "c019",
+      "item_id": "q_30b7294c15ca",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9999
+    },
+    {
+      "cid": "c020",
+      "item_id": "q_50f4aac2915d",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.5458
+    },
+    {
+      "cid": "c021",
+      "item_id": "q_53eaeaca95e9",
+      "citation_index": 5,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.2767
+    },
+    {
+      "cid": "c022",
+      "item_id": "q_d75c29853105",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "quote_mismatch"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c023",
+      "item_id": "q_d08d90922e7a",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9297
+    },
+    {
+      "cid": "c024",
+      "item_id": "q_412c0e589111",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9987
+    },
+    {
+      "cid": "c025",
+      "item_id": "q_079cdb2c4548",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9999
+    },
+    {
+      "cid": "c026",
+      "item_id": "q_3f14588369ff",
+      "citation_index": 4,
+      "status": "invalid",
+      "reasons": [
+        "partial",
+        "content_mismatch"
+      ],
+      "ce_score": 0.5199
+    },
+    {
+      "cid": "c027",
+      "item_id": "q_4285512694d5",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9493
+    },
+    {
+      "cid": "c028",
+      "item_id": "q_5f19da1d773e",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9575
+    },
+    {
+      "cid": "c029",
+      "item_id": "q_608c90f618f9",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9236
+    },
+    {
+      "cid": "c030",
+      "item_id": "q_60361c600e8c",
+      "citation_index": 3,
+      "status": "warning",
+      "reasons": [
+        "effect_unknown"
+      ],
+      "ce_score": 0.9996
+    },
+    {
+      "cid": "c031",
+      "item_id": "q_7ac172185a35",
+      "citation_index": 1,
+      "status": "invalid",
+      "reasons": [
+        "dieu_out_of_range",
+        "partial"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c032",
+      "item_id": "q_1ae307a2b19b",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "dieu_out_of_range",
+        "partial"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c033",
+      "item_id": "q_4e1e2e4d4b40",
+      "citation_index": 2,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9998
+    },
+    {
+      "cid": "c034",
+      "item_id": "q_1ae307a2b19b",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9994
+    },
+    {
+      "cid": "c035",
+      "item_id": "q_22c5e59b6350",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9959
+    },
+    {
+      "cid": "c036",
+      "item_id": "q_53eaeaca95e9",
+      "citation_index": 3,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.2767
+    },
+    {
+      "cid": "c037",
+      "item_id": "q_2ea808dd62f8",
+      "citation_index": 3,
+      "status": "invalid",
+      "reasons": [
+        "partial",
+        "content_mismatch"
+      ],
+      "ce_score": 0.0321
+    },
+    {
+      "cid": "c038",
+      "item_id": "q_0c8e8d8be940",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.5793
+    },
+    {
+      "cid": "c039",
+      "item_id": "q_3f14588369ff",
+      "citation_index": 1,
+      "status": "invalid",
+      "reasons": [
+        "partial",
+        "content_mismatch"
+      ],
+      "ce_score": 0.1566
+    },
+    {
+      "cid": "c040",
+      "item_id": "q_6736fc793193",
+      "citation_index": 18,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.8531
+    },
+    {
+      "cid": "c041",
+      "item_id": "q_9acbf880215b",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9967
+    },
+    {
+      "cid": "c042",
+      "item_id": "q_46def3d76395",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9985
+    },
+    {
+      "cid": "c043",
+      "item_id": "q_22bc2b538991",
+      "citation_index": 1,
+      "status": "invalid",
+      "reasons": [
+        "doc_not_in_kb",
+        "expired"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c044",
+      "item_id": "q_a4ec58fbfc8e",
+      "citation_index": 0,
+      "status": "unverifiable",
+      "reasons": [
+        "unresolved"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c045",
+      "item_id": "q_666819d8ce81",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "khoan_not_found",
+        "content_mismatch"
+      ],
+      "ce_score": 0.0031
+    },
+    {
+      "cid": "c046",
+      "item_id": "q_96841ac65776",
+      "citation_index": 0,
+      "status": "unverifiable",
+      "reasons": [
+        "unresolved"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c047",
+      "item_id": "q_fde65e5e1a30",
+      "citation_index": 1,
+      "status": "unverifiable",
+      "reasons": [
+        "unresolved"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c048",
+      "item_id": "q_23645cef1331",
+      "citation_index": 4,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": null
+    },
+    {
+      "cid": "c049",
+      "item_id": "q_6609d7a45252",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9454
+    },
+    {
+      "cid": "c050",
+      "item_id": "q_c10471806f12",
+      "citation_index": 2,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9997
+    },
+    {
+      "cid": "c051",
+      "item_id": "q_53eaeaca95e9",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.2767
+    },
+    {
+      "cid": "c052",
+      "item_id": "q_39caf87b911a",
+      "citation_index": 1,
+      "status": "unverifiable",
+      "reasons": [
+        "unresolved"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c053",
+      "item_id": "q_96841ac65776",
+      "citation_index": 6,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.0041
+    },
+    {
+      "cid": "c054",
+      "item_id": "q_c9edb24ea1ad",
+      "citation_index": 0,
+      "status": "unverifiable",
+      "reasons": [
+        "doc_not_found"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c055",
+      "item_id": "q_e9aaed01e5d3",
+      "citation_index": 3,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9981
+    },
+    {
+      "cid": "c056",
+      "item_id": "q_666819d8ce81",
+      "citation_index": 3,
+      "status": "unverifiable",
+      "reasons": [
+        "dieu_missing"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c057",
+      "item_id": "q_e860b926a3f4",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.997
+    },
+    {
+      "cid": "c058",
+      "item_id": "q_fb1a7288ac7b",
+      "citation_index": 0,
+      "status": "unverifiable",
+      "reasons": [
+        "unresolved"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c059",
+      "item_id": "q_094c61e95d22",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9946
+    },
+    {
+      "cid": "c060",
+      "item_id": "q_fde65e5e1a30",
+      "citation_index": 0,
+      "status": "unverifiable",
+      "reasons": [
+        "unresolved"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c061",
+      "item_id": "q_9acbf880215b",
+      "citation_index": 3,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9999
+    },
+    {
+      "cid": "c062",
+      "item_id": "q_4e1e2e4d4b40",
+      "citation_index": 1,
+      "status": "unverifiable",
+      "reasons": [
+        "doc_not_found"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c063",
+      "item_id": "q_f1e8a089f0fb",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.955
+    },
+    {
+      "cid": "c064",
+      "item_id": "q_4cece96cb079",
+      "citation_index": 3,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": null
+    },
+    {
+      "cid": "c065",
+      "item_id": "q_22e40aab3d64",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.984
+    },
+    {
+      "cid": "c066",
+      "item_id": "q_0d397b5638d5",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9855
+    },
+    {
+      "cid": "c067",
+      "item_id": "q_fde65e5e1a30",
+      "citation_index": 3,
+      "status": "unverifiable",
+      "reasons": [
+        "doc_not_in_kb"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c068",
+      "item_id": "q_fa2157046279",
+      "citation_index": 9,
+      "status": "invalid",
+      "reasons": [
+        "partial",
+        "content_mismatch"
+      ],
+      "ce_score": 0.0031
+    },
+    {
+      "cid": "c069",
+      "item_id": "q_2ea808dd62f8",
+      "citation_index": 0,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.0001
+    },
+    {
+      "cid": "c070",
+      "item_id": "q_7b1aa73a8b14",
+      "citation_index": 2,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9871
+    },
+    {
+      "cid": "c071",
+      "item_id": "q_91995f72528d",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9977
+    },
+    {
+      "cid": "c072",
+      "item_id": "q_6736fc793193",
+      "citation_index": 0,
+      "status": "unverifiable",
+      "reasons": [
+        "unresolved"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c073",
+      "item_id": "q_5f19da1d773e",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9996
+    },
+    {
+      "cid": "c074",
+      "item_id": "q_7ac172185a35",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "dieu_out_of_range",
+        "partial"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c075",
+      "item_id": "q_53eaeaca95e9",
+      "citation_index": 4,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.2767
+    },
+    {
+      "cid": "c076",
+      "item_id": "q_78eb57bbf577",
+      "citation_index": 1,
+      "status": "invalid",
+      "reasons": [
+        "dieu_out_of_range",
+        "not_yet"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c077",
+      "item_id": "q_d033d4bec304",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9998
+    },
+    {
+      "cid": "c078",
+      "item_id": "q_f8adb86c0052",
+      "citation_index": 4,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9952
+    },
+    {
+      "cid": "c079",
+      "item_id": "q_1df381bd8972",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "effect_unknown"
+      ],
+      "ce_score": 0.9309
+    },
+    {
+      "cid": "c080",
+      "item_id": "q_0d280a45f9d0",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9997
+    },
+    {
+      "cid": "c081",
+      "item_id": "q_09a93f47c828",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "partial",
+        "content_mismatch"
+      ],
+      "ce_score": 0.2929
+    },
+    {
+      "cid": "c082",
+      "item_id": "q_991d9c509a00",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9981
+    },
+    {
+      "cid": "c083",
+      "item_id": "q_0c8e8d8be940",
+      "citation_index": 4,
+      "status": "invalid",
+      "reasons": [
+        "content_mismatch"
+      ],
+      "ce_score": 0.0381
+    },
+    {
+      "cid": "c084",
+      "item_id": "q_4a472a5fd488",
+      "citation_index": 0,
+      "status": "unverifiable",
+      "reasons": [
+        "doc_not_found"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c085",
+      "item_id": "q_4e1e2e4d4b40",
+      "citation_index": 3,
+      "status": "unverifiable",
+      "reasons": [
+        "doc_not_found"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c086",
+      "item_id": "q_fde65e5e1a30",
+      "citation_index": 2,
+      "status": "unverifiable",
+      "reasons": [
+        "doc_not_in_kb"
+      ],
+      "ce_score": null
+    },
+    {
+      "cid": "c087",
+      "item_id": "q_cae734535b83",
+      "citation_index": 2,
+      "status": "invalid",
+      "reasons": [
+        "partial",
+        "content_mismatch"
+      ],
+      "ce_score": 0.005
+    },
+    {
+      "cid": "c088",
+      "item_id": "q_3966d51b47e3",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.998
+    },
+    {
+      "cid": "c089",
+      "item_id": "q_1df381bd8972",
+      "citation_index": 2,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9786
+    },
+    {
+      "cid": "c090",
+      "item_id": "q_1d55c37d5455",
+      "citation_index": 0,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9954
+    },
+    {
+      "cid": "c091",
+      "item_id": "q_4806a68549b1",
+      "citation_index": 1,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.9999
+    },
+    {
+      "cid": "c092",
+      "item_id": "q_a91fee400eb2",
+      "citation_index": 2,
+      "status": "warning",
+      "reasons": [
+        "partial"
+      ],
+      "ce_score": 0.8887
+    },
+    {
+      "cid": "c093",
+      "item_id": "q_507b12bc9630",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9999
+    },
+    {
+      "cid": "c094",
+      "item_id": "q_321964c7c86d",
+      "citation_index": 1,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": null
+    },
+    {
+      "cid": "c095",
+      "item_id": "q_c9a942fe9084",
+      "citation_index": 0,
+      "status": "valid",
+      "reasons": [],
+      "ce_score": 0.9987
+    }
+  ]
+}

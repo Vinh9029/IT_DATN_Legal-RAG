@@ -71,6 +71,12 @@ python scripts/offline_rag/05_build_neo4j.py
 # Docker Qdrant Dashboard : http://localhost:6333/dashboard (551,020 vectors)
 # Docker Neo4j Browser    : http://localhost:7474           (Graph relationships)
 
+# 2.4. Dựng chỉ mục kiểm chứng trích dẫn (Stage 6 — Citation Verification)
+# (Cần chunks.jsonl ở trên + metadata HF trong HF_HOME; ~1 phút, ~1,2GB)
+# Thiếu file này thì Stage 6 tự tắt (log "Stage 6 tắt"), API vẫn chạy bình thường.
+# Tắt hẳn Stage 6: đặt CITATION_VERIFY=0 trong backend/.env; tắt riêng bước tự sửa: CITATION_REPAIR=0
+python scripts/offline_rag/06_build_citation_index.py
+
 
 # ------------------------------------------------------------
 # BƯỚC 4: Khởi chạy FastAPI Backend Server

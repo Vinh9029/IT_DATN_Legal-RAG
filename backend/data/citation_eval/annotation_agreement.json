@@ -1,0 +1,45 @@
+{
+  "label_correct_document": {
+    "n": 95,
+    "kappa": 0.6199,
+    "raw_agreement": 0.8211
+  },
+  "label_article_exists": {
+    "n": 95,
+    "kappa": 0.5678,
+    "raw_agreement": 0.8211
+  },
+  "label_supports_claim": {
+    "n": 95,
+    "kappa": 0.6454,
+    "raw_agreement": 0.8211
+  },
+  "verifier_vs_consensus": {
+    "n_consensus": 65,
+    "confusion": {
+      "ok->invalid": 2,
+      "bad->valid": 12,
+      "bad->unverifiable": 14,
+      "ok->valid": 5,
+      "bad->warning": 9,
+      "ok->warning": 7,
+      "bad->invalid": 16
+    },
+    "sample": {
+      "precision_invalid": 0.8889,
+      "recall_invalid": 0.3137
+    },
+    "population_weighted": {
+      "precision_invalid": 0.8889,
+      "recall_invalid": 0.2669,
+      "share_bad_citations": 0.7048,
+      "stratum_weights": {
+        "valid": 10.567,
+        "invalid": 5.12,
+        "unverifiable": 1.0,
+        "warning": 9.36
+      }
+    },
+    "note": "Báo cáo population_weighted cho toàn bộ trích dẫn D3; 'sample' chỉ để đối chiếu."
+  }
+}
