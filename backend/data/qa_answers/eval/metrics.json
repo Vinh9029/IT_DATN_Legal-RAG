@@ -1,0 +1,162 @@
+[
+ {
+  "system": "teacher",
+  "group": "all",
+  "n": 210,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 0.5,
+  "words_mean": 315
+ },
+ {
+  "system": "teacher",
+  "group": "broad",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 1.4,
+  "words_mean": 395
+ },
+ {
+  "system": "teacher",
+  "group": "narrow/citation",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 0.0,
+  "words_mean": 138
+ },
+ {
+  "system": "teacher",
+  "group": "narrow/situation",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 0.0,
+  "words_mean": 413
+ },
+ {
+  "system": "qwen3b_base",
+  "group": "all",
+  "n": 210,
+  "citation_outside_context_%": 1.9,
+  "style_ok_%": 66.7,
+  "loop_%": 0.0,
+  "no_citation_%": 13.8,
+  "words_mean": 162
+ },
+ {
+  "system": "qwen3b_base",
+  "group": "broad",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 30.0,
+  "words_mean": 224
+ },
+ {
+  "system": "qwen3b_base",
+  "group": "narrow/citation",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 4.3,
+  "words_mean": 98
+ },
+ {
+  "system": "qwen3b_base",
+  "group": "narrow/situation",
+  "n": 70,
+  "citation_outside_context_%": 5.7,
+  "style_ok_%": 0.0,
+  "loop_%": 0.0,
+  "no_citation_%": 7.1,
+  "words_mean": 166
+ },
+ {
+  "system": "qwen3b_ft",
+  "group": "all",
+  "n": 210,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 99.5,
+  "loop_%": 0.0,
+  "no_citation_%": 1.9,
+  "words_mean": 318
+ },
+ {
+  "system": "qwen3b_ft",
+  "group": "broad",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 4.3,
+  "words_mean": 397
+ },
+ {
+  "system": "qwen3b_ft",
+  "group": "narrow/citation",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 1.4,
+  "words_mean": 131
+ },
+ {
+  "system": "qwen3b_ft",
+  "group": "narrow/situation",
+  "n": 70,
+  "citation_outside_context_%": 0.0,
+  "style_ok_%": 98.6,
+  "loop_%": 0.0,
+  "no_citation_%": 0.0,
+  "words_mean": 427
+ },
+ {
+  "system": "llama8b",
+  "group": "all",
+  "n": 210,
+  "citation_outside_context_%": 1.4,
+  "style_ok_%": 66.7,
+  "loop_%": 0.0,
+  "no_citation_%": 28.6,
+  "words_mean": 137
+ },
+ {
+  "system": "llama8b",
+  "group": "broad",
+  "n": 70,
+  "citation_outside_context_%": 1.4,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 8.6,
+  "words_mean": 193
+ },
+ {
+  "system": "llama8b",
+  "group": "narrow/citation",
+  "n": 70,
+  "citation_outside_context_%": 1.4,
+  "style_ok_%": 100.0,
+  "loop_%": 0.0,
+  "no_citation_%": 62.9,
+  "words_mean": 76
+ },
+ {
+  "system": "llama8b",
+  "group": "narrow/situation",
+  "n": 70,
+  "citation_outside_context_%": 1.4,
+  "style_ok_%": 0.0,
+  "loop_%": 0.0,
+  "no_citation_%": 14.3,
+  "words_mean": 143
+ }
+]

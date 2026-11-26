@@ -103,3 +103,11 @@ backend/data/corpus_civil/*
 # Không bắt buộc — mặc định cứ để JUDGE_* trong .env ở root là đủ.
 backend/config/qa.env
 backend/data/citation_eval/_cache/
+
+# --- QA answers (script 23–25) ---
+# Cache tạo lại được, log stderr của job chạy nền.
+backend/data/qa_answers/_cache/
+backend/data/qa_answers/*.err
+!backend/data/qa_answers/eval/*.jsonl
+backend/models/qa_student_qwen3b_lora/*
+!backend/models/qa_student_qwen3b_lora/train_config.json

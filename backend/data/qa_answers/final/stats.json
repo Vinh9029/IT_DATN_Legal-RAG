@@ -1,0 +1,37 @@
+{
+ "train": {
+  "n": 4560,
+  "dropped": {
+   "citation_outside_context": 11,
+   "no_answer": 17
+  },
+  "levels": {
+   "full": 3684,
+   "partial": 765,
+   "general": 111
+  }
+ },
+ "validation": {
+  "n": 966,
+  "dropped": {
+   "citation_outside_context": 3,
+   "no_answer": 1
+  },
+  "levels": {
+   "partial": 164,
+   "full": 778,
+   "general": 24
+  }
+ },
+ "test": {
+  "n": 946,
+  "dropped": {
+   "no_answer": 2
+  },
+  "levels": {
+   "full": 771,
+   "partial": 162,
+   "general": 13
+  }
+ }
+}
